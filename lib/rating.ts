@@ -1,0 +1,254 @@
+import type { RankDef, Difficulty, Song, Score, ScoreWithRating, RatingData, RatingPool } from './types';
+
+// ─── Rank definitions (from myjian/mai-tools) ───────────────────────────────
+export const RANK_DEFINITIONS: RankDef[] = [
+  { minAchv: 100.5, factor: 0.224, title: 'SSS+' },
+  { minAchv: 100.0, factor: 0.216, title: 'SSS' },
+  { minAchv:  99.5, factor: 0.211, title: 'SS+' },
+  { minAchv:  99.0, factor: 0.208, title: 'SS' },
+  { minAchv:  98.0, factor: 0.203, title: 'S+' },
+  { minAchv:  97.0, factor: 0.200, title: 'S' },
+  { minAchv:  94.0, factor: 0.168, title: 'AAA' },
+  { minAchv:  90.0, factor: 0.152, title: 'AA' },
+  { minAchv:  80.0, factor: 0.136, title: 'A' },
+  { minAchv:  75.0, factor: 0.120, title: 'BBB' },
+  { minAchv:  70.0, factor: 0.112, title: 'BB' },
+  { minAchv:  60.0, factor: 0.096, title: 'B' },
+  { minAchv:  50.0, factor: 0.080, title: 'C' },
+  { minAchv:   0.0, factor: 0.000, title: 'D' },
+];
+
+export const NUM_TOP_NEW = 15;
+export const NUM_TOP_OLD = 35;
+
+// ─── Rank utilities ──────────────────────────────────────────────────────────
+
+export function getRankDef(achievement: number): RankDef {
+  for (const rank of RANK_DEFINITIONS) {
+    if (achievement >= rank.minAchv) return rank;
+  }
+  return RANK_DEFINITIONS[RANK_DEFINITIONS.length - 1];
+}
+
+export function getRankTitle(achievement: number): string {
+  return getRankDef(achievement).title;
+}
+
+/**
+ * Return the exact rank factor for a given achievement score.
+ * Maimai DX uses static factors per bracket.
+ */
+export function getRankFactor(achievement: number): number {
+  return getRankDef(achievement).factor;
+}
+
+// ─── Rating calculation ──────────────────────────────────────────────────────
+
+/**
+ * Calculate the DX Rating contribution of a single chart.
+ * formula: floor(internalLevel * factor * 100) / 100
+ * Capped at internal level 15.0 for calculation purposes.
+ */
+export function calcSingleRating(internalLevel: number, achievement: number, fc?: string | null): number {
+  const factor = getRankFactor(achievement);
+  // Official DX Rating formula: floor(internalLevel * min(achievement, 100.5) * rankFactor / 100)
+  // Our 'factor' table already divides the rankFactor by 100 (e.g. 0.224 instead of 22.4)
+  // To avoid floating point precision issues rounding down incorrectly, we add a tiny epsilon
+  let rating = Math.floor(internalLevel * Math.min(achievement, 100.5) * factor + 1e-9);
+  
+  // +1 bonus for AP / AP+
+  if (fc === 'AP' || fc === 'AP+') {
+    rating += 1;
+  }
+  
+  return rating;
+}
+
+/**
+ * Parse internal level string (e.g. "14.9", "15.0") to a number.
+ * Returns the display level (e.g. "14+") parsed as a number as fallback.
+ */
+export function parseInternalLevel(internalLv: string | undefined, displayLv: string | undefined): number {
+  if (internalLv) {
+    const parsed = parseFloat(internalLv);
+    if (!isNaN(parsed)) return parsed;
+  }
+  if (displayLv) {
+    const clean = displayLv.replace('+', '.7');
+    const parsed = parseFloat(clean);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
+/**
+ * Get the internal level for a specific difficulty from a Song object.
+ */
+export function getSongInternalLevel(song: Song, difficulty: Difficulty): number {
+  const internalMap: Record<Difficulty, string | undefined> = {
+    BAS:   song.lev_bas_i,
+    ADV:   song.lev_adv_i,
+    EXP:   song.lev_exp_i,
+    MAS:   song.lev_mas_i,
+    REMAS: song.lev_remas_i,
+  };
+  const displayMap: Record<Difficulty, string | undefined> = {
+    BAS:   song.lev_bas,
+    ADV:   song.lev_adv,
+    EXP:   song.lev_exp,
+    MAS:   song.lev_mas,
+    REMAS: song.lev_remas,
+  };
+  return parseInternalLevel(internalMap[difficulty], displayMap[difficulty]);
+}
+
+// ─── Full DX Rating computation ──────────────────────────────────────────────
+
+/**
+ * Given a list of best scores with their songs, compute the full DX Rating.
+ * Automatically splits by NEW (current version) vs OLD (older versions).
+ */
+export function computeRating(
+  scores: Score[],
+  songDb: Map<string, Song>,
+  currentVersion: number
+): RatingData & { allScores: ScoreWithRating[] } {
+  const scored: ScoreWithRating[] = scores.map(score => {
+    const song = songDb.get(score.songTitle);
+    const internalLevel = song
+      ? getSongInternalLevel(song, score.difficulty)
+      : 0;
+    const achievement = typeof score.achievement === 'string'
+      ? parseFloat(score.achievement)
+      : score.achievement;
+    const rating = calcSingleRating(internalLevel, achievement, score.fc);
+    
+    // The New score pool always consists of the current version and the previous version (currentVersion - 500)
+    const poolThreshold = currentVersion - 500;
+    const pool: RatingPool = song && parseInt(song.version) >= poolThreshold ? 'new' : 'old';
+    
+    return {
+      ...score,
+      internalLevel,
+      rating,
+      pool,
+      rank: getRankTitle(achievement),
+      song,
+    };
+  });
+
+  // Calculate highest score in each difficulty first (deduplicate)
+  const allBestScores = deduplicateBest(scored);
+
+  // Then filter by new/old pool based on song version
+  const newPool = allBestScores.filter(s => s.pool === 'new');
+  const oldPool = allBestScores.filter(s => s.pool === 'old');
+
+  // Sort descending by rating, take top N
+  newPool.sort((a, b) => b.rating - a.rating);
+  oldPool.sort((a, b) => b.rating - a.rating);
+
+  const topNew = newPool.slice(0, NUM_TOP_NEW);
+  const topOld = oldPool.slice(0, NUM_TOP_OLD);
+
+  const newRating = Math.floor(topNew.reduce((sum, s) => sum + s.rating, 0));
+  const oldRating = Math.floor(topOld.reduce((sum, s) => sum + s.rating, 0));
+
+  return {
+    totalRating: newRating + oldRating,
+    newRating,
+    oldRating,
+    newCharts: topNew,
+    oldCharts: topOld,
+    allScores: [...newPool, ...oldPool]
+  };
+}
+
+/** Keep only the best score (by rating) per song+difficulty combo */
+function deduplicateBest(scores: ScoreWithRating[]): ScoreWithRating[] {
+  const map = new Map<string, ScoreWithRating>();
+  for (const score of scores) {
+    const key = `${score.songTitle}::${score.difficulty}`;
+    const existing = map.get(key);
+    if (!existing || score.rating > existing.rating) {
+      map.set(key, score);
+    }
+  }
+  return Array.from(map.values());
+}
+
+// ─── Target suggestions ──────────────────────────────────────────────────────
+
+export interface TargetSuggestion {
+  songTitle: string;
+  difficulty: Difficulty;
+  internalLevel: number;
+  currentAchievement: number;
+  currentRank: string;
+  currentRating: number;
+  targetRank: string;
+  targetAchievement: number;
+  targetRating: number;
+  ratingGain: number;
+}
+
+/**
+ * Generate suggestions for the biggest rating gains the user can make.
+ * Looks at the boundary score of each pool and finds charts where
+ * improving to the next rank threshold would push them into the top pool.
+ */
+export function getTargetSuggestions(
+  ratingData: RatingData,
+  allScores: ScoreWithRating[],
+  limit = 10,
+): TargetSuggestion[] {
+  const suggestions: TargetSuggestion[] = [];
+
+  // The minimum rating in the current top pools
+  const newCutoff = ratingData.newCharts.length === NUM_TOP_NEW
+    ? ratingData.newCharts[NUM_TOP_NEW - 1].rating
+    : 0;
+  const oldCutoff = ratingData.oldCharts.length === NUM_TOP_OLD
+    ? ratingData.oldCharts[NUM_TOP_OLD - 1].rating
+    : 0;
+
+  for (const score of allScores) {
+    const cutoff = score.pool === 'new' ? newCutoff : oldCutoff;
+    const nextRankDef = getNextRankTarget(score.achievement);
+    if (!nextRankDef) continue;
+
+    const targetRating = calcSingleRating(score.internalLevel, nextRankDef.minAchv);
+    const ratingGain = targetRating - score.rating;
+    if (ratingGain <= 0) continue;
+
+    // Only suggest if it would improve or enter the top pool
+    if (targetRating <= cutoff && score.pool === 'new' && ratingData.newCharts.length >= NUM_TOP_NEW) continue;
+    if (targetRating <= cutoff && score.pool === 'old' && ratingData.oldCharts.length >= NUM_TOP_OLD) continue;
+
+    suggestions.push({
+      songTitle: score.songTitle,
+      difficulty: score.difficulty,
+      internalLevel: score.internalLevel,
+      currentAchievement: typeof score.achievement === 'string'
+        ? parseFloat(score.achievement)
+        : score.achievement,
+      currentRank: score.rank,
+      currentRating: score.rating,
+      targetRank: nextRankDef.title,
+      targetAchievement: nextRankDef.minAchv,
+      targetRating,
+      ratingGain,
+    });
+  }
+
+  suggestions.sort((a, b) => b.ratingGain - a.ratingGain);
+  return suggestions.slice(0, limit);
+}
+
+function getNextRankTarget(achievement: number): RankDef | null {
+  const ranks = RANK_DEFINITIONS;
+  for (let i = ranks.length - 1; i >= 0; i--) {
+    if (ranks[i].minAchv > achievement) return ranks[i];
+  }
+  return null;
+}

@@ -1,26 +1,187 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #07060e;
+  --surface: #100e1f;
+  --surface-2: #17142d;
+  --surface-3: #1e1a3a;
+  --border: rgba(139, 92, 246, 0.15);
+  --border-bright: rgba(139, 92, 246, 0.35);
+  --foreground: #f0eeff;
+  --foreground-muted: rgba(240, 238, 255, 0.55);
+  --foreground-subtle: rgba(240, 238, 255, 0.3);
+
+  /* Maimai accent colors */
+  --accent-pink: #f472b6;
+  --accent-purple: #a78bfa;
+  --accent-violet: #7c3aed;
+  --accent-cyan: #22d3ee;
+  --accent-green: #4ade80;
+  --accent-yellow: #facc15;
+  --accent-orange: #fb923c;
+
+  /* Difficulty colors */
+  --diff-basic: #66bb6a;
+  --diff-advanced: #ffb300;
+  --diff-expert: #ef5350;
+  --diff-master: #ab47bc;
+  --diff-remaster: #e0f2fe;
+
+  /* Rank colors */
+  --rank-sssplus: #f9a8d4;
+  --rank-sss: #f472b6;
+  --rank-ssplus: #c084fc;
+  --rank-ss: #a78bfa;
+  --rank-splus: #818cf8;
+  --rank-s: #60a5fa;
+  --rank-aaa: #fbbf24;
+  --rank-aa: #fb923c;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Inter", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Inter", sans-serif;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-violet);
+}
+
+/* Glass card utility */
+.glass {
+  background: rgba(16, 14, 31, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+}
+
+.glass-bright {
+  background: rgba(22, 18, 44, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-bright);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effects */
+.glow-pink {
+  box-shadow: 0 0 20px rgba(244, 114, 182, 0.2), 0 0 60px rgba(244, 114, 182, 0.05);
+}
+.glow-purple {
+  box-shadow: 0 0 20px rgba(167, 139, 250, 0.2), 0 0 60px rgba(167, 139, 250, 0.05);
+}
+
+/* Animated gradient background */
+.bg-mesh {
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(124, 58, 237, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(244, 114, 182, 0.1) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 50% 50%, rgba(34, 211, 238, 0.04) 0%, transparent 70%),
+    var(--background);
+}
+
+/* Difficulty badge colors */
+.diff-basic   { background: rgba(102, 187, 106, 0.15); color: #86efac; border-color: rgba(102, 187, 106, 0.3); }
+.diff-advanced { background: rgba(255, 179, 0, 0.15); color: #fcd34d; border-color: rgba(255, 179, 0, 0.3); }
+.diff-expert  { background: rgba(239, 83, 80, 0.15); color: #fca5a5; border-color: rgba(239, 83, 80, 0.3); }
+.diff-master  { background: rgba(171, 71, 188, 0.15); color: #d8b4fe; border-color: rgba(171, 71, 188, 0.3); }
+.diff-remaster { background: rgba(224, 242, 254, 0.1); color: #e0f2fe; border-color: rgba(224, 242, 254, 0.25); }
+
+/* Rank badge styles */
+.rank-sssplus { background: rgba(249, 168, 212, 0.15); color: #f9a8d4; }
+.rank-sss     { background: rgba(244, 114, 182, 0.15); color: #f472b6; }
+.rank-ssplus  { background: rgba(192, 132, 252, 0.15); color: #c084fc; }
+.rank-ss      { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
+.rank-splus   { background: rgba(129, 140, 248, 0.15); color: #818cf8; }
+.rank-s       { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+.rank-aaa     { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.rank-aa      { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
+
+/* Smooth transitions */
+.transition-all { transition: all 0.2s ease; }
+
+/* Hover card effect */
+.card-hover {
+  transition: all 0.2s ease;
+}
+.card-hover:hover {
+  border-color: var(--border-bright);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.15);
+}
+
+/* Number font */
+.font-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Spin animation */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Pulse glow animation */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Slide up animation */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s ease forwards;
+}
+
+/* Progress bar */
+.progress-bar {
+  background: linear-gradient(90deg, var(--accent-violet), var(--accent-pink));
+  border-radius: 9999px;
+  transition: width 0.6s ease;
 }
