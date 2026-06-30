@@ -102,17 +102,59 @@ export function getSongInternalLevel(song: Song, difficulty: Difficulty): number
   return parseInternalLevel(internalMap[difficulty], displayMap[difficulty]);
 }
 
+/**
+ * Derive all unique "big" versions (multiples of 500) present in the song DB,
+ * sorted descending. E.g. [26500, 26000, 25500, 25000, …]
+ *
+ * A "big version" is a major maimai DX release (PRiSM, CiRCLE, etc.).
+ * Mid-update songs (version 26001, 26002 …) are folded into their parent
+ * big version via floor-to-nearest-500.
+ */
+export function deriveBigVersions(songDb: Map<string, Song>): number[] {
+  const seen = new Set<number>();
+  for (const song of songDb.values()) {
+    const v = parseInt(song.version, 10);
+    if (!isNaN(v) && v > 0) {
+      seen.add(Math.floor(v / 500) * 500);
+    }
+  }
+  return Array.from(seen).sort((a, b) => b - a);
+}
+
+/**
+ * Compute the pool threshold for the "new" (B15) pool.
+ *
+ * The new pool always covers the 2 most recent big versions and ALL their
+ * mid-update songs (e.g. for CiRCLE + PRiSM PLUS: any song with
+ * version >= 26000 is "new", including 26001, 26002, … 26499, 26500, …).
+ *
+ * When the game updates to a new big version (e.g. 27000), the big-versions
+ * list becomes [27000, 26500, 26000, …] and the threshold automatically
+ * shifts to 26500.
+ */
+export function getNewPoolThreshold(songDb: Map<string, Song>): number {
+  const bigVersions = deriveBigVersions(songDb);
+  // bigVersions[0] = current big version
+  // bigVersions[1] = previous big version  ← this is our threshold
+  return bigVersions[1] ?? bigVersions[0] ?? 0;
+}
+
 // ─── Full DX Rating computation ──────────────────────────────────────────────
 
 /**
  * Given a list of best scores with their songs, compute the full DX Rating.
- * Automatically splits by NEW (current version) vs OLD (older versions).
+ * Automatically splits by NEW (current + previous big version) vs OLD.
  */
 export function computeRating(
   scores: Score[],
   songDb: Map<string, Song>,
   currentVersion: number
 ): RatingData & { allScores: ScoreWithRating[] } {
+  // Derive pool threshold from actual big versions in the song DB.
+  // This is robust against mid-update version numbers (26001 etc.) and
+  // auto-adjusts when a new major version ships.
+  const poolThreshold = getNewPoolThreshold(songDb);
+
   const scored: ScoreWithRating[] = scores.map(score => {
     const song = songDb.get(score.songTitle);
     const internalLevel = song
@@ -122,11 +164,11 @@ export function computeRating(
       ? parseFloat(score.achievement)
       : score.achievement;
     const rating = calcSingleRating(internalLevel, achievement, score.fc);
-    
-    // The New score pool always consists of the current version and the previous version (currentVersion - 500)
-    const poolThreshold = currentVersion - 500;
+
+    // Song is "new" if its version is in the 2 most recent big versions
+    // (i.e. version number >= the second-latest big version)
     const pool: RatingPool = song && parseInt(song.version) >= poolThreshold ? 'new' : 'old';
-    
+
     return {
       ...score,
       internalLevel,
@@ -137,14 +179,12 @@ export function computeRating(
     };
   });
 
-  // Calculate highest score in each difficulty first (deduplicate)
+  // Deduplicate to best score per (song, difficulty) before pool filtering
   const allBestScores = deduplicateBest(scored);
 
-  // Then filter by new/old pool based on song version
   const newPool = allBestScores.filter(s => s.pool === 'new');
   const oldPool = allBestScores.filter(s => s.pool === 'old');
 
-  // Sort descending by rating, take top N
   newPool.sort((a, b) => b.rating - a.rating);
   oldPool.sort((a, b) => b.rating - a.rating);
 
@@ -160,7 +200,7 @@ export function computeRating(
     oldRating,
     newCharts: topNew,
     oldCharts: topOld,
-    allScores: [...newPool, ...oldPool]
+    allScores: [...newPool, ...oldPool],
   };
 }
 
