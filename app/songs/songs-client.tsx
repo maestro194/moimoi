@@ -10,20 +10,37 @@ interface Props {
   categories: string[];
 }
 
-// ── Version labels ────────────────────────────────────────────────────────────
+// ── Version labels (derived from song_cache version numbers in DB) ────────────
 const VERSION_NAMES: Record<string, string> = {
-  '10000': 'maimai DX', '11000': 'DX PLUS',
-  '12000': 'Splash',    '12500': 'Splash PLUS',
-  '13000': 'UNiVERSE',  '13500': 'UNiVERSE PLUS',
-  '14000': 'FESTiVAL',  '14500': 'FESTiVAL PLUS',
-  '15000': 'BUDDiES',   '15500': 'BUDDiES PLUS',
-  '16000': 'PRiSM',
-  '22000': 'Splash',    '22500': 'Splash PLUS',
-  '23000': 'UNiVERSE PLUS', '23500': 'UNiVERSE',
-  '24000': 'FESTiVAL PLUS', '24500': 'FESTiVAL',
-  '25000': 'BUDDiES PLUS',  '25500': 'BUDDiES',
-  '26000': 'PRiSM PLUS',    '26500': 'PRiSM',
-  '27000': 'CiRCLE PLUS',
+  // ── International server (20000+) ─────────────────────────────────────────
+  '20000': 'maimai DX',
+  '20500': 'DX PLUS',
+  '21000': 'Splash',
+  '21500': 'Splash PLUS',
+  '22000': 'UNiVERSE',
+  '22500': 'UNiVERSE PLUS',
+  '23000': 'FESTiVAL',
+  '23500': 'FESTiVAL PLUS',
+  '24000': 'BUDDiES',
+  '24500': 'BUDDiES PLUS',
+  '25000': 'PRiSM',
+  '25500': 'PRiSM PLUS',
+  '26000': 'CiRCLE',
+  '26500': 'CiRCLE PLUS',
+  // ── JP-era songs in the intl DB (10000–19999) ─────────────────────────────
+  '10000': 'maimai DX (JP)',
+  '11000': 'DX PLUS (JP)',
+  '12000': 'Splash (JP)',
+  '13000': 'Splash PLUS (JP)',
+  '14000': 'UNiVERSE (JP)',
+  '15000': 'UNiVERSE PLUS (JP)',
+  '16000': 'FESTiVAL (JP)',
+  '17000': 'FESTiVAL PLUS (JP)',
+  '18000': 'BUDDiES (JP)',
+  '18500': 'BUDDiES PLUS (JP)',
+  '19000': 'PRiSM (JP)',
+  '19500': 'PRiSM PLUS (JP)',
+  '19900': 'CiRCLE (JP)',
 };
 
 function versionLabel(v: string) {

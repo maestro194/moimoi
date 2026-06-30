@@ -3,7 +3,7 @@ import type { RankDef, Difficulty, Song, Score, ScoreWithRating, RatingData, Rat
 // ─── Rank definitions (from myjian/mai-tools) ───────────────────────────────
 export const RANK_DEFINITIONS: RankDef[] = [
   { minAchv: 100.5, factor: 0.224, title: 'SSS+' },
-  { minAchv: 100.0, factor: 0.216, title: 'SSS' },
+  { minAchv: 100.0, factor: 0.222, title: 'SSS'  },
   { minAchv:  99.5, factor: 0.211, title: 'SS+' },
   { minAchv:  99.0, factor: 0.208, title: 'SS' },
   { minAchv:  98.0, factor: 0.203, title: 'S+' },
