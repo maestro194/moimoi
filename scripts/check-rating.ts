@@ -9,7 +9,7 @@ async function main() {
   const songMap = buildSongMap(songs);
   const currentVersion = detectCurrentVersion(songs);
   const bigVersions = deriveBigVersions(songMap);
-  const threshold = getNewPoolThreshold(songMap);
+  const threshold = getNewPoolThreshold(songMap, currentVersion);
 
   console.log(`\ncurrentVersion (detected): ${currentVersion}`);
   console.log(`Top big versions: ${bigVersions.slice(0, 5).join(', ')}`);

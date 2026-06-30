@@ -191,15 +191,16 @@ export default function SettingsClient() {
           }}
         >
           <option value="">Auto-detect (Latest available)</option>
-          <option value="27000">maimai DX CiRCLE PLUS (27000)</option>
-          <option value="26500">maimai DX CiRCLE (26500)</option>
-          <option value="26000">maimai DX PRiSM PLUS (26000)</option>
-          <option value="25500">maimai DX PRiSM (25500)</option>
-          <option value="25000">maimai DX BUDDiES PLUS (25000)</option>
-          <option value="24500">maimai DX BUDDiES (24500)</option>
-          <option value="24000">maimai DX FESTiVAL PLUS (24000)</option>
-          <option value="23500">maimai DX FESTiVAL (23500)</option>
-          <option value="23000">maimai DX UNiVERSE PLUS (23000)</option>
+          <option value="26500">maimai DX CiRCLE PLUS (26500)</option>
+          <option value="26000">maimai DX CiRCLE (26000)</option>
+          <option value="25500">maimai DX PRiSM PLUS (25500)</option>
+          <option value="25000">maimai DX PRiSM (25000)</option>
+          <option value="24500">maimai DX BUDDiES PLUS (24500)</option>
+          <option value="24000">maimai DX BUDDiES (24000)</option>
+          <option value="23500">maimai DX FESTiVAL PLUS (23500)</option>
+          <option value="23000">maimai DX FESTiVAL (23000)</option>
+          <option value="22500">maimai DX UNiVERSE PLUS (22500)</option>
+          <option value="22000">maimai DX UNiVERSE (22000)</option>
         </select>
       </div>
 

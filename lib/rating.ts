@@ -3,7 +3,7 @@ import type { RankDef, Difficulty, Song, Score, ScoreWithRating, RatingData, Rat
 // ─── Rank definitions (from myjian/mai-tools) ───────────────────────────────
 export const RANK_DEFINITIONS: RankDef[] = [
   { minAchv: 100.5, factor: 0.224, title: 'SSS+' },
-  { minAchv: 100.0, factor: 0.222, title: 'SSS'  },
+  { minAchv: 100.0, factor: 0.216, title: 'SSS'  },
   { minAchv:  99.5, factor: 0.211, title: 'SS+' },
   { minAchv:  99.0, factor: 0.208, title: 'SS' },
   { minAchv:  98.0, factor: 0.203, title: 'S+' },
@@ -124,19 +124,22 @@ export function deriveBigVersions(songDb: Map<string, Song>): number[] {
 /**
  * Compute the pool threshold for the "new" (B15) pool.
  *
- * The new pool always covers the 2 most recent big versions and ALL their
- * mid-update songs (e.g. for CiRCLE + PRiSM PLUS: any song with
- * version >= 26000 is "new", including 26001, 26002, … 26499, 26500, …).
+ * The new pool covers the 2 most recent big versions at or before `currentVersion`
+ * and ALL their mid-update songs.
  *
- * When the game updates to a new big version (e.g. 27000), the big-versions
- * list becomes [27000, 26500, 26000, …] and the threshold automatically
- * shifts to 26500.
+ * Examples (with all big versions [26500, 26000, 25500, 25000, …]):
+ *   currentVersion = 26500 → threshold = 26000  (CiRCLE + CiRCLE PLUS are new)
+ *   currentVersion = 25500 → threshold = 25000  (PRiSM + PRiSM PLUS are new)
+ *
+ * When a user overrides the version in Settings, this function automatically
+ * adjusts which pool songs fall into.
  */
-export function getNewPoolThreshold(songDb: Map<string, Song>): number {
+export function getNewPoolThreshold(songDb: Map<string, Song>, currentVersion: number): number {
   const bigVersions = deriveBigVersions(songDb);
-  // bigVersions[0] = current big version
-  // bigVersions[1] = previous big version  ← this is our threshold
-  return bigVersions[1] ?? bigVersions[0] ?? 0;
+  // Keep only big versions at or below the selected/detected current version
+  const relevant = bigVersions.filter(v => v <= currentVersion);
+  // relevant[0] = current big version, relevant[1] = previous big version
+  return relevant[1] ?? relevant[0] ?? 0;
 }
 
 // ─── Full DX Rating computation ──────────────────────────────────────────────
@@ -150,10 +153,10 @@ export function computeRating(
   songDb: Map<string, Song>,
   currentVersion: number
 ): RatingData & { allScores: ScoreWithRating[] } {
-  // Derive pool threshold from actual big versions in the song DB.
-  // This is robust against mid-update version numbers (26001 etc.) and
-  // auto-adjusts when a new major version ships.
-  const poolThreshold = getNewPoolThreshold(songDb);
+  // Derive pool threshold from the big versions at or before currentVersion.
+  // This respects the user's version override from Settings:
+  // e.g. if override = 25500 (PRiSM PLUS), threshold = 25000 (PRiSM).
+  const poolThreshold = getNewPoolThreshold(songDb, currentVersion);
 
   const scored: ScoreWithRating[] = scores.map(score => {
     const song = songDb.get(score.songTitle);
