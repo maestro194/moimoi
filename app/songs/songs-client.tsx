@@ -168,19 +168,14 @@ function DiffCell({ data, diff, kanji }: { data?: DiffData; diff: string; kanji?
   );
 }
 
-/** DX "でらっくす" or STD "スタンダード" badge. */
 function TypeBadge({ type }: { type: 'DX' | 'STD' }) {
   const isDX = type === 'DX';
   return (
-    <span
-      className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
-      style={{
-        background: isDX ? '#0e7b5e' : '#7a5500',
-        color: isDX ? '#b2f0e0' : '#fde8a0',
-      }}
-    >
-      {isDX ? 'でらっくす' : 'スタンダード'}
-    </span>
+    <img
+      src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
+      alt={isDX ? 'DX' : 'STD'}
+      className="h-3.5 mx-auto object-contain"
+    />
   );
 }
 

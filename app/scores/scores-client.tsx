@@ -371,15 +371,11 @@ function B50Card({ score: s }: { score: ScoreWithRating }) {
       <div className="relative h-full flex flex-col justify-between p-2 z-10">
         {/* Top: DX/STD Badge + Level Badge */}
         <div className="flex justify-between items-start">
-          <span
-            className="inline-block text-[9px] font-bold px-1 py-0.5 rounded leading-none"
-            style={{
-              background: isDX ? '#0e7b5e' : '#7a5500',
-              color: isDX ? '#b2f0e0' : '#fde8a0',
-            }}
-          >
-            {isDX ? 'でらっくす' : 'スタンダード'}
-          </span>
+          <img
+            src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
+            alt={isDX ? 'DX' : 'STD'}
+            className="h-[14px] mt-0.5 object-contain"
+          />
           <span
             className="text-[10px] font-bold px-1.5 py-0.5 rounded leading-none tabular-nums"
             style={{ background: diffColor, color: '#fff' }}
