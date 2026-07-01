@@ -60,6 +60,12 @@ export const songCache = pgTable('song_cache', {
   levExpI: text('lev_exp_i'),
   levMasI: text('lev_mas_i'),
   levRemasI: text('lev_remas_i'),
+  // DX chart display levels
+  dxLevBas: text('dx_lev_bas'),
+  dxLevAdv: text('dx_lev_adv'),
+  dxLevExp: text('dx_lev_exp'),
+  dxLevMas: text('dx_lev_mas'),
+  dxLevRemas: text('dx_lev_remas'),
   // DX chart internal levels (preserved separately — critical for songs with both STD+DX)
   dxLevBasI: text('dx_lev_bas_i'),
   dxLevAdvI: text('dx_lev_adv_i'),
