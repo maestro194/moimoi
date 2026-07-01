@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Trophy, LayoutGrid, List } from 'lucide-react';
+import { Search, Trophy, LayoutGrid, List, Medal } from 'lucide-react';
 import type { ScoreWithRating, Difficulty } from '@/lib/types';
 
 interface Props {
@@ -55,7 +55,7 @@ export default function ScoresClient({ scored, total }: Props) {
   const [diff, setDiff] = useState<'ALL' | Difficulty>('ALL');
   const [sort, setSort] = useState<'rating' | 'achievement' | 'title'>('rating');
   const [pool, setPool] = useState<'all' | 'new' | 'old'>('all');
-  const [view, setView] = useState<'list' | 'grid'>('list');
+  const [view, setView] = useState<'list' | 'grid' | 'b50'>('list');
 
   const filtered = useMemo(() => {
     let list = [...scored];
@@ -69,6 +69,16 @@ export default function ScoresClient({ scored, total }: Props) {
     });
     return list;
   }, [scored, query, diff, sort, pool]);
+
+  const b50New = useMemo(() => {
+    return scored.filter(s => s.pool === 'new' && (s.difficulty as string) !== 'UTAGE').sort((a, b) => b.rating - a.rating).slice(0, 15);
+  }, [scored]);
+  const b50Old = useMemo(() => {
+    return scored.filter(s => s.pool === 'old' && (s.difficulty as string) !== 'UTAGE').sort((a, b) => b.rating - a.rating).slice(0, 35);
+  }, [scored]);
+
+  const b50NewSum = b50New.reduce((acc, s) => acc + s.rating, 0);
+  const b50OldSum = b50Old.reduce((acc, s) => acc + s.rating, 0);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5 animate-slide-up">
@@ -138,22 +148,23 @@ export default function ScoresClient({ scored, total }: Props) {
           <button
             onClick={() => setView('list')}
             className="px-3 py-2.5 transition-all"
-            style={{
-              background: view === 'list' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)',
-              color: view === 'list' ? '#d8b4fe' : 'var(--foreground-muted)',
-            }}
+            style={{ background: view === 'list' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)', color: view === 'list' ? '#d8b4fe' : 'var(--foreground-muted)' }}
           >
             <List size={16} />
           </button>
           <button
             onClick={() => setView('grid')}
             className="px-3 py-2.5 transition-all"
-            style={{
-              background: view === 'grid' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)',
-              color: view === 'grid' ? '#d8b4fe' : 'var(--foreground-muted)',
-            }}
+            style={{ background: view === 'grid' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)', color: view === 'grid' ? '#d8b4fe' : 'var(--foreground-muted)' }}
           >
             <LayoutGrid size={16} />
+          </button>
+          <button
+            onClick={() => setView('b50')}
+            className="px-3 py-2.5 transition-all flex items-center gap-1.5"
+            style={{ background: view === 'b50' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)', color: view === 'b50' ? '#d8b4fe' : 'var(--foreground-muted)' }}
+          >
+            <Medal size={16} /> <span className="text-xs font-bold">B50</span>
           </button>
         </div>
       </div>
@@ -163,8 +174,9 @@ export default function ScoresClient({ scored, total }: Props) {
       </p>
 
       {/* Score list */}
-      <div className={`glass rounded-2xl overflow-hidden ${view === 'grid' && filtered.length > 0 ? 'hidden' : ''}`}>
-        {filtered.length === 0 ? (
+      {view === 'list' && (
+        <div className="glass rounded-2xl overflow-hidden">
+          {filtered.length === 0 ? (
           <div className="p-8 text-center" style={{ color: 'var(--foreground-muted)' }}>
             <Trophy size={32} className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">No scores found</p>
@@ -234,6 +246,7 @@ export default function ScoresClient({ scored, total }: Props) {
           </div>
         )}
       </div>
+      )}
 
       {view === 'grid' && filtered.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -295,6 +308,113 @@ export default function ScoresClient({ scored, total }: Props) {
           })}
         </div>
       )}
+
+      {view === 'b50' && (
+        <div className="space-y-8 animate-slide-up">
+          {/* New B15 */}
+          <section>
+            <div className="flex items-end justify-between mb-3 border-b border-white/10 pb-2">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                New Songs B15 <span className="text-xs text-white/50 font-normal">({b50New.length}/15)</span>
+              </h2>
+              <div className="text-xs text-white/60 font-num tabular-nums flex gap-3">
+                <span>+ Sum {b50NewSum}</span>
+                <span>~ Avg {(b50NewSum / 15).toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {b50New.map((s, i) => <B50Card key={`new-${i}`} score={s} />)}
+            </div>
+          </section>
+
+          {/* Old B35 */}
+          <section>
+            <div className="flex items-end justify-between mb-3 border-b border-white/10 pb-2">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                Old Songs B35 <span className="text-xs text-white/50 font-normal">({b50Old.length}/35)</span>
+              </h2>
+              <div className="text-xs text-white/60 font-num tabular-nums flex gap-3">
+                <span>+ Sum {b50OldSum}</span>
+                <span>~ Avg {(b50OldSum / 35).toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {b50Old.map((s, i) => <B50Card key={`old-${i}`} score={s} />)}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function B50Card({ score: s }: { score: ScoreWithRating }) {
+  const diffColor = DIFF_COLOR[s.difficulty] ?? '#fff';
+  const isDX = s.songType === 'DX';
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-xl h-[88px] group"
+      style={{ border: `1.5px solid ${diffColor}` }}
+    >
+      {/* Background Image */}
+      {s.song?.image_url && (
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
+          style={{ backgroundImage: `url(https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${s.song.image_url})` }}
+        />
+      )}
+      {/* Gradients */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+
+      <div className="relative h-full flex flex-col justify-between p-2 z-10">
+        {/* Top: DX/STD Badge + Level Badge */}
+        <div className="flex justify-between items-start">
+          <span
+            className="inline-block text-[9px] font-bold px-1 py-0.5 rounded leading-none"
+            style={{
+              background: isDX ? '#0e7b5e' : '#7a5500',
+              color: isDX ? '#b2f0e0' : '#fde8a0',
+            }}
+          >
+            {isDX ? 'でらっくす' : 'スタンダード'}
+          </span>
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded leading-none tabular-nums"
+            style={{ background: diffColor, color: '#fff' }}
+          >
+            {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}
+          </span>
+        </div>
+
+        {/* Middle: Title */}
+        <div className="text-[12px] font-bold text-white truncate text-shadow leading-tight mt-auto">
+          {s.songTitle}
+        </div>
+
+        {/* Bottom: Achievement + Badges left, Rating right */}
+        <div className="flex justify-between items-end mt-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-white font-num leading-none">{s.achievement.toFixed(4)}%</span>
+            <div className="flex gap-1">
+              {s.fc && (
+                <span className="text-[8px] font-bold px-1 py-px rounded leading-none text-white/90" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                  {s.fc}
+                </span>
+              )}
+              {s.fs && (
+                <span className="text-[8px] font-bold px-1 py-px rounded leading-none text-[#22d3ee]" style={{ background: 'rgba(34,211,238,0.15)' }}>
+                  {s.fs}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="text-lg font-bold font-num leading-none tracking-tight tabular-nums" style={{ color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
+            {s.rating}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
