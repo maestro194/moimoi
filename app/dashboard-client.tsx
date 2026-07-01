@@ -5,6 +5,8 @@ import { RefreshCw, TrendingUp, Music2, Clock, Star, Zap } from 'lucide-react';
 import type { RatingData, Score } from '@/lib/types';
 import { getRankTitle } from '@/lib/rating';
 
+import { PageWrapper } from '@/components/page-wrapper';
+
 interface Props {
   data: {
     ratingData: RatingData;
@@ -12,6 +14,13 @@ interface Props {
     recentCredit: any[];
     totalSongs: number;
     currentVersion: number;
+    profile: {
+      name: string | null;
+      avatar: string | null;
+      courseRank: string | null;
+      classRank: string | null;
+      ratingBase: string | null;
+    };
   } | null;
 }
 
@@ -137,11 +146,11 @@ export default function DashboardClient({ data }: Props) {
     );
   }
 
-  const { ratingData, lastSync, recentCredit, totalSongs } = data;
+  const { ratingData, lastSync, recentCredit, profile } = data;
   const lastSyncDate = lastSync ? new Date(lastSync) : null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 animate-slide-up">
+    <PageWrapper className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -188,40 +197,64 @@ export default function DashboardClient({ data }: Props) {
         </div>
       )}
 
-      {/* Rating overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* DX Rating circle */}
-        <div className="glass rounded-2xl p-6 flex flex-col items-center glow-purple md:col-span-1">
-          <RatingCircle rating={ratingData.totalRating} />
-          <div className="mt-4 grid grid-cols-2 gap-3 w-full text-center">
-            <div>
-              <div className="text-lg font-bold font-num" style={{ color: 'var(--accent-pink)' }}>
-                {ratingData.newRating.toLocaleString()}
-              </div>
-              <div className="text-xs" style={{ color: 'var(--foreground-subtle)' }}>NEW (Top 15)</div>
+      {/* User Profile & Rating Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        {/* Profile Card */}
+        {profile.name ? (
+          <div className="glass rounded-2xl relative overflow-hidden flex items-center p-6 gap-6">
+            {profile.ratingBase && (
+              <div className="absolute inset-0 z-0 opacity-40 mix-blend-overlay" style={{
+                backgroundImage: `url(${profile.ratingBase})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }} />
+            )}
+            <div className="relative z-10 flex-shrink-0">
+              {profile.avatar && (
+                <img src={profile.avatar} alt="Avatar" className="w-24 h-24 rounded-lg shadow-xl" />
+              )}
             </div>
-            <div>
-              <div className="text-lg font-bold font-num" style={{ color: 'var(--accent-purple)' }}>
-                {ratingData.oldRating.toLocaleString()}
+            <div className="relative z-10 flex flex-col justify-center">
+              <h2 className="text-2xl font-bold mb-2 tracking-wide" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                {profile.name}
+              </h2>
+              <div className="flex gap-2 h-10 items-center">
+                {profile.courseRank && <img src={profile.courseRank} alt="Course Rank" className="h-full object-contain drop-shadow-md" />}
+                {profile.classRank && <img src={profile.classRank} alt="Class Rank" className="h-full object-contain drop-shadow-md" />}
               </div>
-              <div className="text-xs" style={{ color: 'var(--foreground-subtle)' }}>OLD (Top 35)</div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="glass rounded-2xl p-6 flex flex-col justify-center items-center text-center">
+            <div className="text-[var(--foreground-muted)] mb-2">No Profile Data</div>
+            <div className="text-xs text-[var(--foreground-subtle)]">Sync to fetch your maimai profile</div>
+          </div>
+        )}
 
-        {/* Stats grid */}
-        <div className="md:col-span-2 grid grid-cols-2 gap-4">
-          <StatCard icon={<Music2 size={18} />} label="Total Songs" value={totalSongs.toLocaleString()} color="var(--accent-cyan)" />
-          <StatCard icon={<Star size={18} />} label="Best Scores" value={ratingData.newCharts.length + ratingData.oldCharts.length} color="var(--accent-yellow)" />
-          <StatCard icon={<TrendingUp size={18} />} label="NEW Charts" value={ratingData.newCharts.length} color="var(--accent-pink)" sub="contributing" />
-          <StatCard icon={<TrendingUp size={18} />} label="OLD Charts" value={ratingData.oldCharts.length} color="var(--accent-purple)" sub="contributing" />
+        {/* DX Rating circle */}
+        <div className="glass rounded-2xl p-6 flex items-center justify-between glow-purple">
+          <RatingCircle rating={ratingData.totalRating} />
+          <div className="flex flex-col gap-4 text-right">
+            <div>
+              <div className="text-2xl font-bold font-num" style={{ color: 'var(--accent-pink)' }}>
+                {ratingData.newRating.toLocaleString()}
+              </div>
+              <div className="text-sm font-medium tracking-wide uppercase" style={{ color: 'var(--foreground-subtle)' }}>NEW (Top 15)</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold font-num" style={{ color: 'var(--accent-purple)' }}>
+                {ratingData.oldRating.toLocaleString()}
+              </div>
+              <div className="text-sm font-medium tracking-wide uppercase" style={{ color: 'var(--foreground-subtle)' }}>OLD (Top 35)</div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Top rating charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <RatingList title="🆕 NEW Pool (Top 15)" charts={ratingData.newCharts} accent="var(--accent-pink)" />
-        <RatingList title="📚 OLD Pool (Top 35)" charts={ratingData.oldCharts.slice(0, 10)} accent="var(--accent-purple)" showMore={ratingData.oldCharts.length > 10} />
       </div>
 
       {/* Recent Credit */}
@@ -249,13 +282,14 @@ export default function DashboardClient({ data }: Props) {
                   <span className="text-sm font-num font-semibold" style={{ color: 'var(--foreground-muted)' }}>
                     {parseFloat(score.achievement).toFixed(4)}%
                   </span>
+                  <RankBadge achievement={parseFloat(score.achievement)} />
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
-    </div>
+    </PageWrapper>
   );
 }
 

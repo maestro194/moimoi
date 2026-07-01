@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Music2, LayoutGrid, List, ArrowUpDown, Calendar } from 'lucide-react';
 import type { Song } from '@/lib/types';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { PageWrapper } from '@/components/page-wrapper';
+import { motion } from 'framer-motion';
 
 interface Props {
   songs: Song[];
@@ -98,9 +101,7 @@ interface SongRow {
 
 /** Expand a single Song into 1 or 2 rows (DX and/or STD). */
 function expandToRows(song: Song): SongRow[] {
-  // Has explicit DX internal data (only after song cache refresh with new schema)
   const hasDX = !!(song.dx_lev_mas_i || song.dx_lev_exp_i || song.dx_lev_bas_i);
-  // Has distinct STD chart (JP songs with both chart types)
   const hasSTD = hasDX && !!song.lev_mas_i && song.lev_mas_i !== song.dx_lev_mas_i;
 
   const rows: SongRow[] = [];
@@ -129,7 +130,6 @@ function expandToRows(song: Song): SongRow[] {
       });
     }
   } else {
-    // Fallback: normalised data — show as a single row
     rows.push({
       song, type: 'DX',
       bas:   { display: song.lev_bas,   internal: song.lev_bas_i   },
@@ -146,14 +146,13 @@ function expandToRows(song: Song): SongRow[] {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-/** A single difficulty cell: display level + internal level stacked. */
 function DiffCell({ data, diff, kanji }: { data?: DiffData; diff: string; kanji?: string }) {
-  if (!data?.display) return <td className="px-1 py-1 w-[70px]" />;
+  if (!data?.display) return <div className="w-[60px] md:w-[70px]" />;
   const color = DIFF_COLOR[diff];
   const intStr = data.internal ? parseFloat(data.internal).toFixed(1) : null;
   return (
-    <td className="px-1 py-1 w-[70px]">
-      <div className="rounded text-center py-0.5 px-1 min-h-[36px] flex flex-col justify-center" style={{ background: color + '28' }}>
+    <div className="w-[60px] md:w-[70px] flex shrink-0 justify-center">
+      <div className="w-full rounded text-center py-0.5 px-1 min-h-[36px] flex flex-col justify-center" style={{ background: color + '28' }}>
         <div className="font-bold text-sm leading-tight text-white flex items-center justify-center gap-0.5">
           {kanji && <span className="text-[10px] opacity-80" style={{ color }}>[{kanji}]</span>}
           {data.display.replace('?', '')}
@@ -164,7 +163,7 @@ function DiffCell({ data, diff, kanji }: { data?: DiffData; diff: string; kanji?
           </div>
         )}
       </div>
-    </td>
+    </div>
   );
 }
 
@@ -174,12 +173,11 @@ function TypeBadge({ type }: { type: 'DX' | 'STD' }) {
     <img
       src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
       alt={isDX ? 'DX' : 'STD'}
-      className="h-3.5 mx-auto object-contain"
+      className="h-3.5 object-contain"
     />
   );
 }
 
-/** Sortable column header button. */
 function ColHeader({
   label, colKey, sort, onSort, className = '',
 }: {
@@ -187,14 +185,14 @@ function ColHeader({
 }) {
   const active = sort.startsWith(colKey);
   return (
-    <th
-      className={`px-2 py-2 text-left text-[11px] font-semibold cursor-pointer select-none whitespace-nowrap ${className}`}
+    <div
+      className={`px-2 py-2 text-left text-[11px] font-semibold cursor-pointer select-none whitespace-nowrap flex items-center gap-1 ${className}`}
       style={{ color: active ? '#c4b5fd' : 'var(--foreground-muted)' }}
       onClick={() => onSort(colKey)}
     >
       {label}
-      <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
-    </th>
+      <ArrowUpDown size={10} className="opacity-60" />
+    </div>
   );
 }
 
@@ -222,7 +220,6 @@ const SELECT_STYLE: React.CSSProperties = {
   color: 'var(--foreground)',
 };
 
-// ── Sort key type ──────────────────────────────────────────────────────────────
 type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title';
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -232,9 +229,16 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   const [levelG, setLevelG]   = useState('all');
   const [version, setVersion] = useState('all');
   const [sort, setSort]       = useState<SortKey>('newest');
-  const [view, setView]       = useState<'list' | 'grid'>('list');
-  const [page, setPage]       = useState(0);
-  const PAGE_SIZE = view === 'grid' ? 60 : 50;
+  const [view, setView]       = useState<'list' | 'grid'>('grid');
+
+  const [windowWidth, setWindowWidth] = useState(1200);
+
+  useEffect(() => {
+    setWindowWidth(window.innerWidth);
+    const cb = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', cb);
+    return () => window.removeEventListener('resize', cb);
+  }, []);
 
   const levelGroups = useMemo(() => allLevelGroups(songs), [songs]);
   const versions    = useMemo(() => allVersions(songs), [songs]);
@@ -271,14 +275,8 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
     return list;
   }, [songs, matchesQuery, cat, version, levelG, sort]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  function resetPage() { setPage(0); }
+  const tableRows = useMemo(() => filtered.flatMap(expandToRows), [filtered]);
 
-  // Expand songs to rows (handles DX + STD variants)
-  const tableRows = useMemo(() => paged.flatMap(expandToRows), [paged]);
-
-  // Column sort click handler
   function handleColSort(colKey: string) {
     if (colKey === 'lev') {
       setSort(s => s === 'lev_desc' ? 'lev_asc' : 'lev_desc');
@@ -287,16 +285,29 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
     } else if (colKey === 'title') {
       setSort('title');
     }
-    resetPage();
   }
 
+  // ── Virtualization ──
+  const isGrid = view === 'grid';
+  // Columns for grid view based on screen width
+  const cols = isGrid ? (windowWidth < 640 ? 3 : windowWidth < 768 ? 4 : windowWidth < 1024 ? 5 : 6) : 1;
+  const rowCount = Math.ceil((isGrid ? filtered.length : tableRows.length) / cols);
+
+  const virtualizer = useWindowVirtualizer({
+    count: rowCount,
+    estimateSize: () => isGrid ? (windowWidth / cols) : 60, // Rough estimates
+    overscan: 5,
+  });
+
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-5 animate-slide-up">
-      <div>
-        <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>Songs</h1>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--foreground-muted)' }}>
-          {songs.length.toLocaleString()} songs in database
-        </p>
+    <PageWrapper className="p-6 max-w-[1400px] mx-auto space-y-5">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>Songs</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--foreground-muted)' }}>
+            {songs.length.toLocaleString()} Total Songs Available
+          </p>
+        </div>
       </div>
 
       {/* ── Search + view toggle ── */}
@@ -308,8 +319,8 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
             type="text"
             placeholder="Title, artist, or romaji…"
             value={query}
-            onChange={e => { setQuery(e.target.value); resetPage(); }}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all"
+            onChange={e => setQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all focus:ring-2 focus:ring-purple-500/50"
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
           />
         </div>
@@ -327,228 +338,190 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap gap-3">
-        <select id="version-filter" value={version} onChange={e => { setVersion(e.target.value); resetPage(); }}
-          className="px-3 py-2 rounded-xl text-sm outline-none" style={SELECT_STYLE}>
+        <select id="version-filter" value={version} onChange={e => setVersion(e.target.value)}
+          className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>
           <option value="all">All versions</option>
           {versions.map(v => <option key={v} value={v}>{versionLabel(v)}</option>)}
         </select>
-        <select id="level-filter" value={levelG} onChange={e => { setLevelG(e.target.value); resetPage(); }}
-          className="px-3 py-2 rounded-xl text-sm outline-none" style={SELECT_STYLE}>
+        <select id="level-filter" value={levelG} onChange={e => setLevelG(e.target.value)}
+          className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>
           <option value="all">All levels</option>
           {levelGroups.map(g => <option key={g} value={g}>Lv {g}</option>)}
         </select>
-        <select id="category-filter" value={cat} onChange={e => { setCat(e.target.value); resetPage(); }}
-          className="px-3 py-2 rounded-xl text-sm outline-none" style={SELECT_STYLE}>
+        <select id="category-filter" value={cat} onChange={e => setCat(e.target.value)}
+          className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>
           <option value="all">All genres</option>
           {categories.map(c => <option key={c} value={c}>{CAT_LABELS[c] || c}</option>)}
         </select>
       </div>
 
       <p className="text-xs" style={{ color: 'var(--foreground-subtle)' }}>
-        {filtered.length.toLocaleString()} results · page {page + 1}/{totalPages || 1}
+        {filtered.length.toLocaleString()} results found
       </p>
 
-      {/* ── List (table) view ── */}
-      {view === 'list' && (
-        <div className="glass rounded-2xl overflow-hidden">
-          {paged.length === 0 ? (
-            <div className="p-8 text-center" style={{ color: 'var(--foreground-muted)' }}>
-              <Music2 size={32} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No songs match your search</p>
+      {/* ── Virtualized List Header ── */}
+      {!isGrid && filtered.length > 0 && (
+        <div className="glass rounded-t-2xl px-4 py-2 flex items-center text-sm font-semibold sticky top-0 z-10 backdrop-blur-md" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="w-[300px] flex-shrink-0 cursor-pointer text-left" onClick={() => handleColSort('title')} style={{ color: sort === 'title' ? '#c4b5fd' : 'var(--foreground-muted)' }}>
+            曲名・アーティスト <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
+          </div>
+          <div className="w-[120px] hidden md:block" onClick={() => handleColSort('version')} style={{ color: sort.startsWith('version') || sort.startsWith('newest') || sort.startsWith('oldest') ? '#c4b5fd' : 'var(--foreground-muted)', cursor: 'pointer' }}>
+            バージョン <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
+          </div>
+          <div className="w-[100px] hidden lg:block text-[var(--foreground-muted)]">ジャンル</div>
+          <div className="w-[60px] text-center text-[var(--foreground-muted)] hidden sm:block">DX/Std</div>
+          
+          <div className="flex flex-1 justify-end items-center gap-1">
+            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.bas }}>BSC</div>
+            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.adv }}>ADV</div>
+            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.exp }}>EXP</div>
+            <div className="w-[60px] md:w-[70px] text-center cursor-pointer select-none" onClick={() => handleColSort('lev')} style={{ color: sort.startsWith('lev') ? '#c4b5fd' : DIFF_COLOR.mas }}>
+              MAS <ArrowUpDown size={10} className="inline ml-0.5 opacity-60" />
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    {/* Song title + artist */}
-                    <th
-                      className="px-3 py-2.5 text-left text-[11px] font-semibold cursor-pointer select-none min-w-[200px]"
-                      style={{ color: sort === 'title' ? '#c4b5fd' : 'var(--foreground-muted)' }}
-                      onClick={() => { handleColSort('title'); }}
-                    >
-                      曲名・アーティスト <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
-                    </th>
-                    <ColHeader label="バージョン" colKey="version" sort={sort} onSort={handleColSort} className="min-w-[110px]" />
-                    <th className="px-2 py-2.5 text-left text-[11px] font-semibold whitespace-nowrap min-w-[90px]"
-                      style={{ color: 'var(--foreground-muted)' }}>ジャンル</th>
-                    <th className="px-2 py-2.5 text-center text-[11px] font-semibold whitespace-nowrap w-[88px]"
-                      style={{ color: 'var(--foreground-muted)' }}>DX/Std</th>
-                    {/* Difficulty columns */}
-                    <th className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px]"
-                      style={{ color: DIFF_COLOR.bas }}>BSC</th>
-                    <th className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px]"
-                      style={{ color: DIFF_COLOR.adv }}>ADV</th>
-                    <th className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px]"
-                      style={{ color: DIFF_COLOR.exp }}>EXP</th>
-                    <th
-                      className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px] cursor-pointer select-none"
-                      style={{ color: sort.startsWith('lev') ? '#c4b5fd' : DIFF_COLOR.mas }}
-                      onClick={() => handleColSort('lev')}
-                    >
-                      MAS <ArrowUpDown size={10} className="inline ml-0.5 opacity-60" />
-                    </th>
-                    <th className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px]"
-                      style={{ color: DIFF_COLOR.remas }}>Re:M</th>
-                    <th className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px]"
-                      style={{ color: DIFF_COLOR.utage }}>UTA</th>
-                    {/* Date */}
-                    <th className="px-2 py-2.5 text-center text-[11px] font-semibold whitespace-nowrap min-w-[90px]"
-                      style={{ color: 'var(--foreground-muted)' }}>
-                      <Calendar size={11} className="inline mr-1 opacity-70" />更新日
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, i) => {
-                    const isNew = parseInt(row.song.version) >= currentVersion - 500;
-                    const jacketUrl = row.song.image_url
-                      ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${row.song.image_url}`
-                      : null;
-                    const date = formatDate(row.song.date_added);
-
-                    return (
-                      <tr
-                        key={`${row.song.title}-${row.type}-${i}`}
-                        className="group hover:bg-white/[0.04] transition-colors"
-                        style={{
-                          borderBottom: '1px solid rgba(255,255,255,0.04)',
-                          borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}`,
-                        }}
-                      >
-                        {/* Song info: jacket + title + artist */}
-                        <td className="px-0 py-0">
-                          <div className="flex items-center gap-2.5 pr-3">
-                            {/* Jacket */}
-                            <div className="w-12 h-12 shrink-0 overflow-hidden" style={{ minWidth: '3rem' }}>
-                              {jacketUrl ? (
-                                <img src={jacketUrl} alt={row.song.title}
-                                  className="w-full h-full object-cover" loading="lazy" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center"
-                                  style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--foreground-subtle)' }}>
-                                  <Music2 size={18} />
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0 py-2">
-                              <div className="font-semibold text-sm truncate text-white leading-tight max-w-[220px]">
-                                {row.song.title}
-                              </div>
-                              <div className="text-[11px] truncate leading-tight mt-0.5 max-w-[220px]"
-                                style={{ color: 'var(--foreground-muted)' }}>
-                                {row.song.artist}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Version */}
-                        <td className="px-2 py-1 whitespace-nowrap">
-                          <span className="text-[11px]" style={{ color: 'var(--foreground-muted)' }}>
-                            {versionLabel(row.song.version)}
-                          </span>
-                        </td>
-
-                        {/* Genre */}
-                        <td className="px-2 py-1 whitespace-nowrap">
-                          <span className="text-[11px]" style={{ color: 'var(--foreground-subtle)' }}>
-                            {CAT_LABELS[row.song.catcode] || row.song.catcode}
-                          </span>
-                        </td>
-
-                        {/* DX / STD badge */}
-                        <td className="px-2 py-1 text-center">
-                          <TypeBadge type={row.type} />
-                        </td>
-
-                        {/* Difficulty columns */}
-                        <DiffCell data={row.bas}   diff="bas"   />
-                        <DiffCell data={row.adv}   diff="adv"   />
-                        <DiffCell data={row.exp}   diff="exp"   />
-                        <DiffCell data={row.mas}   diff="mas"   />
-                        <DiffCell data={row.remas} diff="remas" />
-                        <DiffCell data={row.utage} diff="utage" kanji={row.kanji} />
-
-                        {/* Date */}
-                        <td className="px-2 py-1 text-center">
-                          {date && (
-                            <span className="text-[11px] tabular-nums" style={{ color: 'var(--foreground-subtle)' }}>
-                              {date}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.remas }}>Re:M</div>
+            <div className="w-[60px] md:w-[70px] text-center hidden xl:block" style={{ color: DIFF_COLOR.utage }}>UTA</div>
+          </div>
         </div>
       )}
 
-      {/* ── Grid view (unchanged) ── */}
-      {view === 'grid' && (
-        paged.length === 0 ? (
-          <div className="glass rounded-2xl p-8 text-center" style={{ color: 'var(--foreground-muted)' }}>
+      {/* ── Virtualized Container ── */}
+      <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+        {filtered.length === 0 ? (
+          <div className="glass rounded-2xl p-12 text-center" style={{ color: 'var(--foreground-muted)' }}>
             <Music2 size={32} className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">No songs match your search</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-            {paged.map((song, i) => {
-              const isNew = parseInt(song.version) >= currentVersion - 500;
-              const masConst = song.lev_mas_i ? parseFloat(song.lev_mas_i).toFixed(1) : song.lev_mas;
+          virtualizer.getVirtualItems().map((virtualRow) => {
+            if (isGrid) {
+              // Grid Row
+              const startIndex = virtualRow.index * cols;
+              const rowItems = filtered.slice(startIndex, startIndex + cols);
+
               return (
-                <div key={`${song.title}-${i}`}
-                  className="relative aspect-square rounded-xl overflow-hidden group"
-                  style={{ border: `2px solid ${isNew ? DIFF_COLOR.mas : 'rgba(255,255,255,0.1)'}` }}>
-                  {song.image_url ? (
-                    <img
-                      src={`https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}`}
-                      alt={song.title}
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                      <Music2 size={24} style={{ color: 'var(--foreground-subtle)' }} />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                  {masConst && (
-                    <span className="absolute top-1.5 right-1.5 text-[10px] font-bold px-1.5 py-px rounded"
-                      style={{ background: DIFF_COLOR.mas, color: '#fff' }}>
-                      {masConst}
-                    </span>
-                  )}
-                  <div className="absolute bottom-0 left-0 right-0 p-2">
-                    <div className="text-[10px] font-bold text-white leading-tight line-clamp-2">{song.title}</div>
-                  </div>
+                <div
+                  key={virtualRow.index}
+                  className="absolute top-0 left-0 w-full flex gap-3 pb-3"
+                  style={{
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`
+                  }}
+                >
+                  {rowItems.map((song, i) => {
+                    const isNew = parseInt(song.version) >= currentVersion - 500;
+                    const masConst = song.lev_mas_i ? parseFloat(song.lev_mas_i).toFixed(1) : song.lev_mas;
+                    
+                    return (
+                      <motion.div
+                        key={song.title}
+                        whileHover={{ scale: 1.03, y: -5 }}
+                        className="relative flex-1 aspect-square rounded-xl overflow-hidden glass shadow-lg border"
+                        style={{
+                          borderColor: isNew ? DIFF_COLOR.mas : 'rgba(255,255,255,0.1)',
+                          maxWidth: `calc(100% / ${cols} - 12px)`
+                        }}
+                      >
+                        {song.image_url ? (
+                          <img
+                            src={`https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}`}
+                            alt={song.title}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/5">
+                            <Music2 size={24} className="text-white/30" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
+                        
+                        {masConst && (
+                          <span className="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded shadow"
+                            style={{ background: DIFF_COLOR.mas, color: '#fff' }}>
+                            {masConst}
+                          </span>
+                        )}
+                        
+                        <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
+                          <div className="text-xs font-bold text-white leading-tight line-clamp-2 drop-shadow-md">
+                            {song.title}
+                          </div>
+                          <div className="text-[10px] text-white/70 truncate mt-0.5">{song.artist}</div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {/* Fill empty grid spots to maintain flex basis */}
+                  {Array.from({ length: cols - rowItems.length }).map((_, i) => (
+                    <div key={`empty-${i}`} className="flex-1" style={{ maxWidth: `calc(100% / ${cols} - 12px)` }} />
+                  ))}
                 </div>
               );
-            })}
-          </div>
-        )
-      )}
+            } else {
+              // List Row
+              const row = tableRows[virtualRow.index];
+              const isNew = parseInt(row.song.version) >= currentVersion - 500;
+              const jacketUrl = row.song.image_url
+                ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${row.song.image_url}`
+                : null;
 
-      {/* ── Pagination ── */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <button id="prev-page" disabled={page === 0} onClick={() => setPage(p => p - 1)}
-            className="px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-30"
-            style={{ background: 'rgba(255,255,255,0.07)', color: 'var(--foreground-muted)' }}>
-            ← Previous
-          </button>
-          <span className="text-sm" style={{ color: 'var(--foreground-subtle)' }}>{page + 1} / {totalPages}</span>
-          <button id="next-page" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}
-            className="px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-30"
-            style={{ background: 'rgba(255,255,255,0.07)', color: 'var(--foreground-muted)' }}>
-            Next →
-          </button>
-        </div>
-      )}
-    </div>
+              return (
+                <div
+                  key={`${row.song.title}-${row.type}`}
+                  className="absolute top-0 left-0 w-full"
+                  style={{
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`
+                  }}
+                >
+                  <motion.div
+                    whileHover={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                    className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02]"
+                    style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
+                  >
+                    <div className="flex items-center gap-3 w-[300px] flex-shrink-0 pr-4">
+                      <div className="w-12 h-12 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
+                        {jacketUrl ? (
+                          <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={16} /></div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-sm truncate text-white">{row.song.title}</div>
+                        <div className="text-xs truncate text-white/50">{row.song.artist}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="w-[120px] hidden md:block text-xs text-white/60 truncate pr-2">
+                      {versionLabel(row.song.version)}
+                    </div>
+                    
+                    <div className="w-[100px] hidden lg:block text-[11px] text-white/50 truncate pr-2">
+                      {CAT_LABELS[row.song.catcode] || row.song.catcode}
+                    </div>
+
+                    <div className="w-[60px] hidden sm:flex justify-center shrink-0 pr-2">
+                      <TypeBadge type={row.type} />
+                    </div>
+
+                    <div className="flex flex-1 justify-end items-center gap-1">
+                      <DiffCell data={row.bas} diff="bas" />
+                      <DiffCell data={row.adv} diff="adv" />
+                      <DiffCell data={row.exp} diff="exp" />
+                      <DiffCell data={row.mas} diff="mas" />
+                      <DiffCell data={row.remas} diff="remas" />
+                      <div className="hidden xl:block">
+                        <DiffCell data={row.utage} diff="utage" kanji={row.kanji} />
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              );
+            }
+          })
+        )}
+      </div>
+    </PageWrapper>
   );
 }

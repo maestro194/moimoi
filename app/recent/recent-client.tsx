@@ -2,8 +2,9 @@
 
 import React from 'react';
 import type { FC, FS, Difficulty } from '@/lib/types';
-
 import { ArrowUp, Clock } from 'lucide-react';
+import { PageWrapper } from '@/components/page-wrapper';
+import { motion, Variants } from 'framer-motion';
 
 interface HydratedLog {
   id: number;
@@ -97,10 +98,31 @@ export default function RecentClient({ logs }: RecentClientProps) {
 
   const credits = groupLogsIntoCredits(logs);
 
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
+    }
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <div className="space-y-8">
+    <PageWrapper className="space-y-8 max-w-6xl mx-auto p-6">
+      <div>
+        <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>Recent Plays</h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--foreground-muted)' }}>
+          Your latest sessions and track history
+        </p>
+      </div>
+
+      <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8">
       {credits.map((credit, i) => (
-        <div key={credit.id} className="space-y-3">
+        <motion.div variants={itemVariants} key={credit.id} className="space-y-3">
           {/* Credit Header */}
           <div className="flex items-center gap-2 pl-1">
             <div className="w-1.5 h-4 bg-white/20 rounded-full" />
@@ -190,8 +212,9 @@ export default function RecentClient({ logs }: RecentClientProps) {
               );
             })}
           </div>
-        </div>
+        </motion.div>
       ))}
-    </div>
+      </motion.div>
+    </PageWrapper>
   );
 }

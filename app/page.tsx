@@ -30,8 +30,17 @@ async function getDashboardData() {
 
     const ratingData = computeRating(typedScores, songMap, currentVersion);
 
-    const lastSyncRow = await db.select().from(settings).where(sql`${settings.key} = 'last_sync'`).limit(1);
-    const lastSync = lastSyncRow[0]?.value ?? null;
+    const settingsRows = await db.select().from(settings);
+    const getSet = (k: string) => settingsRows.find(r => r.key === k)?.value ?? null;
+    
+    const lastSync = getSet('last_sync');
+    const profile = {
+      name: getSet('profile_name'),
+      avatar: getSet('profile_avatar'),
+      courseRank: getSet('profile_course_rank'),
+      classRank: getSet('profile_class_rank'),
+      ratingBase: getSet('profile_rating_base'),
+    };
     
     // Fetch recent credit
     const dbLogs = await db.select().from(playLog).orderBy(desc(playLog.playedAt)).limit(20);
@@ -56,7 +65,7 @@ async function getDashboardData() {
     // We reverse it to display Track 1 first.
     recentCredit.reverse();
 
-    return { ratingData, lastSync, recentCredit, totalSongs: songs.length, currentVersion };
+    return { ratingData, lastSync, recentCredit, totalSongs: songs.length, currentVersion, profile };
   } catch {
     return null;
   }

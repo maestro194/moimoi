@@ -4,6 +4,9 @@ import { TrendingUp, Target, ArrowUp } from 'lucide-react';
 import type { RatingData, ScoreWithRating } from '@/lib/types';
 import type { TargetSuggestion } from '@/lib/rating';
 import { RANK_DEFINITIONS } from '@/lib/rating';
+import { PageWrapper } from '@/components/page-wrapper';
+import { motion, useSpring, useTransform, Variants } from 'framer-motion';
+import { useEffect, useState } from 'react';
 
 interface Props {
   ratingData: RatingData;
@@ -35,7 +38,7 @@ function RankDistBar({ charts }: { charts: ScoreWithRating[] }) {
 
   return (
     <div className="space-y-2">
-      {ranks.map(rank => {
+      {ranks.map((rank, i) => {
         const count = totals[rank] || 0;
         const pct = (count / total) * 100;
         return (
@@ -44,9 +47,12 @@ function RankDistBar({ charts }: { charts: ScoreWithRating[] }) {
               {rank}
             </span>
             <div className="flex-1 bg-white/5 rounded-full h-2 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${pct}%`, background: colors[rank] }}
+              <motion.div
+                className="h-full rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 1, delay: i * 0.05, ease: 'easeOut' }}
+                style={{ background: colors[rank] }}
               />
             </div>
             <span className="text-xs w-6 shrink-0 font-num" style={{ color: 'var(--foreground-subtle)' }}>
@@ -59,11 +65,32 @@ function RankDistBar({ charts }: { charts: ScoreWithRating[] }) {
   );
 }
 
+function AnimatedNumber({ value }: { value: number }) {
+  const spring = useSpring(0, { stiffness: 50, damping: 20 });
+  const display = useTransform(spring, current => Math.round(current).toLocaleString());
+  
+  useEffect(() => {
+    spring.set(value);
+  }, [value, spring]);
+  
+  return <motion.span>{display}</motion.span>;
+}
+
 export default function AnalysisClient({ ratingData, suggestions, totalScores }: Props) {
   const allCharts = [...ratingData.newCharts, ...ratingData.oldCharts];
 
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 animate-slide-up">
+    <PageWrapper className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>Analysis</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--foreground-muted)' }}>
@@ -71,8 +98,9 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
         </p>
       </div>
 
+      <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
       {/* Rating composition */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={16} style={{ color: 'var(--accent-pink)' }} />
@@ -92,10 +120,10 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
             ? <RankDistBar charts={ratingData.oldCharts} />
             : <p className="text-xs text-center py-4" style={{ color: 'var(--foreground-subtle)' }}>No data yet</p>}
         </div>
-      </div>
+      </motion.div>
 
       {/* Rating summary */}
-      <div className="glass rounded-2xl p-5">
+      <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
         <h2 className="font-semibold text-sm mb-4" style={{ color: 'var(--accent-cyan)' }}>Rating Composition</h2>
         <div className="flex items-center gap-4 mb-3">
           <div className="flex-1 bg-white/5 rounded-full h-4 overflow-hidden flex">
@@ -115,7 +143,7 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
             />
           </div>
           <span className="text-xl font-bold font-num gradient-text">
-            {ratingData.totalRating.toLocaleString()}
+            <AnimatedNumber value={ratingData.totalRating} />
           </span>
         </div>
         <div className="flex gap-6 text-xs" style={{ color: 'var(--foreground-muted)' }}>
@@ -128,10 +156,10 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
             OLD: {ratingData.oldRating} ({ratingData.oldCharts.length}/35 slots)
           </span>
         </div>
-      </div>
+      </motion.div>
 
       {/* Target suggestions */}
-      <div className="glass rounded-2xl p-5">
+      <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Target size={16} style={{ color: 'var(--accent-yellow)' }} />
           <h2 className="font-semibold text-sm">Rating Improvement Targets</h2>
@@ -147,9 +175,10 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
         ) : (
           <div className="space-y-2">
             {suggestions.map((s, i) => (
-              <div
+              <motion.div
                 key={`${s.songTitle}-${s.difficulty}`}
-                className="flex items-center gap-3 py-2.5 px-3 rounded-xl card-hover"
+                whileHover={{ scale: 1.01, backgroundColor: 'rgba(255,255,255,0.06)' }}
+                className="flex items-center gap-3 py-2.5 px-3 rounded-xl border border-transparent"
                 style={{ background: 'rgba(255,255,255,0.03)' }}
               >
                 <span className="text-xs font-num w-5 shrink-0" style={{ color: 'var(--foreground-subtle)' }}>
@@ -168,11 +197,12 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
                   <ArrowUp size={12} />
                   <span className="text-xs font-bold font-num">+{s.ratingGain.toFixed(0)}</span>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+      </motion.div>
+    </PageWrapper>
   );
 }

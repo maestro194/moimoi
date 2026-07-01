@@ -439,6 +439,35 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
     }
   }
 
+  // Fetch player profile from home/
+  try {
+    if (onProgress) onProgress('Fetching player profile...');
+    const homeHtml = await maimaiGet(region, 'home/', clal!);
+    const $home = cheerio.load(homeHtml);
+    const block = $home('.see_through_block');
+    if (block.length > 0) {
+      const baseUrl = region === 'jp' ? 'https://maimaidx.jp/maimai-mobile' : 'https://maimaidx-eng.com/maimai-mobile';
+      const toAbs = (url: string) => url.startsWith('http') ? url : (url ? `${baseUrl}${url.startsWith('/') ? url : '/' + url}` : '');
+      const iconUrl = toAbs(block.find('img.w_112').attr('src') || '');
+      const name = block.find('.name_block').text().trim();
+      const rating = block.find('.rating_block').text().trim();
+      const rankElements = block.find('.h_35.f_l');
+      const courseRankUrl = toAbs(rankElements.eq(0).attr('src') || ''); // Dan/Course
+      const classRankUrl = toAbs(rankElements.eq(1).attr('src') || '');  // Class
+      const ratingBaseUrl = toAbs(block.find('img').toArray().map(el => $home(el).attr('src')).find(src => src?.includes('rating_base')) || '');
+
+      await saveSetting('profile_name', name);
+      await saveSetting('profile_avatar', iconUrl);
+      await saveSetting('profile_course_rank', courseRankUrl);
+      await saveSetting('profile_class_rank', classRankUrl);
+      await saveSetting('profile_rating_base', ratingBaseUrl);
+      if (onProgress) onProgress(`Profile updated: ${name} (${rating})`);
+    }
+  } catch (err) {
+    console.error('Failed to parse profile', err);
+    if (onProgress) onProgress('Warning: Failed to fetch player profile.');
+  }
+
   const result: SyncResult = { inserted: 0, updated: 0, errors: [] };
   const allParsed: ParsedScore[] = [];
   const now = new Date();
