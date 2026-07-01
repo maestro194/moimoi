@@ -93,7 +93,7 @@ interface DiffData { display?: string; internal?: string; }
 interface SongRow {
   song: Song;
   type: 'DX' | 'STD';
-  bas: DiffData; adv: DiffData; exp: DiffData; mas: DiffData; remas: DiffData;
+  bas: DiffData; adv: DiffData; exp: DiffData; mas: DiffData; remas: DiffData; utage?: DiffData; kanji?: string;
 }
 
 /** Expand a single Song into 1 or 2 rows (DX and/or STD). */
@@ -113,6 +113,8 @@ function expandToRows(song: Song): SongRow[] {
       exp:   { display: song.dx_lev_exp,   internal: song.dx_lev_exp_i   },
       mas:   { display: song.dx_lev_mas,   internal: song.dx_lev_mas_i   },
       remas: { display: song.dx_lev_remas, internal: song.dx_lev_remas_i },
+      utage: { display: song.lev_utage },
+      kanji: song.kanji,
     });
     if (hasSTD) {
       rows.push({
@@ -122,6 +124,8 @@ function expandToRows(song: Song): SongRow[] {
         exp:   { display: song.lev_exp,   internal: song.lev_exp_i   },
         mas:   { display: song.lev_mas,   internal: song.lev_mas_i   },
         remas: { display: song.lev_remas, internal: song.lev_remas_i },
+        utage: { display: song.lev_utage },
+        kanji: song.kanji,
       });
     }
   } else {
@@ -133,6 +137,8 @@ function expandToRows(song: Song): SongRow[] {
       exp:   { display: song.lev_exp,   internal: song.lev_exp_i   },
       mas:   { display: song.lev_mas,   internal: song.lev_mas_i   },
       remas: { display: song.lev_remas, internal: song.lev_remas_i },
+      utage: { display: song.lev_utage },
+      kanji: song.kanji,
     });
   }
   return rows;
@@ -141,14 +147,15 @@ function expandToRows(song: Song): SongRow[] {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 /** A single difficulty cell: display level + internal level stacked. */
-function DiffCell({ data, diff }: { data: DiffData; diff: string }) {
-  if (!data.display) return <td className="px-1 py-1 w-[70px]" />;
+function DiffCell({ data, diff, kanji }: { data?: DiffData; diff: string; kanji?: string }) {
+  if (!data?.display) return <td className="px-1 py-1 w-[70px]" />;
   const color = DIFF_COLOR[diff];
   const intStr = data.internal ? parseFloat(data.internal).toFixed(1) : null;
   return (
     <td className="px-1 py-1 w-[70px]">
-      <div className="rounded text-center py-0.5 px-1" style={{ background: color + '28' }}>
-        <div className="font-bold text-sm leading-tight text-white">
+      <div className="rounded text-center py-0.5 px-1 min-h-[36px] flex flex-col justify-center" style={{ background: color + '28' }}>
+        <div className="font-bold text-sm leading-tight text-white flex items-center justify-center gap-0.5">
+          {kanji && <span className="text-[10px] opacity-80" style={{ color }}>[{kanji}]</span>}
           {data.display.replace('?', '')}
         </div>
         {intStr && (
@@ -388,6 +395,8 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                     </th>
                     <th className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px]"
                       style={{ color: DIFF_COLOR.remas }}>Re:M</th>
+                    <th className="px-1 py-2.5 text-center text-[11px] font-semibold w-[70px]"
+                      style={{ color: DIFF_COLOR.utage }}>UTA</th>
                     {/* Date */}
                     <th className="px-2 py-2.5 text-center text-[11px] font-semibold whitespace-nowrap min-w-[90px]"
                       style={{ color: 'var(--foreground-muted)' }}>
@@ -464,6 +473,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                         <DiffCell data={row.exp}   diff="exp"   />
                         <DiffCell data={row.mas}   diff="mas"   />
                         <DiffCell data={row.remas} diff="remas" />
+                        <DiffCell data={row.utage} diff="utage" kanji={row.kanji} />
 
                         {/* Date */}
                         <td className="px-2 py-1 text-center">

@@ -46,6 +46,8 @@ export interface Song {
   lev_exp_notes?: string;
   lev_bas_notes?: string;
   lev_adv_notes?: string;
+  lev_utage?: string;
+  kanji?: string;
   wiki_url?: string;
   intl?: string;
   date_added?: string;

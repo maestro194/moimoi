@@ -60,6 +60,9 @@ export const songCache = pgTable('song_cache', {
   levExpI: text('lev_exp_i'),
   levMasI: text('lev_mas_i'),
   levRemasI: text('lev_remas_i'),
+  // UTAGE
+  levUtage: text('lev_utage'),
+  kanji: text('kanji'),
   // DX chart display levels
   dxLevBas: text('dx_lev_bas'),
   dxLevAdv: text('dx_lev_adv'),
