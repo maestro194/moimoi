@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, numeric, integer, timestamp, varchar, unique } from 'drizzle-orm/pg-core';
 
 // Scores stored after syncing from maimai NET or manual entry
 export const scores = pgTable('scores', {
@@ -13,7 +13,9 @@ export const scores = pgTable('scores', {
   fs: varchar('fs', { length: 5 }), // FS/FS+/FDX/FDX+/SYNC
   playedAt: timestamp('played_at').notNull().defaultNow(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => ({
+  uniqueScore: unique('unique_score').on(table.songTitle, table.difficulty, table.songType)
+}));
 
 // Chronological history of plays (recent 50 from /record/)
 export const playLog = pgTable('play_log', {

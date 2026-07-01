@@ -172,7 +172,6 @@ function parseFCFromSrc(src: string): FC {
   return null;
 }
 
-/** Parse FS/Sync status from a .h_30 img src. */
 function parseFSFromSrc(src: string): FS {
   if (src.includes('_fdxp.png')) return 'FDX+';
   if (src.includes('_fdx.png'))  return 'FDX';
@@ -180,6 +179,20 @@ function parseFSFromSrc(src: string): FS {
   if (src.includes('_fs.png'))   return 'FS';
   if (src.includes('_sync.png')) return 'SYNC';
   return null;
+}
+
+const FC_RANKS: Record<NonNullable<FC>, number> = { 'FC': 1, 'FC+': 2, 'AP': 3, 'AP+': 4 };
+export function getBestFC(a: FC | string | null, b: FC | string | null): FC {
+  const rankA = FC_RANKS[a as NonNullable<FC>] || 0;
+  const rankB = FC_RANKS[b as NonNullable<FC>] || 0;
+  return rankA > rankB ? (a as FC) : (b as FC);
+}
+
+const FS_RANKS: Record<NonNullable<FS>, number> = { 'SYNC': 1, 'FS': 2, 'FS+': 3, 'FDX': 4, 'FDX+': 5 };
+export function getBestFS(a: FS | string | null, b: FS | string | null): FS {
+  const rankA = FS_RANKS[a as NonNullable<FS>] || 0;
+  const rankB = FS_RANKS[b as NonNullable<FS>] || 0;
+  return rankA > rankB ? (a as FS) : (b as FS);
 }
 
 /** Detect chart type from the music_kind_icon img src. */
@@ -428,9 +441,72 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
 
   const result: SyncResult = { inserted: 0, updated: 0, errors: [] };
   const allParsed: ParsedScore[] = [];
+  const now = new Date();
 
-  // 1. Scrape standard song list
-  for (let diff = 0; diff <= 4; diff++) {
+  // Determine if we can do a Fast Sync (incremental)
+  const lastSyncStr = await getSetting('last_sync');
+  const lastSync = lastSyncStr ? new Date(lastSyncStr) : null;
+  let doFullSync = true;
+
+  // --- Fetch Recent Plays ---
+  // We fetch this first to check if we can skip the slow full sync,
+  // and we always need it to populate the playLog anyway.
+  let recentScores: ParsedRecentScore[] = [];
+  try {
+    if (onProgress) onProgress(`Scraping recent plays (/record/)...`);
+    const recentHtml = await maimaiGet(region, 'record/', clal!);
+    recentScores = parseRecentPage(recentHtml);
+    
+    // Sort ascending so oldest goes in first
+    recentScores.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
+    
+    if (onProgress) onProgress(`Saving up to ${recentScores.length} recent plays to play log...`);
+    for (const rs of recentScores) {
+      const existing = await db
+        .select()
+        .from(playLog)
+        .where(eq(playLog.playedAt, rs.playedAt))
+        .limit(1);
+        
+      if (existing.length === 0) {
+        await db.insert(playLog).values({
+          songTitle: rs.songTitle,
+          difficulty: rs.difficulty,
+          songType: rs.songType ?? 'DX',
+          achievement: String(rs.achievement),
+          dxScore: rs.dxScore,
+          fc: rs.fc,
+          fs: rs.fs,
+          track: rs.track,
+          playedAt: rs.playedAt,
+        });
+      }
+    }
+
+    if (lastSync && recentScores.length > 0) {
+      // Check if all 50 recent plays are strictly newer than last_sync
+      // If the oldest recent play is newer than last_sync, we might have missed some plays
+      // between last_sync and the oldest recent play. In that case, we MUST do a full sync.
+      const oldestRecentPlay = recentScores[0].playedAt;
+      if (oldestRecentPlay <= lastSync) {
+        if (onProgress) onProgress('Fast Sync eligible! Only updating new scores since last sync...');
+        doFullSync = false;
+        // Only process scores newer than lastSync
+        const newPlays = recentScores.filter(s => s.playedAt > lastSync);
+        if (onProgress) onProgress(`Found ${newPlays.length} new plays since last sync.`);
+        allParsed.push(...newPlays);
+      } else {
+        if (onProgress) onProgress('You played more than 50 times since last sync. Falling back to Full Sync...');
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    result.errors.push(`Recent Plays Error: ${msg}`);
+  }
+
+  if (doFullSync) {
+    // 1. Scrape standard song list
+    for (let diff = 0; diff <= 4; diff++) {
     const difficulty = DIFFICULTY_MAP[diff];
     try {
       if (onProgress) onProgress(`Scraping ${difficulty} scores...`);
@@ -447,19 +523,19 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
     }
   }
 
-  // Build a set of already-seen (title::difficulty::songType) pairs
-  const seenKeys = new Set(allParsed.map(s => `${s.songTitle}::${s.difficulty}::${s.songType}`));
-  if (onProgress) onProgress('Checking rating target page for any hidden scores...');
-  const hidden = await fetchRatingTargetScores(region, clal!, seenKeys);
-  if (hidden.length > 0) {
-    if (onProgress) onProgress(`Found ${hidden.length} additional scores.`);
-    allParsed.push(...hidden);
+    // Build a set of already-seen (title::difficulty::songType) pairs
+    const seenKeys = new Set(allParsed.map(s => `${s.songTitle}::${s.difficulty}::${s.songType}`));
+    if (onProgress) onProgress('Checking rating target page for any hidden scores...');
+    const hidden = await fetchRatingTargetScores(region, clal!, seenKeys);
+    if (hidden.length > 0) {
+      if (onProgress) onProgress(`Found ${hidden.length} additional scores.`);
+      allParsed.push(...hidden);
+    }
   }
 
-  if (onProgress) onProgress(`Saving ${allParsed.length} scores to database...`);
+  if (onProgress && allParsed.length > 0) onProgress(`Saving ${allParsed.length} scores to database...`);
   
   // Upsert into database
-  const now = new Date();
   for (const score of allParsed) {
     try {
       // Check if a record exists for this song+difficulty+songType
@@ -480,10 +556,20 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
             .update(scores)
             .set({
               achievement: String(score.achievement),
-              dxScore: score.dxScore,
-              fc: score.fc,
-              fs: score.fs,
+              dxScore: score.dxScore ?? existingForDiff.dxScore,
+              fc: getBestFC(existingForDiff.fc, score.fc),
+              fs: getBestFS(existingForDiff.fs, score.fs),
               playedAt: now,
+            })
+            .where(eq(scores.id, existingForDiff.id));
+          result.updated++;
+        } else if (getBestFC(existingForDiff.fc, score.fc) !== existingForDiff.fc || getBestFS(existingForDiff.fs, score.fs) !== existingForDiff.fs) {
+          // Even if achievement isn't strictly better, we might have earned a new badge
+          await db
+            .update(scores)
+            .set({
+              fc: getBestFC(existingForDiff.fc, score.fc),
+              fs: getBestFS(existingForDiff.fs, score.fs),
             })
             .where(eq(scores.id, existingForDiff.id));
           result.updated++;
@@ -505,45 +591,6 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`DB Error (${score.songTitle}): ${msg}`);
     }
-  }
-
-  // --- Fetch Recent Plays ---
-  try {
-    if (onProgress) onProgress(`Scraping recent plays (/record/)...`);
-    const recentHtml = await maimaiGet(region, 'record/', clal!);
-    const recentScores = parseRecentPage(recentHtml);
-    
-    if (onProgress) onProgress(`Saving up to ${recentScores.length} recent plays...`);
-    
-    // Sort ascending so oldest goes in first (though exact timestamp deduplicates it)
-    recentScores.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
-    
-    for (const rs of recentScores) {
-      // Avoid inserting duplicate records
-      const existing = await db
-        .select()
-        .from(playLog)
-        .where(eq(playLog.playedAt, rs.playedAt))
-        .limit(1);
-        
-      if (existing.length === 0) {
-        await db.insert(playLog).values({
-          songTitle: rs.songTitle,
-          difficulty: rs.difficulty,
-          songType: rs.songType ?? 'DX',
-          achievement: String(rs.achievement),
-          dxScore: rs.dxScore,
-          fc: rs.fc,
-          fs: rs.fs,
-          track: rs.track,
-          playedAt: rs.playedAt,
-        });
-        result.inserted++;
-      }
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    result.errors.push(`Recent Plays Error: ${msg}`);
   }
 
   // Update last sync timestamp
