@@ -5,6 +5,8 @@ export const scores = pgTable('scores', {
   id: serial('id').primaryKey(),
   songTitle: text('song_title').notNull(),
   difficulty: varchar('difficulty', { length: 10 }).notNull(), // BAS/ADV/EXP/MAS/REMAS
+  /** STD = standard/legacy chart, DX = maimai DX chart (default) */
+  songType: varchar('song_type', { length: 5 }).notNull().default('DX'), // STD/DX
   achievement: numeric('achievement', { precision: 10, scale: 4 }).notNull(), // e.g. 100.5000
   dxScore: integer('dx_score'),
   fc: varchar('fc', { length: 5 }), // FC/FC+/AP/AP+
@@ -18,6 +20,8 @@ export const playLog = pgTable('play_log', {
   id: serial('id').primaryKey(),
   songTitle: text('song_title').notNull(),
   difficulty: varchar('difficulty', { length: 10 }).notNull(), // BAS/ADV/EXP/MAS/REMAS
+  /** STD = standard/legacy chart, DX = maimai DX chart (default) */
+  songType: varchar('song_type', { length: 5 }).notNull().default('DX'), // STD/DX
   achievement: numeric('achievement', { precision: 10, scale: 4 }).notNull(),
   dxScore: integer('dx_score'),
   fc: varchar('fc', { length: 5 }), // FC/FC+/AP/AP+
@@ -44,16 +48,24 @@ export const songCache = pgTable('song_cache', {
   version: text('version').notNull(),
   bpm: text('bpm'),
   imageUrl: text('image_url'),
+  // STD chart display levels (for JP legacy songs)
   levBas: text('lev_bas'),
   levAdv: text('lev_adv'),
   levExp: text('lev_exp'),
   levMas: text('lev_mas'),
   levRemas: text('lev_remas'),
+  // STD or normalized internal levels (DX for DX-only songs, STD for STD-only)
   levBasI: text('lev_bas_i'),
   levAdvI: text('lev_adv_i'),
   levExpI: text('lev_exp_i'),
   levMasI: text('lev_mas_i'),
   levRemasI: text('lev_remas_i'),
+  // DX chart internal levels (preserved separately — critical for songs with both STD+DX)
+  dxLevBasI: text('dx_lev_bas_i'),
+  dxLevAdvI: text('dx_lev_adv_i'),
+  dxLevExpI: text('dx_lev_exp_i'),
+  dxLevMasI: text('dx_lev_mas_i'),
+  dxLevRemasI: text('dx_lev_remas_i'),
   intl: text('intl'),
   dateAdded: text('date_added'),
   cachedAt: timestamp('cached_at').notNull().defaultNow(),

@@ -13,7 +13,7 @@
  */
 
 import * as cheerio from 'cheerio';
-import type { Difficulty, FC, FS, Region } from './types';
+import type { Difficulty, FC, FS, Region, SongType } from './types';
 import { db } from './db';
 import { scores, playLog, settings } from './db/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -182,9 +182,18 @@ function parseFSFromSrc(src: string): FS {
   return null;
 }
 
+/** Detect chart type from the music_kind_icon img src. */
+function musicTypeFromSrc(src: string | undefined): SongType {
+  if (!src) return 'DX';
+  if (src.includes('music_standard.png')) return 'STD';
+  return 'DX'; // music_dx.png or anything else defaults to DX
+}
+
 interface ParsedScore {
   songTitle: string;
   difficulty: Difficulty;
+  /** STD = standard/legacy chart, DX = maimai DX chart. */
+  songType: SongType;
   achievement: number;
   dxScore?: number;
   fc: FC;
@@ -224,6 +233,10 @@ function parseScorePage(html: string, diffNum: number, difficulty: Difficulty): 
     const songTitle = block.find('.music_name_block').text().trim();
     if (!songTitle) return;
 
+    // Detect STD vs DX from the music_kind_icon on the parent element
+    const iconSrc = block.parent().find('img.music_kind_icon').attr('src');
+    const songType: SongType = musicTypeFromSrc(iconSrc);
+
     // First .music_score_block = achievement %
     const achvMatch = scoreBlocks.eq(0).text().trim().match(/(\d+\.?\d*)%/);
     if (!achvMatch) return;
@@ -241,7 +254,7 @@ function parseScorePage(html: string, diffNum: number, difficulty: Difficulty): 
     const fs: FS = h30.length >= 1 ? parseFSFromSrc(h30.eq(0).attr('src') ?? '') : null;
     const fc: FC = h30.length >= 2 ? parseFCFromSrc(h30.eq(1).attr('src') ?? '') : null;
 
-    results.push({ songTitle, difficulty, achievement, dxScore, fc, fs });
+    results.push({ songTitle, difficulty, songType, achievement, dxScore, fc, fs });
   });
 
   return results;
@@ -281,7 +294,7 @@ async function fetchRatingTargetScores(
         if (!songTitle) return;
 
         // Skip if already seen from genre pages
-        if (existingKeys.has(`${songTitle}::${difficulty}`)) return;
+        if (existingKeys.has(`${songTitle}::${difficulty}::DX`)) return;
 
         const achvMatch = scoreBlocks.eq(0).text().match(/(\d+\.?\d*)%/);
         if (!achvMatch) return;
@@ -297,7 +310,8 @@ async function fetchRatingTargetScores(
         const fs: FS = h30.length >= 1 ? parseFSFromSrc(h30.eq(0).attr('src') ?? '') : null;
         const fc: FC = h30.length >= 2 ? parseFCFromSrc(h30.eq(1).attr('src') ?? '') : null;
 
-        results.push({ songTitle, difficulty, achievement, dxScore, fc, fs });
+        // Rating target page always shows DX charts
+        results.push({ songTitle, difficulty, songType: 'DX', achievement, dxScore, fc, fs });
       });
     }
     return results;
@@ -348,22 +362,16 @@ export function parseRecentPage(html: string): ParsedRecentScore[] {
     else if (containerHtml.includes('diff_remaster')) difficulty = 'REMAS';
     else if (containerHtml.includes('diff_master')) difficulty = 'MAS';
 
-    let fc: FC = null;
-    let fs: FS = null;
-    container.find('img').each((_, img) => {
-      const src = $(img).attr('src') || '';
-      const badgeMatch = src.match(/\/(fc|ap|fs|fsp|fdx|fdxp|sync)[^"]*\.(png|gif)/i);
-      if (badgeMatch) {
-        const badge = badgeMatch[1].toLowerCase();
-        if (badge.startsWith('ap')) fc = badge === 'ap' ? 'AP' : 'AP+';
-        else if (badge.startsWith('fc')) fc = badge === 'fc' ? 'FC' : 'FC+';
-        else if (badge.startsWith('fdx')) fs = badge === 'fdx' ? 'FDX' : 'FDX+';
-        else if (badge.startsWith('fs')) fs = badge === 'fsp' ? 'FS+' : 'FS';
-        else if (badge === 'sync') fs = 'SYNC';
-      }
-    });
+    // Detect STD vs DX from music_kind_icon
+    const iconSrc = container.find('img.music_kind_icon').attr('src');
+    const songType: SongType = musicTypeFromSrc(iconSrc);
 
-    results.push({ songTitle, difficulty, achievement, dxScore, fc, fs, track, playedAt });
+    // FC/FS from .h_30 imgs
+    const h30 = container.find('.h_30');
+    const fs: FS = h30.length >= 1 ? parseFSFromSrc(h30.eq(0).attr('src') ?? '') : null;
+    const fc: FC = h30.length >= 2 ? parseFCFromSrc(h30.eq(1).attr('src') ?? '') : null;
+
+    results.push({ songTitle, difficulty, songType, achievement, dxScore, fc, fs, track, playedAt });
   });
 
   return results;
@@ -439,8 +447,8 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
     }
   }
 
-  // Supplement with hidden songs from the rating target page
-  const seenKeys = new Set(allParsed.map(s => `${s.songTitle}::${s.difficulty}`));
+  // Build a set of already-seen (title::difficulty::songType) pairs
+  const seenKeys = new Set(allParsed.map(s => `${s.songTitle}::${s.difficulty}::${s.songType}`));
   if (onProgress) onProgress('Checking rating target page for any hidden scores...');
   const hidden = await fetchRatingTargetScores(region, clal!, seenKeys);
   if (hidden.length > 0) {
@@ -454,7 +462,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
   const now = new Date();
   for (const score of allParsed) {
     try {
-      // Check if a record exists for this song+difficulty
+      // Check if a record exists for this song+difficulty+songType
       const existing = await db
         .select()
         .from(scores)
@@ -462,7 +470,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
         .limit(50);
 
       const existingForDiff = existing.find(
-        e => e.difficulty === score.difficulty,
+        e => e.difficulty === score.difficulty && e.songType === score.songType,
       );
 
       if (existingForDiff) {
@@ -484,6 +492,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
         await db.insert(scores).values({
           songTitle: score.songTitle,
           difficulty: score.difficulty,
+          songType: score.songType,
           achievement: String(score.achievement),
           dxScore: score.dxScore,
           fc: score.fc,
@@ -521,6 +530,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
         await db.insert(playLog).values({
           songTitle: rs.songTitle,
           difficulty: rs.difficulty,
+          songType: rs.songType ?? 'DX',
           achievement: String(rs.achievement),
           dxScore: rs.dxScore,
           fc: rs.fc,

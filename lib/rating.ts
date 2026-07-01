@@ -83,23 +83,54 @@ export function parseInternalLevel(internalLv: string | undefined, displayLv: st
 
 /**
  * Get the internal level for a specific difficulty from a Song object.
+ *
+ * @param song - The song entry from the song DB.
+ * @param difficulty - Chart difficulty (BAS/ADV/EXP/MAS/REMAS).
+ * @param songType - 'DX' (default) or 'STD'. For songs with both STD and DX
+ *   charts, 'DX' uses the preserved `dx_lev_*_i` fields so the correct
+ *   internal level is used for rating calculation.
  */
-export function getSongInternalLevel(song: Song, difficulty: Difficulty): number {
-  const internalMap: Record<Difficulty, string | undefined> = {
+export function getSongInternalLevel(
+  song: Song,
+  difficulty: Difficulty,
+  songType: 'STD' | 'DX' = 'DX',
+): number {
+  // For DX charts: prefer the explicit DX internal level field.
+  // Falls back to the normalized lev_*_i (which equals the DX level for DX-only songs).
+  if (songType === 'DX') {
+    const dxMap: Record<Difficulty, string | undefined> = {
+      BAS:   song.dx_lev_bas_i   ?? song.lev_bas_i,
+      ADV:   song.dx_lev_adv_i   ?? song.lev_adv_i,
+      EXP:   song.dx_lev_exp_i   ?? song.lev_exp_i,
+      MAS:   song.dx_lev_mas_i   ?? song.lev_mas_i,
+      REMAS: song.dx_lev_remas_i ?? song.lev_remas_i,
+    };
+    const dxDisplay: Record<Difficulty, string | undefined> = {
+      BAS:   song.dx_lev_bas   ?? song.lev_bas,
+      ADV:   song.dx_lev_adv   ?? song.lev_adv,
+      EXP:   song.dx_lev_exp   ?? song.lev_exp,
+      MAS:   song.dx_lev_mas   ?? song.lev_mas,
+      REMAS: song.dx_lev_remas ?? song.lev_remas,
+    };
+    return parseInternalLevel(dxMap[difficulty], dxDisplay[difficulty]);
+  }
+
+  // For STD charts: use only the STD (lev_*) fields.
+  const stdMap: Record<Difficulty, string | undefined> = {
     BAS:   song.lev_bas_i,
     ADV:   song.lev_adv_i,
     EXP:   song.lev_exp_i,
     MAS:   song.lev_mas_i,
     REMAS: song.lev_remas_i,
   };
-  const displayMap: Record<Difficulty, string | undefined> = {
+  const stdDisplay: Record<Difficulty, string | undefined> = {
     BAS:   song.lev_bas,
     ADV:   song.lev_adv,
     EXP:   song.lev_exp,
     MAS:   song.lev_mas,
     REMAS: song.lev_remas,
   };
-  return parseInternalLevel(internalMap[difficulty], displayMap[difficulty]);
+  return parseInternalLevel(stdMap[difficulty], stdDisplay[difficulty]);
 }
 
 /**
@@ -161,7 +192,7 @@ export function computeRating(
   const scored: ScoreWithRating[] = scores.map(score => {
     const song = songDb.get(score.songTitle);
     const internalLevel = song
-      ? getSongInternalLevel(song, score.difficulty)
+      ? getSongInternalLevel(song, score.difficulty, score.songType ?? 'DX')
       : 0;
     const achievement = typeof score.achievement === 'string'
       ? parseFloat(score.achievement)

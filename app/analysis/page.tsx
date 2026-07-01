@@ -20,6 +20,7 @@ export default async function AnalysisPage() {
       id: s.id,
       songTitle: s.songTitle,
       difficulty: s.difficulty as Difficulty,
+      songType: (s.songType ?? 'DX') as Score['songType'],
       achievement: parseFloat(s.achievement as string),
       dxScore: s.dxScore,
       fc: s.fc as Score['fc'],
