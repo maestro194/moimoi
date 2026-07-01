@@ -150,22 +150,35 @@ function parseAchievement(text: string): number {
   return parseFloat(text.replace('%', '').trim()) || 0;
 }
 
-function parseFC(text: string): FC {
-  const t = text.trim().toUpperCase();
-  if (t.includes('AP+') || t.includes('APPLUS')) return 'AP+';
-  if (t.includes('AP')) return 'AP';
-  if (t.includes('FC+') || t.includes('FCPLUS')) return 'FC+';
-  if (t.includes('FC')) return 'FC';
+/**
+ * Difficulty-specific CSS selectors matching the actual maimai NET HTML structure.
+ * Each played song block is wrapped in a div with one of these classes.
+ * This matches tomomai's parser exactly and is far more reliable than .w_450.
+ */
+const DIFF_SELECTORS: Record<number, string> = {
+  0: '.music_basic_score_back',
+  1: '.music_advanced_score_back',
+  2: '.music_expert_score_back',
+  3: '.music_master_score_back',
+  4: '.music_remaster_score_back',
+};
+
+/** Parse FC status from a .h_30 img src (uses specific filename suffixes). */
+function parseFCFromSrc(src: string): FC {
+  if (src.includes('_app.png')) return 'AP+';
+  if (src.includes('_ap.png'))  return 'AP';
+  if (src.includes('_fcp.png')) return 'FC+';
+  if (src.includes('_fc.png'))  return 'FC';
   return null;
 }
 
-function parseFS(text: string): FS {
-  const t = text.trim().toUpperCase();
-  if (t.includes('FDX+') || t.includes('FDXPLUS')) return 'FDX+';
-  if (t.includes('FDX')) return 'FDX';
-  if (t.includes('FS+') || t.includes('FSPLUS')) return 'FS+';
-  if (t.includes('FS')) return 'FS';
-  if (t.includes('SYNC')) return 'SYNC';
+/** Parse FS/Sync status from a .h_30 img src. */
+function parseFSFromSrc(src: string): FS {
+  if (src.includes('_fdxp.png')) return 'FDX+';
+  if (src.includes('_fdx.png'))  return 'FDX';
+  if (src.includes('_fsp.png'))  return 'FS+';
+  if (src.includes('_fs.png'))   return 'FS';
+  if (src.includes('_sync.png')) return 'SYNC';
   return null;
 }
 
@@ -179,49 +192,118 @@ interface ParsedScore {
 }
 
 /**
- * Parse the score listing HTML from maimai NET's score page.
- * Handles both the "best score" list and recent play formats.
+ * Parse the score listing page for a single difficulty.
+ *
+ * Uses difficulty-specific selectors (.music_basic_score_back etc.) matching
+ * the actual maimai NET HTML — the same approach as tomomai's parser.
+ * The old .w_450 container selector was fragile and silently missed songs.
+ *
+ * Structure per song block:
+ *   <div class="music_<diff>_score_back">
+ *     <div class="music_name_block">Title</div>
+ *     <div class="music_score_block">97.6977%</div>  ← achievement
+ *     <div class="music_score_block">758 / 963</div> ← DX score
+ *     <img class="h_30" src="..._sync.png">           ← FS
+ *     <img class="h_30" src="..._fc.png">             ← FC
+ *   </div>
  */
-function parseScorePage(html: string, difficulty: Difficulty): ParsedScore[] {
-  const results: ParsedScore[] = [];
+function parseScorePage(html: string, diffNum: number, difficulty: Difficulty): ParsedScore[] {
   const $ = cheerio.load(html);
+  const selector = DIFF_SELECTORS[diffNum];
+  if (!selector) return [];
 
-  $('.music_name_block').each((_, el) => {
-    const songTitle = $(el).text().trim();
+  const results: ParsedScore[] = [];
+
+  $(selector).each((_, el) => {
+    const block = $(el);
+
+    // Skip songs the player has never played (no achievement block present)
+    const scoreBlocks = block.find('.music_score_block');
+    if (scoreBlocks.length === 0) return;
+
+    const songTitle = block.find('.music_name_block').text().trim();
     if (!songTitle) return;
 
-    // The container is usually .w_450 (or a parent div housing this song's entry)
-    const container = $(el).closest('.w_450');
-    if (!container.length) return;
-
-    const achvText = container.find('.music_score_block').text() || container.text();
-    const achvMatch = achvText.match(/([0-9]{1,3}\.[0-9]{4})%/);
+    // First .music_score_block = achievement %
+    const achvMatch = scoreBlocks.eq(0).text().trim().match(/(\d+\.?\d*)%/);
     if (!achvMatch) return;
-    const achievement = parseAchievement(achvMatch[1]);
+    const achievement = parseFloat(achvMatch[1]);
 
-    const containerText = container.text();
-    const dxMatch = containerText.match(/([0-9,]+)\s*\/\s*[0-9,]+/);
-    const dxScore = dxMatch ? parseInt(dxMatch[1].replace(/,/g, '')) : undefined;
+    // Second .music_score_block = DX score "1,234 / 5,678"
+    let dxScore: number | undefined;
+    if (scoreBlocks.length >= 2) {
+      const dxMatch = scoreBlocks.eq(1).text().trim().match(/([\d,]+)\s*\/\s*[\d,]+/);
+      if (dxMatch) dxScore = parseInt(dxMatch[1].replace(/,/g, ''), 10);
+    }
 
-    let fc: FC = null;
-    let fs: FS = null;
-    container.find('img').each((_, img) => {
-      const src = $(img).attr('src') || '';
-      const badgeMatch = src.match(/\/(fc|ap|fs|fsp|fdx|fdxp|sync)[^"]*\.(png|gif)/i);
-      if (badgeMatch) {
-        const badge = badgeMatch[1].toLowerCase();
-        if (badge.startsWith('ap')) fc = badge === 'ap' ? 'AP' : 'AP+';
-        else if (badge.startsWith('fc')) fc = badge === 'fc' ? 'FC' : 'FC+';
-        else if (badge.startsWith('fdx')) fs = badge === 'fdx' ? 'FDX' : 'FDX+';
-        else if (badge.startsWith('fs')) fs = badge === 'fsp' ? 'FS+' : 'FS';
-        else if (badge === 'sync') fs = 'SYNC';
-      }
-    });
+    // First .h_30 = FS (sync status), second .h_30 = FC
+    const h30 = block.find('.h_30');
+    const fs: FS = h30.length >= 1 ? parseFSFromSrc(h30.eq(0).attr('src') ?? '') : null;
+    const fc: FC = h30.length >= 2 ? parseFCFromSrc(h30.eq(1).attr('src') ?? '') : null;
 
     results.push({ songTitle, difficulty, achievement, dxScore, fc, fs });
   });
 
   return results;
+}
+
+/**
+ * Fetch supplementary scores from the rating target page.
+ * Some songs that count toward rating don't appear on the standard
+ * musicGenre/search pages — this page catches them (intl only).
+ */
+async function fetchRatingTargetScores(
+  region: Region,
+  token: string,
+  existingKeys: Set<string>,
+): Promise<ParsedScore[]> {
+  if (region !== 'intl') return [];
+  try {
+    const html = await maimaiGet(region, 'home/ratingTargetMusic/', token);
+    const $ = cheerio.load(html);
+    const results: ParsedScore[] = [];
+
+    const diffInfo: { selector: string; diffNum: number; difficulty: Difficulty }[] = [
+      { selector: '.music_basic_score_back',    diffNum: 0, difficulty: 'BAS'   },
+      { selector: '.music_advanced_score_back', diffNum: 1, difficulty: 'ADV'   },
+      { selector: '.music_expert_score_back',   diffNum: 2, difficulty: 'EXP'   },
+      { selector: '.music_master_score_back',   diffNum: 3, difficulty: 'MAS'   },
+      { selector: '.music_remaster_score_back', diffNum: 4, difficulty: 'REMAS' },
+    ];
+
+    for (const { selector, difficulty } of diffInfo) {
+      $(selector).each((_, el) => {
+        const block = $(el);
+        const scoreBlocks = block.find('.music_score_block');
+        if (scoreBlocks.length === 0) return;
+
+        const songTitle = block.find('.music_name_block').text().trim();
+        if (!songTitle) return;
+
+        // Skip if already seen from genre pages
+        if (existingKeys.has(`${songTitle}::${difficulty}`)) return;
+
+        const achvMatch = scoreBlocks.eq(0).text().match(/(\d+\.?\d*)%/);
+        if (!achvMatch) return;
+        const achievement = parseFloat(achvMatch[1]);
+
+        let dxScore: number | undefined;
+        if (scoreBlocks.length >= 2) {
+          const dxMatch = scoreBlocks.eq(1).text().match(/([\d,]+)\s*\/\s*[\d,]+/);
+          if (dxMatch) dxScore = parseInt(dxMatch[1].replace(/,/g, ''), 10);
+        }
+
+        const h30 = block.find('.h_30');
+        const fs: FS = h30.length >= 1 ? parseFSFromSrc(h30.eq(0).attr('src') ?? '') : null;
+        const fc: FC = h30.length >= 2 ? parseFCFromSrc(h30.eq(1).attr('src') ?? '') : null;
+
+        results.push({ songTitle, difficulty, achievement, dxScore, fc, fs });
+      });
+    }
+    return results;
+  } catch {
+    return []; // Non-critical — don't fail the whole sync
+  }
 }
 
 export interface ParsedRecentScore extends ParsedScore {
@@ -236,9 +318,8 @@ export function parseRecentPage(html: string): ParsedRecentScore[] {
   const results: ParsedRecentScore[] = [];
   const $ = cheerio.load(html);
 
-  // Each play log is typically inside a block that contains both the timestamp and the song details
   $('.p_10.t_l.f_0.v_b').each((_, el) => {
-    const timeTrackStr = $(el).text(); // e.g., "2024/05/12 14:30　Track 1"
+    const timeTrackStr = $(el).text();
     const timeMatch = timeTrackStr.match(/(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2})/);
     const trackMatch = timeTrackStr.match(/Track\s*(\d+)/i);
     if (!timeMatch || !trackMatch) return;
@@ -246,7 +327,6 @@ export function parseRecentPage(html: string): ParsedRecentScore[] {
     const playedAt = new Date(timeMatch[1]);
     const track = parseInt(trackMatch[1], 10);
 
-    // The container for the actual song data is usually the next sibling or parent
     const container = $(el).closest('div[class*="m_15"], div[class*="w_450"], div.p_10');
     if (!container.length) return;
 
@@ -341,7 +421,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
   const result: SyncResult = { inserted: 0, updated: 0, errors: [] };
   const allParsed: ParsedScore[] = [];
 
-  // Scrape each difficulty tab (0=BAS to 4=REMAS)
+  // 1. Scrape standard song list
   for (let diff = 0; diff <= 4; diff++) {
     const difficulty = DIFFICULTY_MAP[diff];
     try {
@@ -351,12 +431,21 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
         `record/musicGenre/search/?genre=99&diff=${diff}`,
         clal!,
       );
-      const parsed = parseScorePage(html, difficulty);
+      const parsed = parseScorePage(html, diff, difficulty);
       allParsed.push(...parsed);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`${difficulty}: ${msg}`);
     }
+  }
+
+  // Supplement with hidden songs from the rating target page
+  const seenKeys = new Set(allParsed.map(s => `${s.songTitle}::${s.difficulty}`));
+  if (onProgress) onProgress('Checking rating target page for any hidden scores...');
+  const hidden = await fetchRatingTargetScores(region, clal!, seenKeys);
+  if (hidden.length > 0) {
+    if (onProgress) onProgress(`Found ${hidden.length} additional scores.`);
+    allParsed.push(...hidden);
   }
 
   if (onProgress) onProgress(`Saving ${allParsed.length} scores to database...`);
