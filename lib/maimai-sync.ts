@@ -580,60 +580,83 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
     }
   }
 
-  if (onProgress && allParsed.length > 0) onProgress(`Saving ${allParsed.length} scores to database...`);
+  // Fetch all existing scores into memory
+  if (onProgress && allParsed.length > 0) onProgress(`Comparing new scores against database...`);
+  const existingScoresRaw = await db.select().from(scores);
   
-  // Upsert into database
+  // Create a fast lookup map: songTitle -> diff -> songType -> Score
+  const existingScoresMap = new Map<string, typeof existingScoresRaw[0]>();
+  for (const s of existingScoresRaw) {
+    existingScoresMap.set(`${s.songTitle}::${s.difficulty}::${s.songType}`, s);
+  }
+
+  // Filter allParsed into what actually needs to be inserted or updated
+  const scoresToInsert: typeof allParsed = [];
+  const scoresToUpdate: { parsed: typeof allParsed[0]; existing: typeof existingScoresRaw[0] }[] = [];
+
   for (const score of allParsed) {
-    try {
-      // Check if a record exists for this song+difficulty+songType
-      const existing = await db
-        .select()
-        .from(scores)
-        .where(eq(scores.songTitle, score.songTitle))
-        .limit(50);
+    const key = `${score.songTitle}::${score.difficulty}::${score.songType}`;
+    const existingForDiff = existingScoresMap.get(key);
 
-      const existingForDiff = existing.find(
-        e => e.difficulty === score.difficulty && e.songType === score.songType,
-      );
+    if (existingForDiff) {
+      const parsedAchv = score.achievement;
+      const existAchv = parseFloat(existingForDiff.achievement as string);
+      
+      const betterAchv = parsedAchv > existAchv;
+      const betterFC = getBestFC(existingForDiff.fc, score.fc) !== existingForDiff.fc;
+      const betterFS = getBestFS(existingForDiff.fs, score.fs) !== existingForDiff.fs;
 
-      if (existingForDiff) {
-        // Only update if the new achievement is better
-        if (score.achievement > parseFloat(existingForDiff.achievement as string)) {
-          await db
-            .update(scores)
-            .set({
-              achievement: String(score.achievement),
-              dxScore: score.dxScore ?? existingForDiff.dxScore,
-              fc: getBestFC(existingForDiff.fc, score.fc),
-              fs: getBestFS(existingForDiff.fs, score.fs),
-              playedAt: now,
-            })
-            .where(eq(scores.id, existingForDiff.id));
-          result.updated++;
-        } else if (getBestFC(existingForDiff.fc, score.fc) !== existingForDiff.fc || getBestFS(existingForDiff.fs, score.fs) !== existingForDiff.fs) {
-          // Even if achievement isn't strictly better, we might have earned a new badge
-          await db
-            .update(scores)
-            .set({
-              fc: getBestFC(existingForDiff.fc, score.fc),
-              fs: getBestFS(existingForDiff.fs, score.fs),
-            })
-            .where(eq(scores.id, existingForDiff.id));
-          result.updated++;
-        }
-      } else {
-        await db.insert(scores).values({
-          songTitle: score.songTitle,
-          difficulty: score.difficulty,
-          songType: score.songType,
-          achievement: String(score.achievement),
-          dxScore: score.dxScore,
-          fc: score.fc,
-          fs: score.fs,
-          playedAt: now,
-        });
-        result.inserted++;
+      if (betterAchv || betterFC || betterFS) {
+        scoresToUpdate.push({ parsed: score, existing: existingForDiff });
       }
+    } else {
+      scoresToInsert.push(score);
+    }
+  }
+
+  const totalToSave = scoresToInsert.length + scoresToUpdate.length;
+  if (onProgress && totalToSave > 0) {
+    onProgress(`Saving ${totalToSave} new/updated scores to database...`);
+  } else if (onProgress) {
+    onProgress('All scores are up to date!');
+  }
+
+  // Upsert into database
+  for (const item of scoresToUpdate) {
+    try {
+      const { parsed, existing } = item;
+      const betterAchv = parsed.achievement > parseFloat(existing.achievement as string);
+      
+      await db
+        .update(scores)
+        .set({
+          achievement: betterAchv ? String(parsed.achievement) : existing.achievement,
+          dxScore: betterAchv ? (parsed.dxScore ?? existing.dxScore) : existing.dxScore,
+          fc: getBestFC(existing.fc, parsed.fc),
+          fs: getBestFS(existing.fs, parsed.fs),
+          playedAt: betterAchv ? now : existing.playedAt,
+        })
+        .where(eq(scores.id, existing.id));
+      result.updated++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.errors.push(`DB Error (${item.parsed.songTitle}): ${msg}`);
+    }
+  }
+
+  for (const score of scoresToInsert) {
+    try {
+      await db.insert(scores).values({
+        songTitle: score.songTitle,
+        difficulty: score.difficulty,
+        songType: score.songType,
+        achievement: String(score.achievement),
+        dxScore: score.dxScore,
+        fc: score.fc,
+        fs: score.fs,
+        playedAt: now,
+      });
+      result.inserted++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`DB Error (${score.songTitle}): ${msg}`);
