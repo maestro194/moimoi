@@ -1,6 +1,7 @@
 'use client';
 
-import { TrendingUp, Target, ArrowUp } from 'lucide-react';
+import { TrendingUp, Target, ArrowUp, ChevronRight, ArrowRight, ExternalLink } from 'lucide-react';
+import { FCBadge, FSBadge } from '@/components/badges';
 import type { RatingData, ScoreWithRating } from '@/lib/types';
 import type { TargetSuggestion } from '@/lib/rating';
 import { RANK_DEFINITIONS } from '@/lib/rating';
@@ -22,18 +23,6 @@ const DIFF_COLOR: Record<string, string> = {
   REMAS: '#d2a8ff',
   UTAGE: '#bf1b5e',
 };
-
-function FCBadge({ fc }: { fc: string | null | undefined }) {
-  if (!fc) return null;
-  const colors: Record<string, string> = {
-    'AP+': '#f9a8d4', AP: '#f472b6', 'FC+': '#c084fc', FC: '#a78bfa',
-  };
-  return (
-    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.08)', color: colors[fc] || '#ccc' }}>
-      {fc}
-    </span>
-  );
-}
 
 function DiffBadge({ diff }: { diff: string }) {
   return (
@@ -233,7 +222,7 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
                   </div>
                   <div className="flex gap-1 justify-end mt-1">
                     <FCBadge fc={s.fc} />
-                    {s.fs && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-[#22d3ee] bg-[#22d3ee]/10">{s.fs}</span>}
+                    <FSBadge fs={s.fs} />
                   </div>
                 </div>
 

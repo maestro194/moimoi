@@ -29,17 +29,7 @@ function DiffBadge({ diff }: { diff: string }) {
   );
 }
 
-function FCBadge({ fc }: { fc: string | null }) {
-  if (!fc) return null;
-  const colors: Record<string, string> = {
-    'AP+': '#f9a8d4', AP: '#f472b6', 'FC+': '#c084fc', FC: '#a78bfa',
-  };
-  return (
-    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.08)', color: colors[fc] || '#ccc' }}>
-      {fc}
-    </span>
-  );
-}
+import { FCBadge, FSBadge } from '@/components/badges';
 
 export default function ScoresClient({ scored, total }: Props) {
   const [query, setQuery] = useState('');
@@ -138,7 +128,7 @@ export default function ScoresClient({ scored, total }: Props) {
                   <div className="font-num font-bold text-[13px] text-white tabular-nums">{s.achievement.toFixed(4)}%</div>
                   <div className="flex gap-1 justify-end mt-1">
                     <FCBadge fc={s.fc} />
-                    {s.fs && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-[#22d3ee] bg-[#22d3ee]/10">{s.fs}</span>}
+                    <FSBadge fs={s.fs} />
                   </div>
                 </div>
                 <div className="font-num font-bold text-lg w-12 text-right shrink-0 tabular-nums" style={{ color: DIFF_COLOR[s.difficulty] }}>
@@ -291,16 +281,8 @@ function B50Card({ score: s, index = 0, animated = false }: { score: ScoreWithRa
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-white font-num leading-none">{s.achievement.toFixed(4)}%</span>
             <div className="flex gap-1">
-              {s.fc && (
-                <span className="text-[8px] font-bold px-1 py-px rounded leading-none text-white/90" style={{ background: 'rgba(255,255,255,0.15)' }}>
-                  {s.fc}
-                </span>
-              )}
-              {s.fs && (
-                <span className="text-[8px] font-bold px-1 py-px rounded leading-none text-[#22d3ee]" style={{ background: 'rgba(34,211,238,0.15)' }}>
-                  {s.fs}
-                </span>
-              )}
+              <FCBadge fc={s.fc} className="bg-black/60 backdrop-blur-sm" />
+              <FSBadge fs={s.fs} className="bg-black/60 backdrop-blur-sm" />
             </div>
           </div>
           <div className="text-xl font-bold font-num leading-none tracking-tight tabular-nums" style={{ color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>

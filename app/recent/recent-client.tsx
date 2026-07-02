@@ -2,7 +2,8 @@
 
 import React from 'react';
 import type { FC, FS, Difficulty } from '@/lib/types';
-import { ArrowUp, Clock } from 'lucide-react';
+import { Clock, ExternalLink } from 'lucide-react';
+import { FCBadge, FSBadge } from '@/components/badges';
 import { PageWrapper } from '@/components/page-wrapper';
 import { motion, Variants } from 'framer-motion';
 
@@ -187,16 +188,8 @@ export default function RecentClient({ logs }: RecentClientProps) {
                           </span>
                         </div>
                         <div className="flex gap-1 mt-1">
-                          {play.fc && (
-                            <span className="px-1.5 py-0.5 rounded-sm bg-black/60 border border-white/20 text-[9px] font-bold text-white">
-                              {play.fc}
-                            </span>
-                          )}
-                          {play.fs && (
-                            <span className="px-1.5 py-0.5 rounded-sm bg-black/60 border border-white/20 text-[9px] font-bold text-white">
-                              {play.fs}
-                            </span>
-                          )}
+                          <FCBadge fc={play.fc} className="bg-black/60 backdrop-blur-sm" />
+                          <FSBadge fs={play.fs} className="bg-black/60 backdrop-blur-sm" />
                         </div>
                       </div>
                       
