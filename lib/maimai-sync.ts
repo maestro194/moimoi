@@ -346,43 +346,61 @@ export function parseRecentPage(html: string): ParsedRecentScore[] {
   const $ = cheerio.load(html);
 
   $('.p_10.t_l.f_0.v_b').each((_, el) => {
-    const timeTrackStr = $(el).text();
-    const timeMatch = timeTrackStr.match(/(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2})/);
-    const trackMatch = timeTrackStr.match(/Track\s*(\d+)/i);
+    const record = $(el);
+
+    const timeTrackStr = record.find('.sub_title > .v_b:not(.red)').text();
+    const trackStr = record.find('.sub_title > .red').text();
+    
+    const timeMatch = timeTrackStr.match(/(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2})/);
+    const trackMatch = trackStr.match(/(?:Track|曲目)\s*(\d+)/i);
     if (!timeMatch || !trackMatch) return;
 
-    const playedAt = new Date(timeMatch[1]);
+    const playedAt = new Date(timeMatch[1].replace(/\s+/, 'T') + ':00+09:00');
     const track = parseInt(trackMatch[1], 10);
 
-    const container = $(el).closest('div[class*="m_15"], div[class*="w_450"], div.p_10');
-    if (!container.length) return;
-
-    const songTitle = container.find('.music_name_block').text().trim();
+    const basicBlock = record.find('.basic_block');
+    let songTitle = '';
+    basicBlock.contents().each((_, node) => {
+      if (node.type === 'text') {
+        const text = $(node).text().trim();
+        if (text) songTitle = text;
+      }
+    });
     if (!songTitle) return;
 
-    const achvText = container.find('.music_score_block').text() || container.text();
+    const achvText = record.find('.playlog_achievement_txt').text().trim();
     const achvMatch = achvText.match(/([0-9]{1,3}\.[0-9]{4})%/);
     const achievement = achvMatch ? parseAchievement(achvMatch[1]) : 0;
 
-    const dxMatch = container.text().match(/([0-9,]+)\s*\/\s*[0-9,]+/);
-    const dxScore = dxMatch ? parseInt(dxMatch[1].replace(/,/g, '')) : undefined;
+    const dxScoreText = record.find('.playlog_score_block > .f_15').text().trim();
+    const dxMatch = dxScoreText.match(/([0-9,]+)\s*\/\s*[0-9,]+/);
+    const dxScore = dxMatch ? parseInt(dxMatch[1].replace(/,/g, ''), 10) : undefined;
 
     let difficulty: Difficulty = 'MAS';
-    const containerHtml = container.html() || '';
-    if (containerHtml.includes('diff_basic')) difficulty = 'BAS';
-    else if (containerHtml.includes('diff_advanced')) difficulty = 'ADV';
-    else if (containerHtml.includes('diff_expert')) difficulty = 'EXP';
-    else if (containerHtml.includes('diff_remaster')) difficulty = 'REMAS';
-    else if (containerHtml.includes('diff_master')) difficulty = 'MAS';
+    const diffImgSrc = record.find('img.playlog_diff').attr('src') || '';
+    if (diffImgSrc.includes('basic')) difficulty = 'BAS';
+    else if (diffImgSrc.includes('advanced')) difficulty = 'ADV';
+    else if (diffImgSrc.includes('expert')) difficulty = 'EXP';
+    else if (diffImgSrc.includes('remaster')) difficulty = 'REMAS';
+    else if (diffImgSrc.includes('master')) difficulty = 'MAS';
 
-    // Detect STD vs DX from music_kind_icon
-    const iconSrc = container.find('img.music_kind_icon').attr('src');
+    // Detect STD vs DX from playlog_music_kind_icon
+    const iconSrc = record.find('img.playlog_music_kind_icon').attr('src');
     const songType: SongType = musicTypeFromSrc(iconSrc);
 
-    // FC/FS from .h_30 imgs
-    const h30 = container.find('.h_30');
-    const fs: FS = h30.length >= 1 ? parseFSFromSrc(h30.eq(0).attr('src') ?? '') : null;
-    const fc: FC = h30.length >= 2 ? parseFCFromSrc(h30.eq(1).attr('src') ?? '') : null;
+    // FC/FS from .playlog_result_innerblock > img
+    let fc: FC = null;
+    let fs: FS = null;
+    const resultImages = record.find('.playlog_result_innerblock > img');
+    
+    if (resultImages.length > 0) {
+      const fcSrc = resultImages.eq(0).attr('src') || '';
+      fc = parseFCFromSrc(fcSrc);
+    }
+    if (resultImages.length > 1) {
+      const fsSrc = resultImages.eq(1).attr('src') || '';
+      fs = parseFSFromSrc(fsSrc);
+    }
 
     results.push({ songTitle, difficulty, songType, achievement, dxScore, fc, fs, track, playedAt });
   });

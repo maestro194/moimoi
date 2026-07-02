@@ -29,8 +29,7 @@ export default async function AnalysisPage() {
     }));
 
     const ratingData = computeRating(typedScores, songMap, currentVersion);
-    const allScored = [...ratingData.newCharts, ...ratingData.oldCharts];
-    const suggestions = getTargetSuggestions(ratingData, allScored, 15);
+    const suggestions = getTargetSuggestions(ratingData, ratingData.allScores, 1000);
 
     return <AnalysisClient ratingData={ratingData} suggestions={suggestions} totalScores={typedScores.length} />;
   } catch {

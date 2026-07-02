@@ -28,7 +28,7 @@ export default async function RecentPage() {
       const idx = ['BAS', 'ADV', 'EXP', 'MAS', 'REMAS'].indexOf(log.difficulty);
       const iv = song[`lev_${log.difficulty.toLowerCase()}_i` as keyof Song] as string;
       if (iv) internalLevel = parseFloat(iv);
-      rating = calcSingleRating(internalLevel, parseFloat(log.achievement as string), log.fc);
+      rating = calcSingleRating(internalLevel, parseFloat(log.achievement as string), log.fc as any).floored;
     }
     
     return {

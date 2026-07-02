@@ -49,19 +49,22 @@ export function getRankFactor(achievement: number): number {
  * formula: floor(internalLevel * factor * 100) / 100
  * Capped at internal level 15.0 for calculation purposes.
  */
-export function calcSingleRating(internalLevel: number, achievement: number, fc?: string | null): number {
+export function calcSingleRating(internalLevel: number, achievement: number, fc?: string | null): { floored: number; raw: number } {
   const factor = getRankFactor(achievement);
   // Official DX Rating formula: floor(internalLevel * min(achievement, 100.5) * rankFactor / 100)
   // Our 'factor' table already divides the rankFactor by 100 (e.g. 0.224 instead of 22.4)
   // To avoid floating point precision issues rounding down incorrectly, we add a tiny epsilon
-  let rating = Math.floor(internalLevel * Math.min(achievement, 100.5) * factor + 1e-9);
+  let rating = internalLevel * Math.min(achievement, 100.5) * factor + 1e-9;
   
   // +1 bonus for AP / AP+
   if (fc === 'AP' || fc === 'AP+') {
     rating += 1;
   }
   
-  return rating;
+  return {
+    floored: Math.floor(rating),
+    raw: rating
+  };
 }
 
 /**
@@ -206,7 +209,8 @@ export function computeRating(
     return {
       ...score,
       internalLevel,
-      rating,
+      rating: rating.floored,
+      rawRating: rating.raw,
       pool,
       rank: getRankTitle(achievement),
       song,
@@ -219,8 +223,24 @@ export function computeRating(
   const newPool = allBestScores.filter(s => s.pool === 'new');
   const oldPool = allBestScores.filter(s => s.pool === 'old');
 
-  newPool.sort((a, b) => b.rating - a.rating);
-  oldPool.sort((a, b) => b.rating - a.rating);
+  const sortScores = (a: ScoreWithRating & { rawRating?: number }, b: ScoreWithRating & { rawRating?: number }) => {
+    if (b.rating !== a.rating) return b.rating - a.rating;
+    
+    // Tiebreaker 1: Unfloored (raw) rating
+    if (a.rawRating !== undefined && b.rawRating !== undefined) {
+      if (Math.abs(b.rawRating - a.rawRating) > 1e-6) {
+        return b.rawRating - a.rawRating;
+      }
+    }
+    
+    // Tiebreaker 2: Achievement percentage
+    const achA = typeof a.achievement === 'string' ? parseFloat(a.achievement) : a.achievement;
+    const achB = typeof b.achievement === 'string' ? parseFloat(b.achievement) : b.achievement;
+    return achB - achA;
+  };
+
+  newPool.sort(sortScores);
+  oldPool.sort(sortScores);
 
   const topNew = newPool.slice(0, NUM_TOP_NEW);
   const topOld = oldPool.slice(0, NUM_TOP_OLD);
@@ -264,6 +284,11 @@ export interface TargetSuggestion {
   targetAchievement: number;
   targetRating: number;
   ratingGain: number;
+  totalRatingGain: number;
+  efficiency: number;
+  song?: Song;
+  fc?: string | null;
+  fs?: string | null;
 }
 
 /**
@@ -291,31 +316,56 @@ export function getTargetSuggestions(
     const nextRankDef = getNextRankTarget(score.achievement);
     if (!nextRankDef) continue;
 
-    const targetRating = calcSingleRating(score.internalLevel, nextRankDef.minAchv);
+    const targetRating = calcSingleRating(score.internalLevel, nextRankDef.minAchv).floored;
     const ratingGain = targetRating - score.rating;
     if (ratingGain <= 0) continue;
 
+    const isNew = score.pool === 'new';
+    const topList = isNew ? ratingData.newCharts : ratingData.oldCharts;
+    const maxLen = isNew ? NUM_TOP_NEW : NUM_TOP_OLD;
+    
     // Only suggest if it would improve or enter the top pool
-    if (targetRating <= cutoff && score.pool === 'new' && ratingData.newCharts.length >= NUM_TOP_NEW) continue;
-    if (targetRating <= cutoff && score.pool === 'old' && ratingData.oldCharts.length >= NUM_TOP_OLD) continue;
+    if (targetRating <= cutoff && topList.length >= maxLen) continue;
+
+    const inTopList = topList.some(s => s.songTitle === score.songTitle && s.difficulty === score.difficulty);
+    const totalRatingGain = inTopList ? targetRating - score.rating : targetRating - cutoff;
+
+    if (totalRatingGain <= 0) continue;
+
+    const currentAchievement = typeof score.achievement === 'string'
+      ? parseFloat(score.achievement)
+      : score.achievement;
+      
+    // Efficiency calculation similar to Tomomai
+    const efficiency = totalRatingGain / Math.max(nextRankDef.minAchv - currentAchievement, 0.1);
 
     suggestions.push({
       songTitle: score.songTitle,
       difficulty: score.difficulty,
       internalLevel: score.internalLevel,
-      currentAchievement: typeof score.achievement === 'string'
-        ? parseFloat(score.achievement)
-        : score.achievement,
+      currentAchievement,
       currentRank: score.rank,
       currentRating: score.rating,
       targetRank: nextRankDef.title,
       targetAchievement: nextRankDef.minAchv,
       targetRating,
       ratingGain,
+      totalRatingGain,
+      efficiency,
+      song: score.song,
+      fc: score.fc,
+      fs: score.fs,
     });
   }
 
-  suggestions.sort((a, b) => b.ratingGain - a.ratingGain);
+  // Sort by efficiency (rating gain per % of accuracy needed), fallback to absolute gain
+  suggestions.sort((a, b) => {
+    if (Math.abs(a.efficiency - b.efficiency) < 0.1) {
+      return b.totalRatingGain - a.totalRatingGain;
+    }
+    return b.efficiency - a.efficiency;
+  });
+  
   return suggestions.slice(0, limit);
 }
 
