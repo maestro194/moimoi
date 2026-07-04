@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist } from 'next/font/google';
 import Link from 'next/link';
 import './globals.css';
@@ -9,9 +9,17 @@ import {
   BarChart3,
   Settings2,
   Clock,
+  Target,
 } from 'lucide-react';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 0.75,
+  maximumScale: 5,
+  userScalable: true,
+};
 
 export const metadata: Metadata = {
   title: { default: 'moimoi — maimai Tracker', template: '%s · moimoi' },
@@ -23,6 +31,7 @@ const navItems = [
   { href: '/',          label: 'Dashboard', icon: LayoutDashboard },
   { href: '/songs',     label: 'Songs',     icon: Music2 },
   { href: '/scores',    label: 'Scores',    icon: Trophy },
+  { href: '/tracker',   label: 'Tracker',   icon: Target },
   { href: '/recent',    label: 'Recent',    icon: Clock },
   { href: '/analysis',  label: 'Analysis',  icon: BarChart3 },
   { href: '/settings',  label: 'Settings',  icon: Settings2 },

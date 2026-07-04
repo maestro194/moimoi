@@ -5,7 +5,10 @@ import { Search, Music2, LayoutGrid, List, ArrowUpDown, Calendar } from 'lucide-
 import type { Song } from '@/lib/types';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { PageWrapper } from '@/components/page-wrapper';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toRomaji } from '@/lib/romaji';
+import { addTracker } from '@/app/tracker/actions';
+import { useRouter } from 'next/navigation';
 
 interface Props {
   songs: Song[];
@@ -40,44 +43,6 @@ const CAT_LABELS: Record<string, string> = {
   toho: 'Touhou',
   'original&joypolis': 'Original',
 };
-
-// ── Romaji conversion ──────────────────────────────────────────────────────────
-const KANA_ROMAJI: Record<string, string> = {
-  'きゃ':'kya','きゅ':'kyu','きょ':'kyo','しゃ':'sha','しゅ':'shu','しょ':'sho',
-  'ちゃ':'cha','ちゅ':'chu','ちょ':'cho','にゃ':'nya','にゅ':'nyu','にょ':'nyo',
-  'ひゃ':'hya','ひゅ':'hyu','ひょ':'hyo','みゃ':'mya','みゅ':'myu','みょ':'myo',
-  'りゃ':'rya','りゅ':'ryu','りょ':'ryo','ぎゃ':'gya','ぎゅ':'gyu','ぎょ':'gyo',
-  'じゃ':'ja', 'じゅ':'ju', 'じょ':'jo','びゃ':'bya','びゅ':'byu','びょ':'byo',
-  'ぴゃ':'pya','ぴゅ':'pyu','ぴょ':'pyo',
-  'あ':'a','い':'i','う':'u','え':'e','お':'o',
-  'か':'ka','き':'ki','く':'ku','け':'ke','こ':'ko',
-  'さ':'sa','し':'shi','す':'su','せ':'se','そ':'so',
-  'た':'ta','ち':'chi','つ':'tsu','て':'te','と':'to',
-  'な':'na','に':'ni','ぬ':'nu','ね':'ne','の':'no',
-  'は':'ha','ひ':'hi','ふ':'fu','へ':'he','ほ':'ho',
-  'ま':'ma','み':'mi','む':'mu','め':'me','も':'mo',
-  'や':'ya','ゆ':'yu','よ':'yo',
-  'ら':'ra','り':'ri','る':'ru','れ':'re','ろ':'ro',
-  'わ':'wa','を':'wo','ん':'n',
-  'が':'ga','ぎ':'gi','ぐ':'gu','げ':'ge','ご':'go',
-  'ざ':'za','じ':'ji','ず':'zu','ぜ':'ze','ぞ':'zo',
-  'だ':'da','ぢ':'di','づ':'du','で':'de','ど':'do',
-  'ば':'ba','び':'bi','ぶ':'bu','べ':'be','ぼ':'bo',
-  'ぱ':'pa','ぴ':'pi','ぷ':'pu','ぺ':'pe','ぽ':'po',
-  'ぁ':'a','ぃ':'i','ぅ':'u','ぇ':'e','ぉ':'o','っ':'','ー':'-',
-};
-function toRomaji(kana: string): string {
-  const hira = kana.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
-  let out = ''; let i = 0;
-  while (i < hira.length) {
-    if (hira[i] === 'っ') { const n = KANA_ROMAJI[hira[i+1]]; if (n) out += n[0]; i++; continue; }
-    const two = hira.slice(i, i+2);
-    if (KANA_ROMAJI[two]) { out += KANA_ROMAJI[two]; i += 2; continue; }
-    const one = KANA_ROMAJI[hira[i]];
-    out += one !== undefined ? one : hira[i]; i++;
-  }
-  return out;
-}
 
 // ── Difficulty colours ─────────────────────────────────────────────────────────
 const DIFF_COLOR: Record<string, string> = {
@@ -146,13 +111,17 @@ function expandToRows(song: Song): SongRow[] {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function DiffCell({ data, diff, kanji }: { data?: DiffData; diff: string; kanji?: string }) {
+function DiffCell({ data, diff, kanji, onClick }: { data?: DiffData; diff: string; kanji?: string; onClick?: () => void }) {
   if (!data?.display) return <div className="w-[60px] md:w-[70px]" />;
   const color = DIFF_COLOR[diff];
   const intStr = data.internal ? parseFloat(data.internal).toFixed(1) : null;
   return (
     <div className="w-[60px] md:w-[70px] flex shrink-0 justify-center">
-      <div className="w-full rounded text-center py-0.5 px-1 min-h-[36px] flex flex-col justify-center" style={{ background: color + '28' }}>
+      <div 
+        onClick={onClick}
+        className={`w-full rounded text-center py-0.5 px-1 min-h-[36px] flex flex-col justify-center ${onClick ? 'cursor-pointer hover:brightness-125 active:scale-95 transition-all' : ''}`} 
+        style={{ background: color + '28' }}
+      >
         <div className="font-bold text-sm leading-tight text-white flex items-center justify-center gap-0.5">
           {kanji && <span className="text-[10px] opacity-80" style={{ color }}>[{kanji}]</span>}
           {data.display.replace('?', '')}
@@ -232,6 +201,11 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   const [view, setView]       = useState<'list' | 'grid'>('grid');
 
   const [windowWidth, setWindowWidth] = useState(1200);
+  
+  const [trackTarget, setTrackTarget] = useState<{ songTitle: string, diff: string, type: 'DX' | 'STD', level: number } | null>(null);
+  const [targetVal, setTargetVal] = useState('100.5000');
+  const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setWindowWidth(window.innerWidth);
@@ -506,11 +480,11 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                     </div>
 
                     <div className="flex flex-1 justify-end items-center gap-1">
-                      <DiffCell data={row.bas} diff="bas" />
-                      <DiffCell data={row.adv} diff="adv" />
-                      <DiffCell data={row.exp} diff="exp" />
-                      <DiffCell data={row.mas} diff="mas" />
-                      <DiffCell data={row.remas} diff="remas" />
+                      <DiffCell data={row.bas} diff="bas" onClick={row.bas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'BAS', type: row.type, level: parseFloat(row.bas.internal!) }) : undefined} />
+                      <DiffCell data={row.adv} diff="adv" onClick={row.adv.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'ADV', type: row.type, level: parseFloat(row.adv.internal!) }) : undefined} />
+                      <DiffCell data={row.exp} diff="exp" onClick={row.exp.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'EXP', type: row.type, level: parseFloat(row.exp.internal!) }) : undefined} />
+                      <DiffCell data={row.mas} diff="mas" onClick={row.mas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'MAS', type: row.type, level: parseFloat(row.mas.internal!) }) : undefined} />
+                      <DiffCell data={row.remas} diff="remas" onClick={row.remas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'REMAS', type: row.type, level: parseFloat(row.remas.internal!) }) : undefined} />
                       <div className="hidden xl:block">
                         <DiffCell data={row.utage} diff="utage" kanji={row.kanji} />
                       </div>
@@ -522,6 +496,71 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
           })
         )}
       </div>
+
+      <AnimatePresence>
+        {trackTarget && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-sm relative shadow-2xl"
+            >
+              <button onClick={() => setTrackTarget(null)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
+              <h2 className="text-xl font-bold text-white mb-1">Add Target</h2>
+              <div className="text-sm text-white/50 mb-4 truncate">{trackTarget.songTitle}</div>
+              
+              <div className="flex items-center gap-3 mb-6 p-3 bg-white/5 rounded-xl border border-white/10">
+                <span className="text-xs font-bold px-2 py-1 rounded" style={{ backgroundColor: DIFF_COLOR[trackTarget.diff.toLowerCase()] + '33', color: DIFF_COLOR[trackTarget.diff.toLowerCase()] }}>
+                  {trackTarget.diff} {trackTarget.level.toFixed(1)}
+                </span>
+                <span className="text-xs font-bold text-white/50">{trackTarget.type}</span>
+              </div>
+              
+              <div className="mb-6">
+                <label className="block text-xs text-white/50 font-bold uppercase tracking-wider mb-2">Target Accuracy (%)</label>
+                <input 
+                  autoFocus
+                  type="number" 
+                  step="0.0001"
+                  value={targetVal}
+                  onChange={e => setTargetVal(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white font-num text-lg outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setTrackTarget(null)}
+                  className="flex-1 py-3 rounded-xl font-bold text-white/70 bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  disabled={saving}
+                  onClick={async () => {
+                    const val = parseFloat(targetVal);
+                    if (isNaN(val)) return;
+                    setSaving(true);
+                    await addTracker(trackTarget.songTitle, trackTarget.diff, trackTarget.type, val);
+                    setSaving(false);
+                    setTrackTarget(null);
+                    router.push('/tracker');
+                  }}
+                  className="flex-1 py-3 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-500 transition-colors disabled:opacity-50"
+                >
+                  {saving ? 'Adding...' : 'Track'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageWrapper>
   );
 }

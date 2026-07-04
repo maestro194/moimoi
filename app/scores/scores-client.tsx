@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Trophy, LayoutGrid, List } from 'lucide-react';
+import { Search, Trophy, LayoutGrid, List, BarChart2 } from 'lucide-react';
 import type { ScoreWithRating, Difficulty } from '@/lib/types';
 import { PageWrapper } from '@/components/page-wrapper';
+import MatrixView from './matrix-view';
 
 interface Props {
   scored: ScoreWithRating[];
@@ -35,7 +36,12 @@ export default function ScoresClient({ scored, total }: Props) {
   const [query, setQuery] = useState('');
   const [diff, setDiff] = useState<'ALL' | Difficulty>('ALL');
   const [sort, setSort] = useState<'rating' | 'achievement' | 'title'>('rating');
-  const [view, setView] = useState<'list' | 'grid'>('grid');
+  const [view, setView] = useState<'list' | 'grid' | 'matrix'>('grid');
+  
+  // Matrix specific state
+  const [minLevel, setMinLevel] = useState<number>(14.0);
+  const [maxLevel, setMaxLevel] = useState<number>(15.0);
+  const [hideUnplayed, setHideUnplayed] = useState(false);
 
   const filtered = useMemo(() => {
     let list = [...scored];
@@ -206,8 +212,55 @@ export default function ScoresClient({ scored, total }: Props) {
           >
             <LayoutGrid size={16} />
           </button>
+          <button
+            onClick={() => setView('matrix')}
+            className="px-3 py-2.5 transition-all"
+            style={{ background: view === 'matrix' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)', color: view === 'matrix' ? '#d8b4fe' : 'var(--foreground-muted)' }}
+          >
+            <BarChart2 size={16} />
+          </button>
         </div>
       </div>
+
+      {/* Matrix View Filter Controls */}
+      {view === 'matrix' && (
+        <div className="flex items-center gap-3 animate-fade-in">
+          <div className="text-xs font-bold text-white/50 uppercase tracking-wider">Constant Range</div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              step="0.1"
+              min="1"
+              max="15"
+              value={minLevel}
+              onChange={(e) => setMinLevel(parseFloat(e.target.value) || 1)}
+              className="w-16 px-2 py-1 bg-white/5 rounded outline-none text-white text-sm font-num text-center border border-white/10 focus:border-white/30 transition-colors"
+            />
+            <span className="text-white/30">to</span>
+            <input
+              type="number"
+              step="0.1"
+              min="1"
+              max="15"
+              value={maxLevel}
+              onChange={(e) => setMaxLevel(parseFloat(e.target.value) || 15)}
+              className="w-16 px-2 py-1 bg-white/5 rounded outline-none text-white text-sm font-num text-center border border-white/10 focus:border-white/30 transition-colors"
+            />
+          </div>
+          
+          <div className="flex items-center gap-2 ml-4 pl-4 border-l border-white/10">
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-white/70 hover:text-white transition-colors select-none">
+              <input
+                type="checkbox"
+                checked={hideUnplayed}
+                onChange={(e) => setHideUnplayed(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/50"
+              />
+              Hide unplayed charts
+            </label>
+          </div>
+        </div>
+      )}
 
       <p className="text-xs" style={{ color: 'var(--foreground-subtle)' }}>
         {filtered.length.toLocaleString()} results
@@ -221,10 +274,24 @@ export default function ScoresClient({ scored, total }: Props) {
         </div>
       ) : (
         <div>
-          {renderSection("New B15", newB15, 15, newB15Sum)}
-          {renderSection("Old B35", oldB35, 35, oldB35Sum)}
-          {renderSection("New Songs", newRemaining, null)}
-          {renderSection("Old Songs", oldRemaining, null)}
+          {view === 'matrix' ? (
+          <MatrixView scores={filtered} minLevel={minLevel} maxLevel={maxLevel} hideUnplayed={hideUnplayed} />
+        ) : (
+          <>
+            {renderSection('New B15', newB15, 15, newB15Sum)}
+            {renderSection('Old B35', oldB35, 35, oldB35Sum)}
+            {renderSection('New Remaining', newRemaining, null)}
+            {renderSection('Old Remaining', oldRemaining, null)}
+            
+            {filtered.length === 0 && (
+              <div className="text-center p-12 glass rounded-2xl animate-fade-in">
+                <Trophy size={48} className="mx-auto mb-4 text-white/20" />
+                <h3 className="text-xl font-bold text-white mb-2">No scores found</h3>
+                <p className="text-white/50">Try adjusting your filters or search query.</p>
+              </div>
+            )}
+          </>
+        )}
         </div>
       )}
     </PageWrapper>

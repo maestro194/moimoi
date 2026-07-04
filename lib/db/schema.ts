@@ -82,9 +82,23 @@ export const songCache = pgTable('song_cache', {
   cachedAt: timestamp('cached_at').notNull().defaultNow(),
 });
 
+// Goals tracked by the user for specific charts
+export const scoreTrackers = pgTable('score_trackers', {
+  id: serial('id').primaryKey(),
+  songTitle: text('song_title').notNull(),
+  difficulty: varchar('difficulty', { length: 10 }).notNull(), // BAS/ADV/EXP/MAS/REMAS/UTAGE
+  songType: varchar('song_type', { length: 5 }).notNull().default('DX'), // STD/DX
+  targetAchievement: numeric('target_achievement', { precision: 10, scale: 4 }).notNull(), // e.g. 100.5000
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  uniqueGoal: unique('unique_goal').on(table.songTitle, table.difficulty, table.songType)
+}));
+
 export type InsertScore = typeof scores.$inferInsert;
 export type SelectScore = typeof scores.$inferSelect;
 export type InsertPlayLog = typeof playLog.$inferInsert;
 export type SelectPlayLog = typeof playLog.$inferSelect;
 export type InsertSong = typeof songCache.$inferInsert;
 export type SelectSong = typeof songCache.$inferSelect;
+export type InsertTracker = typeof scoreTrackers.$inferInsert;
+export type SelectTracker = typeof scoreTrackers.$inferSelect;
