@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Target, Plus, Search, Trash2, Music2 } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
 import type { ScoreWithRating, Score, Difficulty } from '@/lib/types';
-import { computeRating, calcSingleRating } from '@/lib/rating';
+import { computeRating, calcSingleRating, getSongInternalLevel } from '@/lib/rating';
 import { addTracker, deleteTracker } from './actions';
 import type { MinimalChart } from '@/app/scores/actions';
 
@@ -42,6 +42,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
   const [search, setSearch] = useState('');
   const [targetVal, setTargetVal] = useState('100.5000');
   const [saving, setSaving] = useState(false);
+  const [editTarget, setEditTarget] = useState<Tracker | null>(null);
 
   // Computed data for existing trackers
   const trackerData = useMemo(() => {
@@ -61,9 +62,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
         hypoScores[existIdx] = { ...hypoScores[existIdx], achievement: Math.max(hypoScores[existIdx].achievement, targetAchv) };
       } else {
         const songInfo = songMap.get(t.songTitle);
-        const prefix = t.songType === 'DX' ? 'dx_lev_' : 'lev_';
-        const diffKey = t.difficulty.toLowerCase();
-        hypotheticalInternalLevel = songInfo ? parseFloat(songInfo[`${prefix}${diffKey}_i`]) || 0 : 0;
+        hypotheticalInternalLevel = songInfo ? getSongInternalLevel(songInfo, t.difficulty as Difficulty, t.songType as 'DX'|'STD') : 0;
         
         hypoScores.push({
           id: -1,
@@ -137,9 +136,21 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
           const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
           
           return (
-            <div key={d.tracker.id} className="glass p-3 rounded-xl border border-white/5 relative overflow-hidden group flex flex-col md:flex-row md:items-center gap-4 transition-colors hover:bg-white/[0.02]">
+            <div 
+              key={d.tracker.id} 
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setTargetVal(d.tracker.targetAchievement);
+                setEditTarget(d.tracker);
+              }}
+              className="glass p-3 rounded-xl border border-white/5 relative overflow-hidden group flex flex-col md:flex-row md:items-center gap-4 transition-colors hover:bg-white/[0.02] cursor-pointer"
+            >
               <button 
-                onClick={() => handleDelete(d.tracker.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(d.tracker.id);
+                }}
                 className="absolute right-3 top-3 md:top-1/2 md:-translate-y-1/2 p-2 bg-black/40 hover:bg-red-500/20 text-white/30 hover:text-red-400 rounded-lg md:opacity-0 group-hover:opacity-100 transition-all z-10"
               >
                 <Trash2 size={16} />
@@ -196,6 +207,48 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
           </div>
         )}
       </div>
+
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setEditTarget(null)}>
+          <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative flex flex-col" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-white mb-4">Edit Goal</h2>
+            <div className="mb-4 text-sm font-bold text-white/80">
+              {editTarget.songTitle}
+              <span className="ml-2 text-xs opacity-70" style={{ color: DIFF_COLOR[editTarget.difficulty] }}>
+                {editTarget.difficulty} {editTarget.songType}
+              </span>
+            </div>
+            <div className="mb-4 shrink-0">
+              <label className="text-xs text-white/50 font-bold uppercase tracking-wider block mb-1.5">Target Accuracy (%)</label>
+              <input 
+                type="number" 
+                step="0.0001"
+                value={targetVal}
+                onChange={e => setTargetVal(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-white font-num outline-none focus:border-purple-500/50"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => setEditTarget(null)} className="flex-1 py-2.5 rounded-xl font-bold text-white/50 hover:bg-white/5 transition-colors">Cancel</button>
+              <button 
+                disabled={saving}
+                onClick={async () => {
+                  const val = parseFloat(targetVal);
+                  if (isNaN(val)) return;
+                  setSaving(true);
+                  await addTracker(editTarget.songTitle, editTarget.difficulty, editTarget.songType, val);
+                  setSaving(false);
+                  setEditTarget(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-500 transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Goal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
