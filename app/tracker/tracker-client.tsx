@@ -21,7 +21,7 @@ interface Props {
   scores: ScoreWithRating[];
   typedScores: Score[];
   currentTotalRating: number;
-  songMap: any;
+  songMapRecord: Record<string, any>;
   currentVersion: number;
   allCharts: MinimalChart[];
 }
@@ -35,7 +35,9 @@ const DIFF_COLOR: Record<string, string> = {
   UTAGE: '#bf1b5e',
 };
 
-export default function TrackerClient({ trackers, scores, typedScores, currentTotalRating, songMap, currentVersion, allCharts }: Props) {
+export default function TrackerClient({ trackers, scores, typedScores, currentTotalRating, songMapRecord, currentVersion, allCharts }: Props) {
+  const songMap = useMemo(() => new Map(Object.entries(songMapRecord)), [songMapRecord]);
+
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState('');
   const [targetVal, setTargetVal] = useState('100.5000');
@@ -131,7 +133,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
 
       <div className="flex flex-col gap-3">
         {trackerData.map(d => {
-          const song = songMap[d.tracker.songTitle];
+          const song = songMap.get(d.tracker.songTitle);
           const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
           
           return (
@@ -154,6 +156,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                 </div>
                 <div className="min-w-0 pr-8 md:pr-2">
                   <div className="text-sm font-bold text-white truncate">{d.tracker.songTitle}</div>
+                  <div className="text-[10px] text-white/50 truncate mb-1">{song?.artist}</div>
                   <div className="text-xs font-bold flex items-center gap-2 mt-0.5" style={{ color: DIFF_COLOR[d.tracker.difficulty] }}>
                     <span>{d.tracker.difficulty} {d.internalLevel.toFixed(1)}</span>
                     <span className="text-white/30 border border-white/10 px-1 rounded-sm leading-none flex items-center text-[10px] py-0.5">{d.tracker.songType}</span>
@@ -228,7 +231,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                 <div className="text-center text-white/30 py-8 text-sm">{search ? 'No charts found.' : 'Type to search...'}</div>
               ) : (
                 filteredCharts.map((c, i) => {
-                  const song = songMap[c.title];
+                  const song = songMap.get(c.title);
                   const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
                   
                   return (
@@ -243,6 +246,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-bold text-white truncate leading-tight mb-0.5">{c.title}</div>
+                          <div className="text-[10px] text-white/50 truncate mb-1">{song?.artist}</div>
                           <div className="text-xs font-bold flex gap-2" style={{ color: DIFF_COLOR[c.diff] }}>
                             <span>{c.diff} {c.level.toFixed(1)}</span>
                             <span className="text-white/30 border border-white/10 px-1 rounded-sm leading-none flex items-center text-[9px]">{c.type}</span>

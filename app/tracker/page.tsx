@@ -39,7 +39,7 @@ export default async function TrackerPage() {
         scores={currentRating.allScores} 
         typedScores={typedScores}
         currentTotalRating={currentRating.totalRating}
-        songMap={songMap}
+        songMapRecord={Object.fromEntries(songMap)}
         currentVersion={currentVersion}
         allCharts={allCharts}
       />
