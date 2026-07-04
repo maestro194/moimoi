@@ -35,6 +35,15 @@ const DIFF_COLOR: Record<string, string> = {
   UTAGE: '#bf1b5e',
 };
 
+const CAT_LABELS: Record<string, string> = {
+  maimai: 'maimai',
+  anime: 'Anime',
+  'game&variety': 'Game & Variety',
+  'niconico&vocaloid': 'Nico & Vocaloid',
+  toho: 'Touhou',
+  'original&joypolis': 'Original',
+};
+
 export default function TrackerClient({ trackers, scores, typedScores, currentTotalRating, songMapRecord, currentVersion, allCharts }: Props) {
   const songMap = useMemo(() => new Map(Object.entries(songMapRecord)), [songMapRecord]);
 
@@ -173,6 +182,13 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                     <span className="text-white/30 border border-white/10 px-1 rounded-sm leading-none flex items-center text-[10px] py-0.5">{d.tracker.songType}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Genre (Desktop only) */}
+              <div className="hidden md:flex w-[120px] shrink-0 pr-4 items-center">
+                <span className="text-[11px] font-semibold text-white/50 truncate border border-white/10 bg-white/5 px-2 py-1 rounded-md">
+                  {song ? (CAT_LABELS[song.catcode] || song.catcode) : 'Unknown'}
+                </span>
               </div>
 
               {/* Current vs Target */}
