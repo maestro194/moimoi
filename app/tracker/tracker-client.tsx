@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Target, Plus, Search, Trash2 } from 'lucide-react';
+import { Target, Plus, Search, Trash2, Music2 } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
 import type { ScoreWithRating, Score, Difficulty } from '@/lib/types';
 import { computeRating, calcSingleRating } from '@/lib/rating';
@@ -129,46 +129,64 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {trackerData.map(d => (
-          <div key={d.tracker.id} className="glass p-4 rounded-xl border border-white/5 relative overflow-hidden group">
-            <button 
-              onClick={() => handleDelete(d.tracker.id)}
-              className="absolute top-2 right-2 p-1.5 bg-black/40 hover:bg-red-500/20 text-white/30 hover:text-red-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-            >
-              <Trash2 size={14} />
-            </button>
-            <div className="text-sm font-bold text-white truncate pr-8 mb-1">{d.tracker.songTitle}</div>
-            <div className="text-xs font-bold flex gap-2" style={{ color: DIFF_COLOR[d.tracker.difficulty] }}>
-              <span>{d.tracker.difficulty} {d.internalLevel.toFixed(1)}</span>
-              <span className="text-white/30 border border-white/10 px-1 rounded-sm">{d.tracker.songType}</span>
-            </div>
-            
-            <div className="mt-4 flex justify-between items-end">
-              <div>
-                <div className="text-[10px] text-white/50 uppercase tracking-widest mb-1">Current</div>
-                <div className="font-num text-sm text-white/80">
-                  {d.existing ? `${d.existing.achievement.toFixed(4)}%` : 'No Record'} 
-                  {d.existing && <span className="ml-2 text-white/30">({d.existing.rating})</span>}
+      <div className="flex flex-col gap-3">
+        {trackerData.map(d => {
+          const song = songMap[d.tracker.songTitle];
+          const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
+          
+          return (
+            <div key={d.tracker.id} className="glass p-3 rounded-xl border border-white/5 relative overflow-hidden group flex flex-col md:flex-row md:items-center gap-4 transition-colors hover:bg-white/[0.02]">
+              <button 
+                onClick={() => handleDelete(d.tracker.id)}
+                className="absolute right-3 top-3 md:top-1/2 md:-translate-y-1/2 p-2 bg-black/40 hover:bg-red-500/20 text-white/30 hover:text-red-400 rounded-lg md:opacity-0 group-hover:opacity-100 transition-all z-10"
+              >
+                <Trash2 size={16} />
+              </button>
+              
+              {/* Jacket & Info */}
+              <div className="flex items-center gap-3 w-full md:w-[280px] shrink-0">
+                <div className="w-12 h-12 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
+                  {jacketUrl ? (
+                    <img src={jacketUrl} alt={d.tracker.songTitle} className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={16} /></div>
+                  )}
+                </div>
+                <div className="min-w-0 pr-8 md:pr-2">
+                  <div className="text-sm font-bold text-white truncate">{d.tracker.songTitle}</div>
+                  <div className="text-xs font-bold flex items-center gap-2 mt-0.5" style={{ color: DIFF_COLOR[d.tracker.difficulty] }}>
+                    <span>{d.tracker.difficulty} {d.internalLevel.toFixed(1)}</span>
+                    <span className="text-white/30 border border-white/10 px-1 rounded-sm leading-none flex items-center text-[10px] py-0.5">{d.tracker.songType}</span>
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-[10px] text-white/50 uppercase tracking-widest mb-1">Target</div>
-                <div className="font-num text-sm font-bold text-white">
-                  {parseFloat(d.tracker.targetAchievement).toFixed(4)}%
-                  <span className="ml-2 text-purple-300">({d.targetSingleRating})</span>
-                </div>
-              </div>
-            </div>
 
-            <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
-              <span className="text-xs font-bold text-white/50">Total Rating Δ</span>
-              <span className={`font-num font-extrabold text-lg ${d.delta > 0 ? 'text-green-400' : 'text-white/30'}`}>
-                {d.delta > 0 ? `+${d.delta}` : '0'}
-              </span>
+              {/* Current vs Target */}
+              <div className="flex-1 flex justify-between items-center md:pr-12">
+                <div>
+                  <div className="text-[10px] text-white/50 uppercase tracking-widest mb-0.5">Current</div>
+                  <div className="font-num text-sm text-white/80">
+                    {d.existing ? `${d.existing.achievement.toFixed(4)}%` : 'No Record'} 
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-white/50 uppercase tracking-widest mb-0.5">Target</div>
+                  <div className="font-num text-sm font-bold text-white">
+                    {parseFloat(d.tracker.targetAchievement).toFixed(4)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Delta */}
+              <div className="md:w-[90px] shrink-0 text-right md:pr-4 pt-3 mt-3 md:pt-0 md:mt-0 border-t md:border-t-0 md:border-l border-white/10 flex md:block justify-between items-center">
+                <div className="text-[10px] text-white/50 uppercase tracking-widest md:mb-0.5">Rating Δ</div>
+                <span className={`font-num font-extrabold text-base ${d.delta > 0 ? 'text-green-400' : 'text-white/30'}`}>
+                  {d.delta > 0 ? `+${d.delta}` : '0'}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {trackerData.length === 0 && (
           <div className="col-span-full p-12 text-center text-white/30 glass rounded-xl border border-white/5">
             You haven't tracked any goals yet. Click "Add Goal" to start!
@@ -209,24 +227,38 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
               {filteredCharts.length === 0 ? (
                 <div className="text-center text-white/30 py-8 text-sm">{search ? 'No charts found.' : 'Type to search...'}</div>
               ) : (
-                filteredCharts.map((c, i) => (
-                  <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">
-                    <div className="min-w-0 pr-4">
-                      <div className="text-sm font-bold text-white truncate">{c.title}</div>
-                      <div className="text-xs font-bold flex gap-2 mt-0.5" style={{ color: DIFF_COLOR[c.diff] }}>
-                        <span>{c.diff} {c.level.toFixed(1)}</span>
-                        <span className="text-white/30 border border-white/10 px-1 rounded-sm leading-none flex items-center">{c.type}</span>
+                filteredCharts.map((c, i) => {
+                  const song = songMap[c.title];
+                  const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
+                  
+                  return (
+                    <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">
+                      <div className="flex items-center gap-3 min-w-0 pr-4">
+                        <div className="w-10 h-10 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
+                          {jacketUrl ? (
+                            <img src={jacketUrl} alt={c.title} className="w-full h-full object-cover" loading="lazy" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={14} /></div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-white truncate leading-tight mb-0.5">{c.title}</div>
+                          <div className="text-xs font-bold flex gap-2" style={{ color: DIFF_COLOR[c.diff] }}>
+                            <span>{c.diff} {c.level.toFixed(1)}</span>
+                            <span className="text-white/30 border border-white/10 px-1 rounded-sm leading-none flex items-center text-[9px]">{c.type}</span>
+                          </div>
+                        </div>
                       </div>
+                      <button 
+                        disabled={saving}
+                        onClick={() => handleAdd(c)}
+                        className="shrink-0 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-colors"
+                      >
+                        Track
+                      </button>
                     </div>
-                    <button 
-                      disabled={saving}
-                      onClick={() => handleAdd(c)}
-                      className="shrink-0 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-colors"
-                    >
-                      Track
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

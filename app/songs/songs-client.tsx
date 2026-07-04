@@ -550,7 +550,6 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                     await addTracker(trackTarget.songTitle, trackTarget.diff, trackTarget.type, val);
                     setSaving(false);
                     setTrackTarget(null);
-                    router.push('/tracker');
                   }}
                   className="flex-1 py-3 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-500 transition-colors disabled:opacity-50"
                 >
