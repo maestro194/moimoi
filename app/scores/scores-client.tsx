@@ -304,7 +304,7 @@ function B50Card({ score: s, index = 0, animated = false }: { score: ScoreWithRa
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl h-[96px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 ${animated ? 'animate-slide-up' : ''}`}
+      className={`relative overflow-hidden rounded-xl h-[104px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 ${animated ? 'animate-slide-up' : ''}`}
       style={{ 
         border: `1.5px solid ${diffColor}`,
         animationDelay: animated ? `${index * 0.03}s` : undefined,
@@ -320,40 +320,40 @@ function B50Card({ score: s, index = 0, animated = false }: { score: ScoreWithRa
       )}
       {/* Gradients */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-90" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-90" />
 
-      <div className="relative h-full flex flex-col justify-between p-2.5 z-10">
-        {/* Top: DX/STD Badge + Level Badge */}
+      <div className="relative h-full flex flex-col p-2 z-10">
+        {/* Top: DX/STD + Level (Left) | Rating (Right) */}
         <div className="flex justify-between items-start">
-          <img
-            src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
-            alt={isDX ? 'DX' : 'STD'}
-            className="h-[14px] mt-0.5 object-contain"
-          />
-          <span
-            className="text-[10px] font-bold px-1.5 py-0.5 rounded leading-none tabular-nums shadow-sm"
-            style={{ background: diffColor, color: '#fff' }}
-          >
-            {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}
-          </span>
+          <div className="flex gap-1.5 items-center">
+            <img
+              src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
+              alt={isDX ? 'DX' : 'STD'}
+              className="h-[12px] object-contain"
+            />
+            <span
+              className="text-[9px] font-bold px-1 py-0.5 rounded leading-none tabular-nums shadow-sm"
+              style={{ background: diffColor, color: '#fff' }}
+            >
+              {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}
+            </span>
+          </div>
+          <div className="text-[16px] md:text-lg font-bold font-num leading-none tracking-tight tabular-nums" style={{ color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
+            {s.rating}
+          </div>
         </div>
 
         {/* Middle: Title */}
-        <div className="text-[12px] font-bold text-white truncate text-shadow leading-tight mt-auto">
+        <div className="text-[10px] md:text-[11px] font-bold text-white line-clamp-2 text-shadow leading-tight mt-auto mb-1">
           {s.songTitle}
         </div>
 
-        {/* Bottom: Achievement + Badges left, Rating right */}
-        <div className="flex justify-between items-end mt-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-white font-num leading-none">{s.achievement.toFixed(4)}%</span>
-            <div className="flex gap-1">
-              <FCBadge fc={s.fc} className="bg-black/60 backdrop-blur-sm" />
-              <FSBadge fs={s.fs} className="bg-black/60 backdrop-blur-sm" />
-            </div>
-          </div>
-          <div className="text-xl font-bold font-num leading-none tracking-tight tabular-nums" style={{ color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
-            {s.rating}
+        {/* Bottom: Achievement + Badges */}
+        <div className="flex justify-between items-end mt-auto">
+          <span className="text-[10px] md:text-[11px] font-bold text-white font-num leading-none">{s.achievement.toFixed(4)}%</span>
+          <div className="flex gap-0.5 md:gap-1">
+            <FCBadge fc={s.fc} className="bg-black/60 backdrop-blur-sm scale-[0.85] md:scale-100 origin-bottom-right" />
+            <FSBadge fs={s.fs} className="bg-black/60 backdrop-blur-sm scale-[0.85] md:scale-100 origin-bottom-right" />
           </div>
         </div>
       </div>
