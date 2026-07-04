@@ -67,7 +67,7 @@ function groupLogsIntoCredits(logs: HydratedLog[]): CreditGroup[] {
       groups.push(currentGroup);
     }
     
-    currentGroup.plays.push(log);
+    currentGroup.plays.unshift(log);
     
     const nextLog = logs[i + 1];
     if (nextLog) {
