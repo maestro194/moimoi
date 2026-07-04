@@ -351,11 +351,12 @@ export function parseRecentPage(html: string): ParsedRecentScore[] {
     const timeTrackStr = record.find('.sub_title > .v_b:not(.red)').text();
     const trackStr = record.find('.sub_title > .red').text();
     
-    const timeMatch = timeTrackStr.match(/(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2})/);
+    const timeMatch = timeTrackStr.match(/(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
     const trackMatch = trackStr.match(/(?:Track|曲目)\s*(\d+)/i);
     if (!timeMatch || !trackMatch) return;
 
-    const playedAt = new Date(timeMatch[1].replace(/\s+/, 'T') + ':00+09:00');
+    const [, year, month, day, hour, minute] = timeMatch;
+    const playedAt = new Date(`${year}-${month}-${day}T${hour}:${minute}:00+09:00`);
     const track = parseInt(trackMatch[1], 10);
 
     const basicBlock = record.find('.basic_block');
