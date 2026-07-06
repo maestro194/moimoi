@@ -1,18 +1,23 @@
 import { db } from '@/lib/db';
-import { playLog } from '@/lib/db/schema';
-import { desc } from 'drizzle-orm';
+import { playLog, settings } from '@/lib/db/schema';
+import { desc, eq } from 'drizzle-orm';
 import RecentClient from './recent-client';
 import { fetchSongs, buildSongMap } from '@/lib/song-db';
-import type { Song } from '@/lib/types';
+import { normalizeTitle } from '@/lib/normalize';
+import type { Song, PlayerProfile } from '@/lib/types';
 import { calcSingleRating } from '@/lib/rating';
 
 export const dynamic = 'force-dynamic';
 
 export default async function RecentPage() {
-  const allLogs = await db
-    .select()
-    .from(playLog)
-    .orderBy(desc(playLog.playedAt));
+  const [allLogs, lastSyncRow, profileRow] = await Promise.all([
+    db.select().from(playLog).orderBy(desc(playLog.playedAt)),
+    db.select().from(settings).where(eq(settings.key, 'last_sync')),
+    db.select().from(settings).where(eq(settings.key, 'profile'))
+  ]);
+
+  const lastSync = lastSyncRow[0]?.value || null;
+  const profile = profileRow[0]?.value ? JSON.parse(profileRow[0].value) as PlayerProfile : { name: 'Player', rating: 0, region: 'intl' as const };
 
   // Load songs to compute rating and get images
   const songsData = await fetchSongs();
@@ -20,7 +25,7 @@ export default async function RecentPage() {
 
   // Hydrate with ratings and song metadata
   const hydratedLogs = allLogs.map(log => {
-    const song = songDb.get(log.songTitle) ?? null;
+    const song = songDb.get(normalizeTitle(log.songTitle)) ?? null;
     let internalLevel = 0;
     let rating = 0;
     
@@ -40,13 +45,8 @@ export default async function RecentPage() {
   });
 
   return (
-    <main className="p-4 md:p-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-white mb-2">Recent Plays</h1>
-        <p className="text-white/60 text-sm">Chronological history of your synced plays, grouped by credit.</p>
-      </div>
-
-      <RecentClient logs={hydratedLogs} />
+    <main className="min-h-dvh">
+      <RecentClient logs={hydratedLogs} lastSync={lastSync} profile={profile} />
     </main>
   );
 }

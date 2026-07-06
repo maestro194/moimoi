@@ -123,7 +123,7 @@ export default function ScoresClient({ scored, total }: Props) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0 py-2">
-                  <div className="font-bold text-sm truncate text-white">{s.songTitle}</div>
+                  <div className="font-bold text-base truncate text-white">{s.songTitle}</div>
                   <div className="text-xs mt-0.5 truncate flex items-center gap-2" style={{ color: 'var(--foreground-muted)' }}>
                     <span style={{ color: DIFF_COLOR[s.difficulty] }}>{s.difficulty === 'REMAS' ? 'Re:M' : s.difficulty} {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}</span>
                     <span>•</span>
@@ -131,11 +131,7 @@ export default function ScoresClient({ scored, total }: Props) {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="font-num font-bold text-[13px] text-white tabular-nums">{s.achievement.toFixed(4)}%</div>
-                  <div className="flex gap-1 justify-end mt-1">
-                    <FCBadge fc={s.fc} />
-                    <FSBadge fs={s.fs} />
-                  </div>
+                  <div className="font-num font-bold text-sm md:text-base text-white tabular-nums mt-1">{s.achievement.toFixed(4)}%</div>
                 </div>
                 <div className="font-num font-bold text-lg w-12 text-right shrink-0 tabular-nums" style={{ color: DIFF_COLOR[s.difficulty] }}>
                   {s.rating}
@@ -319,41 +315,48 @@ function B50Card({ score: s, index = 0, animated = false }: { score: ScoreWithRa
         />
       )}
       {/* Gradients */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-90" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent" />
+
+      {/* Top right floating level tag */}
+      <div
+        className="absolute top-0 right-0 z-20 text-[10px] md:text-[11px] font-bold px-1.5 py-1 rounded-bl-lg leading-none tabular-nums shadow-sm"
+        style={{ background: diffColor, color: '#fff' }}
+      >
+        {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}
+      </div>
 
       <div className="relative h-full flex flex-col p-2 z-10">
-        {/* Top: DX/STD + Level (Left) | Rating (Right) */}
-        <div className="flex justify-between items-start">
-          <div className="flex gap-1.5 items-center">
-            <img
-              src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
-              alt={isDX ? 'DX' : 'STD'}
-              className="h-[12px] object-contain"
-            />
-            <span
-              className="text-[9px] font-bold px-1 py-0.5 rounded leading-none tabular-nums shadow-sm"
-              style={{ background: diffColor, color: '#fff' }}
-            >
-              {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}
-            </span>
-          </div>
-          <div className="text-[16px] md:text-lg font-bold font-num leading-none tracking-tight tabular-nums" style={{ color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
-            {s.rating}
-          </div>
+        {/* Top: DX/STD */}
+        <div className="flex items-start">
+          <img
+            src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
+            alt={isDX ? 'DX' : 'STD'}
+            className="h-[14px] object-contain drop-shadow-md"
+          />
         </div>
 
-        {/* Middle: Title */}
-        <div className="text-[10px] md:text-[11px] font-bold text-white line-clamp-2 text-shadow leading-tight mt-auto mb-1">
-          {s.songTitle}
-        </div>
+        {/* Bottom Section */}
+        <div className="mt-auto">
+          {/* Title */}
+          <div className="text-[11px] md:text-[12px] font-bold text-white line-clamp-1 text-shadow leading-tight mb-0.5">
+            {s.songTitle}
+          </div>
 
-        {/* Bottom: Achievement + Badges */}
-        <div className="flex justify-between items-end mt-auto">
-          <span className="text-[10px] md:text-[11px] font-bold text-white font-num leading-none">{s.achievement.toFixed(4)}%</span>
-          <div className="flex gap-0.5 md:gap-1">
-            <FCBadge fc={s.fc} className="bg-black/60 backdrop-blur-sm scale-[0.85] md:scale-100 origin-bottom-right" />
-            <FSBadge fs={s.fs} className="bg-black/60 backdrop-blur-sm scale-[0.85] md:scale-100 origin-bottom-right" />
+          {/* Bottom Row: Achievement (Left) | Rating (Right) */}
+          <div className="flex justify-between items-end">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xs md:text-[13px] font-bold text-white font-num leading-none drop-shadow-md">
+                {s.achievement.toFixed(4)}%
+              </span>
+              {(s.fc || s.fs) && (
+                <span className="text-[8px] md:text-[9px] font-bold text-white/80 drop-shadow-md">
+                  {[s.fc, s.fs].filter(Boolean).join(' ')}
+                </span>
+              )}
+            </div>
+            <div className="text-[16px] md:text-lg font-bold font-num leading-none tracking-tight tabular-nums drop-shadow-md" style={{ color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
+              {s.rating}
+            </div>
           </div>
         </div>
       </div>

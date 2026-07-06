@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp, varchar, unique } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, numeric, integer, timestamp, varchar, unique, jsonb, boolean } from 'drizzle-orm/pg-core';
 
 // Scores stored after syncing from maimai NET or manual entry
 export const scores = pgTable('scores', {
@@ -29,6 +29,7 @@ export const playLog = pgTable('play_log', {
   fc: varchar('fc', { length: 5 }), // FC/FC+/AP/AP+
   fs: varchar('fs', { length: 5 }), // FS/FS+/FDX/FDX+/SYNC
   track: integer('track'), // e.g. 1, 2, 3, 4
+  details: jsonb('details'), // Stores raw tap/hold/slide/fast/late counts if available
   playedAt: timestamp('played_at').notNull(), // Exact time from maimai NET
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
@@ -75,10 +76,14 @@ export const songCache = pgTable('song_cache', {
   dxLevBasI: text('dx_lev_bas_i'),
   dxLevAdvI: text('dx_lev_adv_i'),
   dxLevExpI: text('dx_lev_exp_i'),
-  dxLevMasI: text('dx_lev_mas_i'),
-  dxLevRemasI: text('dx_lev_remas_i'),
-  intl: text('intl'),
-  dateAdded: text('date_added'),
+  dxLevMasI: numeric('dx_lev_mas_i', { precision: 4, scale: 1 }),
+  dxLevRemasI: numeric('dx_lev_remas_i', { precision: 4, scale: 1 }),
+
+  // Region flags (populated from DXRating)
+  jp: boolean('jp').default(true),
+  intl: boolean('intl').default(true),
+
+  dateAdded: text('date_added'), // YYYY-MM-DD
   cachedAt: timestamp('cached_at').notNull().defaultNow(),
 });
 

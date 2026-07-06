@@ -5,6 +5,7 @@ import { Target, Plus, Search, Trash2, Music2 } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
 import type { ScoreWithRating, Score, Difficulty } from '@/lib/types';
 import { computeRating, calcSingleRating, getSongInternalLevel } from '@/lib/rating';
+import { normalizeTitle } from '@/lib/normalize';
 import { addTracker, deleteTracker } from './actions';
 import type { MinimalChart } from '@/app/scores/actions';
 
@@ -70,7 +71,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
         hypotheticalInternalLevel = existing.internalLevel;
         hypoScores[existIdx] = { ...hypoScores[existIdx], achievement: Math.max(hypoScores[existIdx].achievement, targetAchv) };
       } else {
-        const songInfo = songMap.get(t.songTitle);
+        const songInfo = songMap.get(normalizeTitle(t.songTitle));
         hypotheticalInternalLevel = songInfo ? getSongInternalLevel(songInfo, t.difficulty as Difficulty, t.songType as 'DX'|'STD') : 0;
         
         hypoScores.push({
@@ -141,7 +142,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
 
       <div className="flex flex-col gap-3">
         {trackerData.map(d => {
-          const song = songMap.get(d.tracker.songTitle);
+          const song = songMap.get(normalizeTitle(d.tracker.songTitle));
           const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
           
           return (
@@ -300,7 +301,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                 <div className="text-center text-white/30 py-8 text-sm">{search ? 'No charts found.' : 'Type to search...'}</div>
               ) : (
                 filteredCharts.map((c, i) => {
-                  const song = songMap.get(c.title);
+                  const song = songMap.get(normalizeTitle(c.title));
                   const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
                   
                   return (

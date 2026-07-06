@@ -1,4 +1,5 @@
 import type { RankDef, Difficulty, Song, Score, ScoreWithRating, RatingData, RatingPool } from './types';
+import { normalizeTitle } from './normalize';
 
 // ─── Rank definitions (from myjian/mai-tools) ───────────────────────────────
 export const RANK_DEFINITIONS: RankDef[] = [
@@ -193,7 +194,7 @@ export function computeRating(
   const poolThreshold = getNewPoolThreshold(songDb, currentVersion);
 
   const scored: ScoreWithRating[] = scores.map(score => {
-    const song = songDb.get(score.songTitle);
+    const song = songDb.get(normalizeTitle(score.songTitle));
     const internalLevel = song
       ? getSongInternalLevel(song, score.difficulty, score.songType ?? 'DX')
       : 0;
@@ -258,11 +259,12 @@ export function computeRating(
   };
 }
 
-/** Keep only the best score (by rating) per song+difficulty combo */
+/** Keep only the best score (by rating) per song+difficulty+type combo */
 function deduplicateBest(scores: ScoreWithRating[]): ScoreWithRating[] {
   const map = new Map<string, ScoreWithRating>();
   for (const score of scores) {
-    const key = `${score.songTitle}::${score.difficulty}`;
+    const normTitle = normalizeTitle(score.songTitle);
+    const key = `${normTitle}::${score.difficulty}::${score.songType}`;
     const existing = map.get(key);
     if (!existing || score.rating > existing.rating) {
       map.set(key, score);

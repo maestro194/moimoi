@@ -306,8 +306,11 @@ async function fetchRatingTargetScores(
         const songTitle = block.find('.music_name_block').text().trim();
         if (!songTitle) return;
 
+        const iconSrc = block.find('img.music_kind_icon').attr('src') || block.parent().find('img.music_kind_icon').attr('src') || block.siblings().find('img.music_kind_icon').attr('src') || '';
+        const songType: SongType = musicTypeFromSrc(iconSrc);
+
         // Skip if already seen from genre pages
-        if (existingKeys.has(`${songTitle}::${difficulty}::DX`)) return;
+        if (existingKeys.has(`${songTitle}::${difficulty}::${songType}`)) return;
 
         const achvMatch = scoreBlocks.eq(0).text().match(/(\d+\.?\d*)%/);
         if (!achvMatch) return;
@@ -323,8 +326,7 @@ async function fetchRatingTargetScores(
         const fs: FS = h30.length >= 1 ? parseFSFromSrc(h30.eq(0).attr('src') ?? '') : null;
         const fc: FC = h30.length >= 2 ? parseFCFromSrc(h30.eq(1).attr('src') ?? '') : null;
 
-        // Rating target page always shows DX charts
-        results.push({ songTitle, difficulty, songType: 'DX', achievement, dxScore, fc, fs });
+        results.push({ songTitle, difficulty, songType, achievement, dxScore, fc, fs });
       });
     }
     return results;
@@ -336,6 +338,47 @@ async function fetchRatingTargetScores(
 export interface ParsedRecentScore extends ParsedScore {
   track: number;
   playedAt: Date;
+  idx: string;
+}
+
+export function parsePlaylogDetail(html: string) {
+  const $ = cheerio.load(html);
+  
+  const flBlocks = $('.playlog_fl_block > * .p_t_5');
+  const fastCount = flBlocks.length > 0 ? parseInt(flBlocks.eq(0).text().trim().replace(/,/g, ''), 10) || 0 : 0;
+  const lateCount = flBlocks.length > 1 ? parseInt(flBlocks.eq(1).text().trim().replace(/,/g, ''), 10) || 0 : 0;
+
+  const noteRows = $('.playlog_notes_detail > * tr:not(:first-child)');
+  const noteTypes = ['tap', 'hold', 'slide', 'touch', 'break'];
+  const noteData: any = {};
+
+  noteRows.each((index, row) => {
+    if (index >= 5) return;
+    const cells = $(row).find('td');
+    const noteType = noteTypes[index];
+    noteData[noteType] = {
+      cp: cells.length > 0 ? parseInt(cells.eq(0).text().trim(), 10) || 0 : 0,
+      p: cells.length > 1 ? parseInt(cells.eq(1).text().trim(), 10) || 0 : 0,
+      gr: cells.length > 2 ? parseInt(cells.eq(2).text().trim(), 10) || 0 : 0,
+      go: cells.length > 3 ? parseInt(cells.eq(3).text().trim(), 10) || 0 : 0,
+      miss: cells.length > 4 ? parseInt(cells.eq(4).text().trim(), 10) || 0 : 0,
+    };
+  });
+
+  const ratingText = $('.playlog_rating_detail_block > * .rating_block').text().trim();
+  const totalRating = parseInt(ratingText, 10) || 0;
+
+  const ratingChangeText = $('.playlog_rating_detail_block > * span').text().trim();
+  const ratingChangeMatch = ratingChangeText.match(/([+-])(\d+)/);
+  const ratingChange = ratingChangeMatch ? parseInt(`${ratingChangeMatch[1]}${ratingChangeMatch[2]}`, 10) : 0;
+
+  return {
+    fastCount,
+    lateCount,
+    totalRating,
+    ratingChange,
+    ...noteData
+  };
 }
 
 /**
@@ -403,7 +446,9 @@ export function parseRecentPage(html: string): ParsedRecentScore[] {
       fs = parseFSFromSrc(fsSrc);
     }
 
-    results.push({ songTitle, difficulty, songType, achievement, dxScore, fc, fs, track, playedAt });
+    const idx = record.find('input[name="idx"]').attr('value') || '';
+
+    results.push({ songTitle, difficulty, songType, achievement, dxScore, fc, fs, track, playedAt, idx });
   });
 
   return results;
@@ -517,6 +562,20 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
         .limit(1);
         
       if (existing.length === 0) {
+        let details = null;
+        if (rs.idx) {
+          try {
+            const detailHtml = await maimaiGet(region, `record/playlogDetail/?idx=${rs.idx}`, clal!);
+            details = parsePlaylogDetail(detailHtml);
+            if (onProgress) onProgress(`Fetched details for ${rs.songTitle} (Track ${rs.track})`);
+          } catch (e: any) {
+            console.warn("Failed to fetch playlog details for idx", rs.idx, e);
+            if (onProgress) onProgress(`Failed to fetch details for ${rs.songTitle}: ${e.message}`);
+          }
+        } else {
+          if (onProgress) onProgress(`Warning: Missing idx for ${rs.songTitle}, cannot fetch details.`);
+        }
+
         await db.insert(playLog).values({
           songTitle: rs.songTitle,
           difficulty: rs.difficulty,
@@ -526,8 +585,27 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
           fc: rs.fc,
           fs: rs.fs,
           track: rs.track,
+          details: details,
           playedAt: rs.playedAt,
         });
+      } else if (!existing[0].details) {
+        if (rs.idx) {
+          let details = null;
+          try {
+            const detailHtml = await maimaiGet(region, `record/playlogDetail/?idx=${rs.idx}`, clal!);
+            details = parsePlaylogDetail(detailHtml);
+            if (onProgress) onProgress(`Fetched missing details for ${rs.songTitle} (Track ${rs.track})`);
+            
+            await db.update(playLog)
+              .set({ details })
+              .where(eq(playLog.id, existing[0].id));
+          } catch (e: any) {
+            console.warn("Failed to fetch missing playlog details for idx", rs.idx, e);
+            if (onProgress) onProgress(`Failed to fetch details for ${rs.songTitle}: ${e.message}`);
+          }
+        } else {
+          if (onProgress) onProgress(`Warning: Cannot backfill details for ${rs.songTitle} because idx is missing.`);
+        }
       }
     }
 

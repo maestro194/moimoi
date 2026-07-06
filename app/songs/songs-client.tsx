@@ -67,7 +67,7 @@ interface SongRow {
 /** Expand a single Song into 1 or 2 rows (DX and/or STD). */
 function expandToRows(song: Song): SongRow[] {
   const hasDX = !!(song.dx_lev_mas_i || song.dx_lev_exp_i || song.dx_lev_bas_i);
-  const hasSTD = hasDX && !!song.lev_mas_i && song.lev_mas_i !== song.dx_lev_mas_i;
+  const hasSTD = !!(song.lev_mas_i || song.lev_exp_i || song.lev_bas_i);
 
   const rows: SongRow[] = [];
 
@@ -96,7 +96,7 @@ function expandToRows(song: Song): SongRow[] {
     }
   } else {
     rows.push({
-      song, type: 'DX',
+      song, type: 'STD',
       bas:   { display: song.lev_bas,   internal: song.lev_bas_i   },
       adv:   { display: song.lev_adv,   internal: song.lev_adv_i   },
       exp:   { display: song.lev_exp,   internal: song.lev_exp_i   },
@@ -196,7 +196,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   const [query, setQuery]     = useState('');
   const [cat, setCat]         = useState('all');
   const [levelG, setLevelG]   = useState('all');
-  const [version, setVersion] = useState('all');
+  const [region, setRegion]   = useState('all');
   const [sort, setSort]       = useState<SortKey>('newest');
   const [view, setView]       = useState<'list' | 'grid'>('grid');
 
@@ -215,7 +215,6 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   }, []);
 
   const levelGroups = useMemo(() => allLevelGroups(songs), [songs]);
-  const versions    = useMemo(() => allVersions(songs), [songs]);
 
   const matchesQuery = useMemo(() => {
     if (!query) return () => true;
@@ -234,7 +233,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   const filtered = useMemo(() => {
     let list = songs.filter(matchesQuery);
     if (cat !== 'all')     list = list.filter(s => s.catcode === cat);
-    if (version !== 'all') list = list.filter(s => s.version === version);
+    if (region !== 'all')  list = list.filter(s => region === 'jp' ? s.jp : s.intl);
     if (levelG !== 'all')  list = list.filter(s => {
       const g = levelGroup(s.lev_mas) ?? levelGroup(s.lev_exp);
       return g === levelG;
@@ -242,12 +241,18 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
     switch (sort) {
       case 'newest':   list.sort((a, b) => parseInt(b.version) - parseInt(a.version) || parseInt(b.sort||'0') - parseInt(a.sort||'0')); break;
       case 'oldest':   list.sort((a, b) => parseInt(a.version) - parseInt(b.version) || parseInt(a.sort||'0') - parseInt(b.sort||'0')); break;
-      case 'lev_desc': list.sort((a, b) => parseFloat(b.lev_mas_i||b.lev_exp_i||'0') - parseFloat(a.lev_mas_i||a.lev_exp_i||'0')); break;
-      case 'lev_asc':  list.sort((a, b) => parseFloat(a.lev_mas_i||a.lev_exp_i||'0') - parseFloat(b.lev_mas_i||b.lev_exp_i||'0')); break;
+      case 'lev_desc': {
+        const getLev = (s: Song) => parseFloat(s.dx_lev_mas_i || s.lev_mas_i || s.dx_lev_exp_i || s.lev_exp_i || '0');
+        list.sort((a, b) => getLev(b) - getLev(a)); break;
+      }
+      case 'lev_asc': {
+        const getLev = (s: Song) => parseFloat(s.dx_lev_mas_i || s.lev_mas_i || s.dx_lev_exp_i || s.lev_exp_i || '0');
+        list.sort((a, b) => getLev(a) - getLev(b)); break;
+      }
       case 'title':    list.sort((a, b) => a.title.localeCompare(b.title)); break;
     }
     return list;
-  }, [songs, matchesQuery, cat, version, levelG, sort]);
+  }, [songs, matchesQuery, cat, region, levelG, sort]);
 
   const tableRows = useMemo(() => filtered.flatMap(expandToRows), [filtered]);
 
@@ -312,10 +317,11 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap gap-3">
-        <select id="version-filter" value={version} onChange={e => setVersion(e.target.value)}
+        <select id="region-filter" value={region} onChange={e => setRegion(e.target.value)}
           className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>
-          <option value="all">All versions</option>
-          {versions.map(v => <option key={v} value={v}>{versionLabel(v)}</option>)}
+          <option value="all">All regions</option>
+          <option value="jp">JP (Japan)</option>
+          <option value="intl">INTL (International)</option>
         </select>
         <select id="level-filter" value={levelG} onChange={e => setLevelG(e.target.value)}
           className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>

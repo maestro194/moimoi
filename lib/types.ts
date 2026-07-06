@@ -49,7 +49,8 @@ export interface Song {
   lev_utage?: string;
   kanji?: string;
   wiki_url?: string;
-  intl?: string;
+  jp?: boolean;
+  intl?: boolean;
   date_added?: string;
 }
 

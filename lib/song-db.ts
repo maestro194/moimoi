@@ -2,9 +2,11 @@ import type { Song } from './types';
 import { db } from './db';
 import { songCache } from './db/schema';
 import { sql } from 'drizzle-orm';
+import { normalizeTitle } from './normalize';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
 const OTOGE_DB_JP_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex.json';
+const DXDATA_URL = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
 
 // Short-lived in-memory cache to avoid hammering DB on every request within the same process
 let memCache: Song[] | null = null;
@@ -12,29 +14,26 @@ let memCacheTimestamp = 0;
 const MEM_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Both the intl and JP databases use `dx_lev_*` field names for DX-type charts,
- * while the app's Song type expects `lev_*` field names.
- * This function normalizes any song entry so `lev_*` fields are always populated.
+ * Normalizes a song from the raw JSON database.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeSong(song: any): Song {
   return {
     ...song,
-    // STD display levels — prefer explicit STD, fall back to DX display
-    lev_bas:       song.lev_bas     ?? song.dx_lev_bas,
-    lev_adv:       song.lev_adv     ?? song.dx_lev_adv,
-    lev_exp:       song.lev_exp     ?? song.dx_lev_exp,
-    lev_mas:       song.lev_mas     ?? song.dx_lev_mas,
-    lev_remas:     song.lev_remas   ?? song.dx_lev_remas,
-    lev_utage:     song.lev_utage   ?? song.dx_lev_utage,
+    // STD display levels
+    lev_bas:       song.lev_bas,
+    lev_adv:       song.lev_adv,
+    lev_exp:       song.lev_exp,
+    lev_mas:       song.lev_mas,
+    lev_remas:     song.lev_remas,
+    lev_utage:     song.lev_utage,
     kanji:         song.kanji,
-    // Normalized internal levels — STD preferred (for STD-only songs); DX fallback
-    // For DX-only songs these equal the dx_lev_*_i values below.
-    lev_bas_i:     song.lev_bas_i   ?? song.dx_lev_bas_i,
-    lev_adv_i:     song.lev_adv_i   ?? song.dx_lev_adv_i,
-    lev_exp_i:     song.lev_exp_i   ?? song.dx_lev_exp_i,
-    lev_mas_i:     song.lev_mas_i   ?? song.dx_lev_mas_i,
-    lev_remas_i:   song.lev_remas_i ?? song.dx_lev_remas_i,
+    // STD internal levels
+    lev_bas_i:     song.lev_bas_i,
+    lev_adv_i:     song.lev_adv_i,
+    lev_exp_i:     song.lev_exp_i,
+    lev_mas_i:     song.lev_mas_i,
+    lev_remas_i:   song.lev_remas_i,
     // Explicit DX internal levels — always preserved from the raw DB entry.
     // For songs with BOTH STD and DX charts, lev_*_i has the STD level
     // while dx_lev_*_i has the DX level. Rating uses the right one per chart type.
@@ -52,22 +51,24 @@ function normalizeSong(song: any): Song {
 }
 
 /**
- * Fetch the merged song list from GitHub (intl + JP fallback) and normalize.
+ * Fetch the merged song list from GitHub (intl + JP fallback + dxrating regions) and normalize.
  */
 export async function fetchSongsFromGitHub(): Promise<Song[]> {
-  const [resIntl, resJp] = await Promise.all([
+  const [resIntl, resJp, resDx] = await Promise.all([
     fetch(OTOGE_DB_INTL_URL, { headers: { 'User-Agent': 'moimoi-tracker/1.0' } }),
     fetch(OTOGE_DB_JP_URL,   { headers: { 'User-Agent': 'moimoi-tracker/1.0' } }),
+    fetch(DXDATA_URL,        { headers: { 'User-Agent': 'moimoi-tracker/1.0' } }),
   ]);
 
   if (!resIntl.ok) throw new Error(`otoge-db intl fetch failed: ${resIntl.status}`);
   if (!resJp.ok)   throw new Error(`otoge-db jp fetch failed: ${resJp.status}`);
+  if (!resDx.ok)   throw new Error(`dxdata fetch failed: ${resDx.status}`);
 
   const dataIntl: Song[] = await resIntl.json();
   const dataJp: Song[]   = await resJp.json();
+  const dataDx: any      = await resDx.json();
 
-  // Merge: intl takes precedence; JP fills in missing songs (e.g. newly released CiRCLE tracks)
-  // Normalize ALL songs since both dbs use dx_lev_* prefix for DX-type charts
+  // Merge: intl takes precedence; JP fills in missing songs
   const mergedMap = new Map<string, Song>();
   for (const song of dataIntl) {
     mergedMap.set(song.title, normalizeSong(song));
@@ -75,6 +76,19 @@ export async function fetchSongsFromGitHub(): Promise<Song[]> {
   for (const song of dataJp) {
     if (!mergedMap.has(song.title)) {
       mergedMap.set(song.title, normalizeSong(song));
+    }
+  }
+
+  // Populate regions from dxdata.json
+  if (dataDx && Array.isArray(dataDx.songs)) {
+    for (const dxSong of dataDx.songs) {
+      const existing = mergedMap.get(dxSong.title);
+      if (existing && dxSong.sheets && dxSong.sheets.length > 0) {
+        // dxdata regions structure: { jp: boolean, intl: boolean }
+        const regions = dxSong.sheets[0].regions;
+        existing.jp = regions.jp;
+        existing.intl = regions.intl;
+      }
     }
   }
 
@@ -121,7 +135,8 @@ export async function persistSongsToDb(songs: Song[]): Promise<void> {
         dxLevExpI:   s.dx_lev_exp_i   ?? null,
         dxLevMasI:   s.dx_lev_mas_i   ?? null,
         dxLevRemasI: s.dx_lev_remas_i ?? null,
-        intl:      s.intl      ?? null,
+        jp:        s.jp ?? true,
+        intl:      s.intl ?? true,
         dateAdded: s.date_added ?? null,
       }))
     ).onConflictDoUpdate({
@@ -156,6 +171,7 @@ export async function persistSongsToDb(songs: Song[]): Promise<void> {
         dxLevExpI:   sql`excluded.dx_lev_exp_i`,
         dxLevMasI:   sql`excluded.dx_lev_mas_i`,
         dxLevRemasI: sql`excluded.dx_lev_remas_i`,
+        jp:        sql`excluded.jp`,
         intl:      sql`excluded.intl`,
         dateAdded: sql`excluded.date_added`,
         cachedAt:  sql`now()`,
@@ -202,6 +218,7 @@ async function loadSongsFromDb(): Promise<Song[]> {
     dx_lev_exp_i:  r.dxLevExpI    ?? undefined,
     dx_lev_mas_i:  r.dxLevMasI    ?? undefined,
     dx_lev_remas_i: r.dxLevRemasI ?? undefined,
+    jp:          r.jp          ?? undefined,
     intl:        r.intl        ?? undefined,
     date_added:  r.dateAdded   ?? undefined,
   }));
@@ -263,10 +280,11 @@ export async function fetchSongs(forceRefresh = false): Promise<Song[]> {
 export function buildSongMap(songs: Song[]): Map<string, Song> {
   const map = new Map<string, Song>();
   for (const song of songs) {
-    const existing = map.get(song.title);
+    const key = normalizeTitle(song.title);
+    const existing = map.get(key);
     // Prefer the entry that has more internal level data
     if (!existing || ((song.lev_mas_i || song.lev_exp_i) && !existing.lev_mas_i && !existing.lev_exp_i)) {
-      map.set(song.title, song);
+      map.set(key, song);
     }
   }
   return map;

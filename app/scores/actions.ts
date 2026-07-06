@@ -3,6 +3,7 @@
 import { fetchSongs } from '@/lib/song-db';
 import type { Difficulty } from '@/lib/types';
 import { toRomaji } from '@/lib/romaji';
+import { getSetting } from '@/lib/maimai-sync';
 
 export interface MinimalChart {
   title: string;
@@ -17,7 +18,12 @@ export async function getAllCharts(): Promise<MinimalChart[]> {
   const songs = await fetchSongs();
   const charts: MinimalChart[] = [];
 
+  const region = await getSetting('maimai_region') ?? 'intl';
+
   for (const s of songs) {
+    if (region === 'intl' && s.intl === false) continue;
+    if (region === 'jp' && s.jp === false) continue;
+
     const processDiffs = (type: 'DX' | 'STD', prefix: string) => {
       const diffs: { name: Difficulty; key: string }[] = [
         { name: 'BAS', key: 'bas_i' },
