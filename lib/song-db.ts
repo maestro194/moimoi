@@ -50,23 +50,43 @@ function normalizeSong(song: any): Song {
   };
 }
 
+/** Fetch a URL with automatic retry on 429 Too Many Requests. */
+async function fetchWithRetry(url: string, retries = 3, delayMs = 2000): Promise<Response> {
+  const headers = { 'User-Agent': 'moimoi-tracker/1.0' };
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const res = await fetch(url, { headers });
+    if (res.status !== 429) return res;
+    if (attempt < retries - 1) {
+      const retryAfter = parseInt(res.headers.get('retry-after') ?? '0', 10) * 1000 || delayMs;
+      await new Promise(r => setTimeout(r, retryAfter));
+    }
+  }
+  // Last attempt
+  return fetch(url, { headers });
+}
+
 /**
  * Fetch the merged song list from GitHub (intl + JP fallback + dxrating regions) and normalize.
+ * URLs are fetched sequentially to avoid hitting GitHub's unauthenticated rate limits.
  */
 export async function fetchSongsFromGitHub(): Promise<Song[]> {
-  const [resIntl, resJp, resDx] = await Promise.all([
-    fetch(OTOGE_DB_INTL_URL, { headers: { 'User-Agent': 'moimoi-tracker/1.0' } }),
-    fetch(OTOGE_DB_JP_URL,   { headers: { 'User-Agent': 'moimoi-tracker/1.0' } }),
-    fetch(DXDATA_URL,        { headers: { 'User-Agent': 'moimoi-tracker/1.0' } }),
-  ]);
+  // Sequential fetches to stay under raw.githubusercontent.com rate limits
+  const resJp   = await fetchWithRetry(OTOGE_DB_JP_URL);
+  if (!resJp.ok) throw new Error(`otoge-db jp fetch failed: ${resJp.status}`);
+  const dataJp: Song[] = await resJp.json();
 
-  if (!resIntl.ok) throw new Error(`otoge-db intl fetch failed: ${resIntl.status}`);
-  if (!resJp.ok)   throw new Error(`otoge-db jp fetch failed: ${resJp.status}`);
-  if (!resDx.ok)   throw new Error(`dxdata fetch failed: ${resDx.status}`);
+  const resDx   = await fetchWithRetry(DXDATA_URL);
+  if (!resDx.ok) throw new Error(`dxdata fetch failed: ${resDx.status}`);
+  const dataDx: any    = await resDx.json();
 
-  const dataIntl: Song[] = await resIntl.json();
-  const dataJp: Song[]   = await resJp.json();
-  const dataDx: any      = await resDx.json();
+  // INTL DB is often rate-limited — fall back gracefully to JP data if needed
+  let dataIntl: Song[] = [];
+  const resIntl = await fetchWithRetry(OTOGE_DB_INTL_URL);
+  if (resIntl.ok) {
+    dataIntl = await resIntl.json();
+  } else {
+    console.warn(`otoge-db intl fetch failed (${resIntl.status}) — falling back to JP database only`);
+  }
 
   // Merge: intl takes precedence; JP fills in missing songs
   const mergedMap = new Map<string, Song>();
