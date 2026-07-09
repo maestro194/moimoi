@@ -190,7 +190,7 @@ const SELECT_STYLE: React.CSSProperties = {
   color: 'var(--foreground)',
 };
 
-type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title';
+type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title' | 'bpm_desc' | 'bpm_asc';
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SongsClient({ songs, currentVersion, categories }: Props) {
@@ -199,7 +199,6 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   const [levelG, setLevelG]   = useState('all');
   const [region, setRegion]   = useState('all');
   const [sort, setSort]       = useState<SortKey>('newest');
-  const [view, setView]       = useState<'list' | 'grid'>('grid');
 
   const [windowWidth, setWindowWidth] = useState(1200);
   
@@ -251,6 +250,8 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
         list.sort((a, b) => getLev(a) - getLev(b)); break;
       }
       case 'title':    list.sort((a, b) => a.title.localeCompare(b.title)); break;
+      case 'bpm_desc': list.sort((a, b) => (parseInt(b.bpm || '0') || 0) - (parseInt(a.bpm || '0') || 0)); break;
+      case 'bpm_asc':  list.sort((a, b) => (parseInt(a.bpm || '0') || 0) - (parseInt(b.bpm || '0') || 0)); break;
     }
     return list;
   }, [songs, matchesQuery, cat, region, levelG, sort]);
@@ -268,14 +269,11 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   }
 
   // ── Virtualization ──
-  const isGrid = view === 'grid';
-  // Columns for grid view based on screen width
-  const cols = isGrid ? (windowWidth < 640 ? 3 : windowWidth < 768 ? 4 : windowWidth < 1024 ? 5 : 6) : 1;
-  const rowCount = Math.ceil((isGrid ? filtered.length : tableRows.length) / cols);
+  const rowCount = tableRows.length;
 
   const virtualizer = useWindowVirtualizer({
     count: rowCount,
-    estimateSize: () => isGrid ? (windowWidth / cols) : 60, // Rough estimates
+    estimateSize: () => 60,
     overscan: 5,
   });
 
@@ -300,20 +298,20 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
             placeholder="Title, artist, or romaji…"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all focus:ring-2 focus:ring-purple-500/50"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all focus:ring-2 focus:ring-purple-500/50 bg-zinc-900"
+            style={{ border: '1px solid var(--border)', color: 'var(--foreground)' }}
           />
         </div>
-        <div className="flex rounded-xl overflow-hidden ml-auto" style={{ border: '1px solid var(--border)' }}>
-          <button onClick={() => setView('list')} className="px-3 py-2.5 transition-all"
-            style={{ background: view === 'list' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)', color: view === 'list' ? '#d8b4fe' : 'var(--foreground-muted)' }}>
-            <List size={16} />
-          </button>
-          <button onClick={() => setView('grid')} className="px-3 py-2.5 transition-all"
-            style={{ background: view === 'grid' ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)', color: view === 'grid' ? '#d8b4fe' : 'var(--foreground-muted)' }}>
-            <LayoutGrid size={16} />
-          </button>
-        </div>
+        <select value={sort} onChange={e => setSort(e.target.value as SortKey)}
+          className="px-3 py-2.5 rounded-xl text-sm outline-none transition-colors hover:bg-white/10 bg-zinc-900 border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="lev_desc">Level (High to Low)</option>
+          <option value="lev_asc">Level (Low to High)</option>
+          <option value="bpm_desc">BPM (Fastest)</option>
+          <option value="bpm_asc">BPM (Slowest)</option>
+          <option value="title">Title (A-Z)</option>
+        </select>
       </div>
 
       {/* ── Filters ── */}
@@ -341,7 +339,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
       </p>
 
       {/* ── Virtualized List Header ── */}
-      {!isGrid && filtered.length > 0 && (
+      {filtered.length > 0 && (
         <div className="glass rounded-t-2xl px-4 py-2 flex items-center text-sm font-semibold sticky top-0 z-10 backdrop-blur-md" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="w-[300px] flex-shrink-0 cursor-pointer text-left" onClick={() => handleColSort('title')} style={{ color: sort === 'title' ? '#c4b5fd' : 'var(--foreground-muted)' }}>
             曲名・アーティスト <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
@@ -374,132 +372,65 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
           </div>
         ) : (
           virtualizer.getVirtualItems().map((virtualRow) => {
-            if (isGrid) {
-              // Grid Row
-              const startIndex = virtualRow.index * cols;
-              const rowItems = filtered.slice(startIndex, startIndex + cols);
+            const row = tableRows[virtualRow.index];
+            const isNew = parseInt(row.song.version) >= currentVersion - 500;
+            const jacketUrl = row.song.image_url
+              ? getJacketUrl(row.song.image_url, row.song.intl)
+              : null;
 
-              return (
-                <div
-                  key={virtualRow.index}
-                  className="absolute top-0 left-0 w-full flex gap-3 pb-3"
-                  style={{
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`
-                  }}
+            return (
+              <div
+                key={`${row.song.title}-${row.type}`}
+                className="absolute top-0 left-0 w-full"
+                style={{
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`
+                }}
+              >
+                <motion.div
+                  whileHover={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                  className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02]"
+                  style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
                 >
-                  {rowItems.map((song, i) => {
-                    const isNew = parseInt(song.version) >= currentVersion - 500;
-                    const masConst = song.lev_mas_i ? parseFloat(song.lev_mas_i).toFixed(1) : song.lev_mas;
-                    
-                    return (
-                      <motion.div
-                        key={song.title}
-                        whileHover={{ scale: 1.03, y: -5 }}
-                        className="relative flex-1 aspect-square rounded-xl overflow-hidden glass shadow-lg border"
-                        style={{
-                          borderColor: isNew ? DIFF_COLOR.mas : 'rgba(255,255,255,0.1)',
-                          maxWidth: `calc(100% / ${cols} - 12px)`
-                        }}
-                      >
-                        {song.image_url ? (
-                          <img
-                            src={getJacketUrl(song.image_url, song.intl)}
-                            alt={song.title}
-                            className="absolute inset-0 w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center bg-white/5">
-                            <Music2 size={24} className="text-white/30" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
-                        
-                        {masConst && (
-                          <span className="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded shadow"
-                            style={{ background: DIFF_COLOR.mas, color: '#fff' }}>
-                            {masConst}
-                          </span>
-                        )}
-                        
-                        <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
-                          <div className="text-xs font-bold text-white leading-tight line-clamp-2 drop-shadow-md">
-                            {song.title}
-                          </div>
-                          <div className="text-[10px] text-white/70 truncate mt-0.5">{song.artist}</div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                  {/* Fill empty grid spots to maintain flex basis */}
-                  {Array.from({ length: cols - rowItems.length }).map((_, i) => (
-                    <div key={`empty-${i}`} className="flex-1" style={{ maxWidth: `calc(100% / ${cols} - 12px)` }} />
-                  ))}
-                </div>
-              );
-            } else {
-              // List Row
-              const row = tableRows[virtualRow.index];
-              const isNew = parseInt(row.song.version) >= currentVersion - 500;
-              const jacketUrl = row.song.image_url
-                ? getJacketUrl(row.song.image_url, row.song.intl)
-                : null;
+                  <div className="flex items-center gap-3 w-[300px] flex-shrink-0 pr-4">
+                    <div className="w-12 h-12 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
+                      {jacketUrl ? (
+                        <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={16} /></div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm truncate text-white">{row.song.title}</div>
+                      <div className="text-xs truncate text-white/50">{row.song.artist}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="w-[120px] hidden md:block text-xs text-white/60 truncate pr-2">
+                    {versionLabel(row.song.version)}
+                  </div>
+                  
+                  <div className="w-[100px] hidden lg:block text-[11px] text-white/50 truncate pr-2">
+                    {CAT_LABELS[row.song.catcode] || row.song.catcode}
+                  </div>
 
-              return (
-                <div
-                  key={`${row.song.title}-${row.type}`}
-                  className="absolute top-0 left-0 w-full"
-                  style={{
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`
-                  }}
-                >
-                  <motion.div
-                    whileHover={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
-                    className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02]"
-                    style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
-                  >
-                    <div className="flex items-center gap-3 w-[300px] flex-shrink-0 pr-4">
-                      <div className="w-12 h-12 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
-                        {jacketUrl ? (
-                          <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={16} /></div>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm truncate text-white">{row.song.title}</div>
-                        <div className="text-xs truncate text-white/50">{row.song.artist}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="w-[120px] hidden md:block text-xs text-white/60 truncate pr-2">
-                      {versionLabel(row.song.version)}
-                    </div>
-                    
-                    <div className="w-[100px] hidden lg:block text-[11px] text-white/50 truncate pr-2">
-                      {CAT_LABELS[row.song.catcode] || row.song.catcode}
-                    </div>
+                  <div className="w-[60px] hidden sm:flex justify-center shrink-0 pr-2">
+                    <TypeBadge type={row.type} />
+                  </div>
 
-                    <div className="w-[60px] hidden sm:flex justify-center shrink-0 pr-2">
-                      <TypeBadge type={row.type} />
+                  <div className="flex flex-1 justify-end items-center gap-1">
+                    <DiffCell data={row.bas} diff="bas" onClick={row.bas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'BAS', type: row.type, level: parseFloat(row.bas.internal!) }) : undefined} />
+                    <DiffCell data={row.adv} diff="adv" onClick={row.adv.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'ADV', type: row.type, level: parseFloat(row.adv.internal!) }) : undefined} />
+                    <DiffCell data={row.exp} diff="exp" onClick={row.exp.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'EXP', type: row.type, level: parseFloat(row.exp.internal!) }) : undefined} />
+                    <DiffCell data={row.mas} diff="mas" onClick={row.mas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'MAS', type: row.type, level: parseFloat(row.mas.internal!) }) : undefined} />
+                    <DiffCell data={row.remas} diff="remas" onClick={row.remas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'REMAS', type: row.type, level: parseFloat(row.remas.internal!) }) : undefined} />
+                    <div className="hidden xl:block">
+                      <DiffCell data={row.utage} diff="utage" kanji={row.kanji} />
                     </div>
-
-                    <div className="flex flex-1 justify-end items-center gap-1">
-                      <DiffCell data={row.bas} diff="bas" onClick={row.bas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'BAS', type: row.type, level: parseFloat(row.bas.internal!) }) : undefined} />
-                      <DiffCell data={row.adv} diff="adv" onClick={row.adv.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'ADV', type: row.type, level: parseFloat(row.adv.internal!) }) : undefined} />
-                      <DiffCell data={row.exp} diff="exp" onClick={row.exp.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'EXP', type: row.type, level: parseFloat(row.exp.internal!) }) : undefined} />
-                      <DiffCell data={row.mas} diff="mas" onClick={row.mas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'MAS', type: row.type, level: parseFloat(row.mas.internal!) }) : undefined} />
-                      <DiffCell data={row.remas} diff="remas" onClick={row.remas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'REMAS', type: row.type, level: parseFloat(row.remas.internal!) }) : undefined} />
-                      <div className="hidden xl:block">
-                        <DiffCell data={row.utage} diff="utage" kanji={row.kanji} />
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              );
-            }
+                  </div>
+                </motion.div>
+              </div>
+            );
           })
         )}
       </div>
