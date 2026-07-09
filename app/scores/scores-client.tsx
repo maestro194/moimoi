@@ -5,6 +5,7 @@ import { Search, Trophy, LayoutGrid, List, BarChart2 } from 'lucide-react';
 import type { ScoreWithRating, Difficulty } from '@/lib/types';
 import { PageWrapper } from '@/components/page-wrapper';
 import MatrixView from './matrix-view';
+import { getJacketUrl } from '@/lib/song-db';
 
 interface Props {
   scored: ScoreWithRating[];
@@ -117,7 +118,7 @@ export default function ScoresClient({ scored, total }: Props) {
                 <div className="w-1.5 h-14 shrink-0" style={{ background: DIFF_COLOR[s.difficulty] }} />
                 <div className="w-12 h-12 shrink-0 bg-white/5 overflow-hidden rounded relative">
                   {s.song?.image_url ? (
-                    <img loading="lazy" src={`https://maimaidx-eng.com/maimai-mobile/img/Music/${s.song.image_url}`} alt={s.songTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <img loading="lazy" src={getJacketUrl(s.song.image_url, s.song.intl)} alt={s.songTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                   ) : (
                     <div className="w-full h-full bg-white/5" />
                   )}
@@ -311,7 +312,7 @@ function B50Card({ score: s, index = 0, animated = false }: { score: ScoreWithRa
       {s.song?.image_url && (
         <div
           className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
-          style={{ backgroundImage: `url(https://maimaidx-eng.com/maimai-mobile/img/Music/${s.song.image_url})` }}
+          style={{ backgroundImage: `url(${getJacketUrl(s.song.image_url, s.song.intl)})` }}
         />
       )}
       {/* Gradients */}

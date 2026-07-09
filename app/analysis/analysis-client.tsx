@@ -5,6 +5,7 @@ import { FCBadge, FSBadge } from '@/components/badges';
 import type { RatingData, ScoreWithRating } from '@/lib/types';
 import type { TargetSuggestion } from '@/lib/rating';
 import { RANK_DEFINITIONS } from '@/lib/rating';
+import { getJacketUrl } from '@/lib/song-db';
 import { PageWrapper } from '@/components/page-wrapper';
 import { motion, useSpring, useTransform, Variants } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -199,7 +200,7 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
                 
                 <div className="w-12 h-12 shrink-0 bg-white/5 overflow-hidden rounded relative ml-7">
                   {s.song?.image_url ? (
-                    <img loading="lazy" src={`https://maimaidx-eng.com/maimai-mobile/img/Music/${s.song.image_url}`} alt={s.songTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <img loading="lazy" src={getJacketUrl(s.song.image_url, s.song.intl)} alt={s.songTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                   ) : (
                     <div className="w-full h-full bg-white/5" />
                   )}

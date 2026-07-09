@@ -367,6 +367,18 @@ export async function fetchSongsFromGitHub(): Promise<Song[]> {
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 /**
+ * Get the correct jacket URL for a song. 
+ * Falls back to the otoge-db GitHub CDN for JP-only songs since the official English server returns 404.
+ */
+export function getJacketUrl(imageName?: string | null, intl?: boolean | null): string {
+  if (!imageName) return '';
+  if (intl === false) {
+    return `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${imageName}`;
+  }
+  return `https://maimaidx-eng.com/maimai-mobile/img/Music/${imageName}`;
+}
+
+/**
  * Build a lookup map: normalised title → Song.
  * Prefers entries that have more internal level data.
  */

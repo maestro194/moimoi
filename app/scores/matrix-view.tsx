@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { ScoreWithRating } from '@/lib/types';
 import { getAllCharts, type MinimalChart } from './actions';
 import { FCBadge } from '@/components/badges';
+import { getJacketUrl } from '@/lib/song-db';
 
 interface Props {
   scores: ScoreWithRating[];
@@ -140,7 +141,7 @@ function MatrixCard({ chart, score }: { chart: MinimalChart, score?: ScoreWithRa
       {chart.image ? (
         <img 
           loading="lazy" 
-          src={`https://maimaidx-eng.com/maimai-mobile/img/Music/${chart.image}`} 
+          src={getJacketUrl(chart.image, chart.intl)} 
           alt={chart.title} 
           className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
         />

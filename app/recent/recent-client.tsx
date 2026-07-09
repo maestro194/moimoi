@@ -6,6 +6,7 @@ import { Clock, DownloadCloud, Trash2, ChevronDown, ChevronUp } from 'lucide-rea
 import { FCBadge, FSBadge } from '@/components/badges';
 import { PageWrapper } from '@/components/page-wrapper';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getJacketUrl } from '@/lib/song-db';
 
 interface HydratedLog {
   id: number;
@@ -137,7 +138,7 @@ function PlayRow({ play }: { play: HydratedLog }) {
   const achvNum = parseFloat(play.achievement);
 
   const jacketUrl = play.song?.image_url 
-    ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${play.song.image_url}`
+    ? getJacketUrl(play.song.image_url, play.song.intl)
     : null;
 
   const d = play.details;

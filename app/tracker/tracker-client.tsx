@@ -8,6 +8,7 @@ import { computeRating, calcSingleRating, getSongInternalLevel } from '@/lib/rat
 import { normalizeTitle } from '@/lib/normalize';
 import { addTracker, deleteTracker } from './actions';
 import type { MinimalChart } from '@/app/scores/actions';
+import { getJacketUrl } from '@/lib/song-db';
 
 interface Tracker {
   id: number;
@@ -143,7 +144,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
       <div className="flex flex-col gap-3">
         {trackerData.map(d => {
           const song = songMap.get(normalizeTitle(d.tracker.songTitle));
-          const jacketUrl = song?.image_url ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${song.image_url}` : null;
+          const jacketUrl = song?.image_url ? getJacketUrl(song.image_url, song.intl) : null;
           
           return (
             <div 
@@ -302,7 +303,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
               ) : (
                 filteredCharts.map((c, i) => {
                   const song = songMap.get(normalizeTitle(c.title));
-                  const jacketUrl = song?.image_url ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${song.image_url}` : null;
+                  const jacketUrl = song?.image_url ? getJacketUrl(song.image_url, song.intl) : null;
                   
                   return (
                     <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">

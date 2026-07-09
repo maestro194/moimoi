@@ -12,6 +12,7 @@ export interface MinimalChart {
   type: 'DX' | 'STD';
   level: number;
   image: string;
+  intl: boolean;
 }
 
 export async function getAllCharts(): Promise<MinimalChart[]> {
@@ -45,6 +46,7 @@ export async function getAllCharts(): Promise<MinimalChart[]> {
               type,
               level,
               image: s.image_url || '',
+              intl: s.intl ?? true,
             });
           }
         }

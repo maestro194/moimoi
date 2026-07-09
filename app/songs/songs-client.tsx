@@ -7,6 +7,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { PageWrapper } from '@/components/page-wrapper';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toRomaji } from '@/lib/romaji';
+import { getJacketUrl } from '@/lib/song-db';
 import { addTracker } from '@/app/tracker/actions';
 import { useRouter } from 'next/navigation';
 
@@ -403,7 +404,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                       >
                         {song.image_url ? (
                           <img
-                            src={`https://maimaidx-eng.com/maimai-mobile/img/Music/${song.image_url}`}
+                            src={getJacketUrl(song.image_url, song.intl)}
                             alt={song.title}
                             className="absolute inset-0 w-full h-full object-cover"
                             loading="lazy"
@@ -442,7 +443,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
               const row = tableRows[virtualRow.index];
               const isNew = parseInt(row.song.version) >= currentVersion - 500;
               const jacketUrl = row.song.image_url
-                ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${row.song.image_url}`
+                ? getJacketUrl(row.song.image_url, row.song.intl)
                 : null;
 
               return (
