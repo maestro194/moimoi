@@ -1,12 +1,11 @@
 import type { Song } from './types';
 import { db } from './db';
-import { songs, settings } from './db/schema';
-import { sql, eq } from 'drizzle-orm';
+import { songs } from './db/schema';
+import { sql } from 'drizzle-orm';
 import { normalizeTitle } from './normalize';
 
-const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
-const OTOGE_DB_JP_URL   = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex.json';
-const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
+const SEGA_INTL_JSON_URL = 'https://maimai.sega.com/assets/data/maimai_songs.json';
+const DXDATA_URL         = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
 
 // Short-lived in-memory cache to avoid hammering DB on every request within the same process
 let memCache: Song[] | null = null;
@@ -98,39 +97,21 @@ export interface RefreshResult {
 export async function refreshSongsDb(): Promise<RefreshResult> {
   const t0 = Date.now();
 
-  const settingRow = await db.select().from(settings).where(eq(settings.key, 'region'));
-  const userRegion = settingRow[0]?.value === 'jp' ? 'jp' : 'intl';
-
-  // Fetch sequentially to stay under GitHub unauthenticated rate limits
-  const resJp = await fetchWithRetry(OTOGE_DB_JP_URL);
-  if (!resJp.ok) throw new Error(`otoge-db JP fetch failed: ${resJp.status}`);
+  // Fetch sequentially to stay under unauthenticated rate limits if applicable
+  const resSega = await fetchWithRetry(SEGA_INTL_JSON_URL);
+  if (!resSega.ok) throw new Error(`SEGA INTL fetch failed: ${resSega.status}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const dataJp: any[] = await resJp.json();
+  const dataSega: any[] = await resSega.json();
 
   const resDx = await fetchWithRetry(DXDATA_URL);
   if (!resDx.ok) throw new Error(`dxdata fetch failed: ${resDx.status}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataDx: any = await resDx.json();
 
-  // INTL DB — fall back gracefully if rate-limited
-  let intlFetched = false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let dataIntl: any[] = [];
-  const resIntl = await fetchWithRetry(OTOGE_DB_INTL_URL);
-  if (resIntl.ok) {
-    dataIntl = await resIntl.json();
-    intlFetched = true;
-  } else {
-    console.warn(`otoge-db INTL fetch failed (${resIntl.status}) — using JP data only`);
-  }
-
-  // ── Merge: JP as base, INTL overrides where present ─────────────────────────
+  // ── Transform SEGA data ───────────────────────────────────────────────────────
   const mergedMap = new Map<string, Song>();
-  for (const s of dataJp) mergedMap.set(s.title, normalizeSong(s));
-  for (const s of dataIntl) {
-    if (userRegion === 'intl' || !mergedMap.has(s.title)) {
-      mergedMap.set(s.title, normalizeSong(s)); // overrides JP if INTL region is selected, or if song is INTL exclusive
-    }
+  for (const s of dataSega) {
+    mergedMap.set(s.title, normalizeSong(s));
   }
 
   // ── Enrich with dxrating data ────────────────────────────────────────────────
@@ -151,27 +132,18 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
       const stdSheets = dxSong.sheets.filter((sh: any) => sh.type === 'std');
       const dxSheets  = dxSong.sheets.filter((sh: any) => sh.type === 'dx');
 
-      // Helper to resolve the most recent internal level
+      // Helper to resolve the most recent internal level for INTL
       const resolveInternalLevel = (sh: any) => {
         let val = sh.internalLevelValue ?? sh.internalLevel;
         if (sh.multiverInternalLevelValue) {
-          const versions = userRegion === 'intl' 
-            ? [
-                'CiRCLE PLUS', 'CiRCLE',
-                'BUDDiES PLUS', 'BUDDiES',
-                'FESTiVAL PLUS', 'FESTiVAL',
-                'UNiVERSE PLUS', 'UNiVERSE',
-                'Splash PLUS', 'Splash',
-                'maimaiでらっくす PLUS', 'maimaiでらっくす'
-              ]
-            : [
-                'PRiSM PLUS', 'PRiSM',
-                'BUDDiES PLUS', 'BUDDiES',
-                'FESTiVAL PLUS', 'FESTiVAL',
-                'UNiVERSE PLUS', 'UNiVERSE',
-                'Splash PLUS', 'Splash',
-                'maimaiでらっくす PLUS', 'maimaiでらっくす'
-              ];
+          const versions = [
+            'CiRCLE PLUS', 'CiRCLE',
+            'BUDDiES PLUS', 'BUDDiES',
+            'FESTiVAL PLUS', 'FESTiVAL',
+            'UNiVERSE PLUS', 'UNiVERSE',
+            'Splash PLUS', 'Splash',
+            'maimaiでらっくす PLUS', 'maimaiでらっくす'
+          ];
           for (const v of versions) {
             if (v in sh.multiverInternalLevelValue) {
               val = sh.multiverInternalLevelValue[v];
@@ -211,6 +183,21 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
         existing.intl = stdSheets[0].regions.intl ?? true;
         existing.jp   = stdSheets[0].regions.jp   ?? true;
       }
+
+      // Backfill missing metadata from dxdata
+      if (dxSong.bpm) {
+        existing.bpm = String(dxSong.bpm);
+      }
+      
+      // Attempt to backfill date_added from the earliest sheet releaseDate
+      const allSheets = [...stdSheets, ...dxSheets];
+      const validDates = allSheets.map((sh: any) => sh.releaseDate).filter(Boolean);
+      if (validDates.length > 0) {
+        // Find the earliest date
+        validDates.sort();
+        // date_added in DB is typically YYYYMMDD, let's normalize from YYYY-MM-DD
+        existing.date_added = validDates[0].replace(/-/g, '');
+      }
     }
   }
 
@@ -225,7 +212,7 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
   return {
     count: merged.length,
     dxratingVersion,
-    intlFetched,
+    intlFetched: true,
     durationMs: Date.now() - t0,
   };
 }
