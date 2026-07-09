@@ -1,16 +1,18 @@
-import { fetchSongsFromGitHub, persistSongsToDb, fetchSongs } from '@/lib/song-db';
+import { refreshSongsDb } from '@/lib/song-db';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
   try {
-    const songs = await fetchSongsFromGitHub();
-    await persistSongsToDb(songs);
+    const result = await refreshSongsDb();
 
-    // Bust the in-memory cache so next request gets fresh data from DB
-    await fetchSongs(true);
-
-    return Response.json({ ok: true, count: songs.length });
+    return Response.json({
+      ok: true,
+      count: result.count,
+      dxratingVersion: result.dxratingVersion,
+      intlFetched: result.intlFetched,
+      durationMs: result.durationMs,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return Response.json({ ok: false, error: message }, { status: 500 });

@@ -1,56 +1,75 @@
 import type { Song } from './types';
 import { db } from './db';
-import { songCache } from './db/schema';
+import { songs } from './db/schema';
 import { sql } from 'drizzle-orm';
 import { normalizeTitle } from './normalize';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
-const OTOGE_DB_JP_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex.json';
-const DXDATA_URL = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
+const OTOGE_DB_JP_URL   = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex.json';
+const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
 
 // Short-lived in-memory cache to avoid hammering DB on every request within the same process
 let memCache: Song[] | null = null;
 let memCacheTimestamp = 0;
 const MEM_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/** Invalidate the in-memory cache so next call reads fresh data from DB. */
+export function bustMemCache() {
+  memCache = null;
+  memCacheTimestamp = 0;
+}
+
+// ─── Normalisation ────────────────────────────────────────────────────────────
+
 /**
- * Normalizes a song from the raw JSON database.
+ * Normalizes a raw song object from otoge-db JSON into the canonical Song shape.
+ * STD fields stay as-is; DX fields are preserved separately.
+ * No fallback bleed-over between STD and DX — each is null if the chart doesn't exist.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeSong(song: any): Song {
   return {
     ...song,
-    // STD display levels
-    lev_bas:       song.lev_bas,
-    lev_adv:       song.lev_adv,
-    lev_exp:       song.lev_exp,
-    lev_mas:       song.lev_mas,
-    lev_remas:     song.lev_remas,
-    lev_utage:     song.lev_utage,
-    kanji:         song.kanji,
+    sort:       song.sort,
+    title:      song.title,
+    title_kana: song.title_kana,
+    artist:     song.artist,
+    catcode:    song.catcode,
+    version:    song.version,
+    bpm:        song.bpm,
+    image_url:  song.image_url,
+    // STD display levels (null when no STD chart)
+    lev_bas:    song.lev_bas    ?? undefined,
+    lev_adv:    song.lev_adv    ?? undefined,
+    lev_exp:    song.lev_exp    ?? undefined,
+    lev_mas:    song.lev_mas    ?? undefined,
+    lev_remas:  song.lev_remas  ?? undefined,
+    lev_utage:  song.lev_utage  ?? undefined,
+    kanji:      song.kanji      ?? undefined,
     // STD internal levels
-    lev_bas_i:     song.lev_bas_i,
-    lev_adv_i:     song.lev_adv_i,
-    lev_exp_i:     song.lev_exp_i,
-    lev_mas_i:     song.lev_mas_i,
-    lev_remas_i:   song.lev_remas_i,
-    // Explicit DX internal levels — always preserved from the raw DB entry.
-    // For songs with BOTH STD and DX charts, lev_*_i has the STD level
-    // while dx_lev_*_i has the DX level. Rating uses the right one per chart type.
-    dx_lev_bas_i:  song.dx_lev_bas_i,
-    dx_lev_adv_i:  song.dx_lev_adv_i,
-    dx_lev_exp_i:  song.dx_lev_exp_i,
-    dx_lev_mas_i:  song.dx_lev_mas_i,
-    dx_lev_remas_i: song.dx_lev_remas_i,
-    dx_lev_bas:    song.dx_lev_bas,
-    dx_lev_adv:    song.dx_lev_adv,
-    dx_lev_exp:    song.dx_lev_exp,
-    dx_lev_mas:    song.dx_lev_mas,
-    dx_lev_remas:  song.dx_lev_remas,
+    lev_bas_i:   song.lev_bas_i   ?? undefined,
+    lev_adv_i:   song.lev_adv_i   ?? undefined,
+    lev_exp_i:   song.lev_exp_i   ?? undefined,
+    lev_mas_i:   song.lev_mas_i   ?? undefined,
+    lev_remas_i: song.lev_remas_i ?? undefined,
+    // DX display levels
+    dx_lev_bas:   song.dx_lev_bas   ?? undefined,
+    dx_lev_adv:   song.dx_lev_adv   ?? undefined,
+    dx_lev_exp:   song.dx_lev_exp   ?? undefined,
+    dx_lev_mas:   song.dx_lev_mas   ?? undefined,
+    dx_lev_remas: song.dx_lev_remas ?? undefined,
+    // DX internal levels
+    dx_lev_bas_i:   song.dx_lev_bas_i   ?? undefined,
+    dx_lev_adv_i:   song.dx_lev_adv_i   ?? undefined,
+    dx_lev_exp_i:   song.dx_lev_exp_i   ?? undefined,
+    dx_lev_mas_i:   song.dx_lev_mas_i   ?? undefined,
+    dx_lev_remas_i: song.dx_lev_remas_i ?? undefined,
   };
 }
 
-/** Fetch a URL with automatic retry on 429 Too Many Requests. */
+// ─── Fetching ─────────────────────────────────────────────────────────────────
+
+/** Fetch a URL, automatically retrying on HTTP 429 Too Many Requests. */
 async function fetchWithRetry(url: string, retries = 3, delayMs = 2000): Promise<Response> {
   const headers = { 'User-Agent': 'moimoi-tracker/1.0' };
   for (let attempt = 0; attempt < retries; attempt++) {
@@ -61,106 +80,166 @@ async function fetchWithRetry(url: string, retries = 3, delayMs = 2000): Promise
       await new Promise(r => setTimeout(r, retryAfter));
     }
   }
-  // Last attempt
   return fetch(url, { headers });
 }
 
+export interface RefreshResult {
+  count: number;
+  dxratingVersion: string | null;
+  intlFetched: boolean;
+  durationMs: number;
+}
+
 /**
- * Fetch the merged song list from GitHub (intl + JP fallback + dxrating regions) and normalize.
- * URLs are fetched sequentially to avoid hitting GitHub's unauthenticated rate limits.
+ * Full pipeline: fetch from GitHub sources, merge, persist to DB, bust cache.
+ * This is the ONLY place that talks to external URLs.
+ * Called explicitly by POST /api/refresh-songs — never auto-triggered at runtime.
  */
-export async function fetchSongsFromGitHub(): Promise<Song[]> {
-  // Sequential fetches to stay under raw.githubusercontent.com rate limits
-  const resJp   = await fetchWithRetry(OTOGE_DB_JP_URL);
-  if (!resJp.ok) throw new Error(`otoge-db jp fetch failed: ${resJp.status}`);
-  const dataJp: Song[] = await resJp.json();
+export async function refreshSongsDb(): Promise<RefreshResult> {
+  const t0 = Date.now();
 
-  const resDx   = await fetchWithRetry(DXDATA_URL);
+  // Fetch sequentially to stay under GitHub unauthenticated rate limits
+  const resJp = await fetchWithRetry(OTOGE_DB_JP_URL);
+  if (!resJp.ok) throw new Error(`otoge-db JP fetch failed: ${resJp.status}`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dataJp: any[] = await resJp.json();
+
+  const resDx = await fetchWithRetry(DXDATA_URL);
   if (!resDx.ok) throw new Error(`dxdata fetch failed: ${resDx.status}`);
-  const dataDx: any    = await resDx.json();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dataDx: any = await resDx.json();
 
-  // INTL DB is often rate-limited — fall back gracefully to JP data if needed
-  let dataIntl: Song[] = [];
+  // INTL DB — fall back gracefully if rate-limited
+  let intlFetched = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let dataIntl: any[] = [];
   const resIntl = await fetchWithRetry(OTOGE_DB_INTL_URL);
   if (resIntl.ok) {
     dataIntl = await resIntl.json();
+    intlFetched = true;
   } else {
-    console.warn(`otoge-db intl fetch failed (${resIntl.status}) — falling back to JP database only`);
+    console.warn(`otoge-db INTL fetch failed (${resIntl.status}) — using JP data only`);
   }
 
-  // Merge: intl takes precedence; JP fills in missing songs
+  // ── Merge: JP as base, INTL overrides where present ─────────────────────────
   const mergedMap = new Map<string, Song>();
-  for (const song of dataIntl) {
-    mergedMap.set(song.title, normalizeSong(song));
-  }
-  for (const song of dataJp) {
-    if (!mergedMap.has(song.title)) {
-      mergedMap.set(song.title, normalizeSong(song));
-    }
-  }
+  for (const s of dataJp)   mergedMap.set(s.title, normalizeSong(s));
+  for (const s of dataIntl) mergedMap.set(s.title, normalizeSong(s)); // overrides JP
 
-  // Populate regions from dxdata.json
-  if (dataDx && Array.isArray(dataDx.songs)) {
+  // ── Enrich with dxrating data ────────────────────────────────────────────────
+  // dxdata.json structure:
+  //   { version: "1.5.3", songs: [{ title, sheets: [{ type: "dx"|"std", internalLevel, regions: { jp, intl } }] }] }
+  const dxratingVersion: string | null = dataDx?.version ?? null;
+
+  if (dataDx?.songs && Array.isArray(dataDx.songs)) {
     for (const dxSong of dataDx.songs) {
       const existing = mergedMap.get(dxSong.title);
-      if (existing && dxSong.sheets && dxSong.sheets.length > 0) {
-        // dxdata regions structure: { jp: boolean, intl: boolean }
-        const regions = dxSong.sheets[0].regions;
-        existing.jp = regions.jp;
-        existing.intl = regions.intl;
+      if (!existing || !Array.isArray(dxSong.sheets)) continue;
+
+      // Walk each sheet to apply constants and region flags
+      // Difficulty order in dxdata: 0=BAS, 1=ADV, 2=EXP, 3=MAS, 4=REMAS
+      const diffKeys = ['bas', 'adv', 'exp', 'mas', 'remas'] as const;
+
+      // Collect sheets by type
+      const stdSheets = dxSong.sheets.filter((sh: any) => sh.type === 'std');
+      const dxSheets  = dxSong.sheets.filter((sh: any) => sh.type === 'dx');
+
+      // Apply STD constants
+      for (let i = 0; i < stdSheets.length && i < diffKeys.length; i++) {
+        const sh = stdSheets[i];
+        const dk = diffKeys[i];
+        if (sh.internalLevel != null) {
+          (existing as any)[`lev_${dk}_i`] = String(sh.internalLevel);
+        }
+      }
+
+      // Apply DX constants + region flags (use first DX sheet for region)
+      for (let i = 0; i < dxSheets.length && i < diffKeys.length; i++) {
+        const sh = dxSheets[i];
+        const dk = diffKeys[i];
+        if (sh.internalLevel != null) {
+          (existing as any)[`dx_lev_${dk}_i`] = String(sh.internalLevel);
+        }
+        if (i === 0 && sh.regions) {
+          existing.intl = sh.regions.intl ?? true;
+          existing.jp   = sh.regions.jp   ?? true;
+        }
+      }
+
+      // If only STD sheets exist, pull region from STD sheet[0]
+      if (dxSheets.length === 0 && stdSheets.length > 0 && stdSheets[0].regions) {
+        existing.intl = stdSheets[0].regions.intl ?? true;
+        existing.jp   = stdSheets[0].regions.jp   ?? true;
       }
     }
   }
 
-  return Array.from(mergedMap.values());
+  const merged = Array.from(mergedMap.values());
+
+  // ── Persist to DB ────────────────────────────────────────────────────────────
+  await persistSongsToDb(merged, dxratingVersion);
+
+  // Bust memory cache so next request reads fresh data
+  bustMemCache();
+
+  return {
+    count: merged.length,
+    dxratingVersion,
+    intlFetched,
+    durationMs: Date.now() - t0,
+  };
 }
 
+// ─── Persistence ──────────────────────────────────────────────────────────────
+
 /**
- * Persist a song list into the DB song_cache table via upsert.
- * Runs in batches to stay within Neon's parameter limits.
+ * Upsert a song list into the `songs` table in batches of 200.
+ * Sets refreshed_at = now() and stores the dxrating version on every row.
  */
-export async function persistSongsToDb(songs: Song[]): Promise<void> {
+export async function persistSongsToDb(songList: Song[], dxratingVersion: string | null = null): Promise<void> {
   const BATCH = 200;
-  for (let i = 0; i < songs.length; i += BATCH) {
-    const batch = songs.slice(i, i + BATCH);
-    await db.insert(songCache).values(
+  for (let i = 0; i < songList.length; i += BATCH) {
+    const batch = songList.slice(i, i + BATCH);
+    await db.insert(songs).values(
       batch.map(s => ({
         title:     s.title,
         sort:      s.sort      ?? null,
         titleKana: s.title_kana ?? null,
-        artist:    s.artist,
-        catcode:   s.catcode,
-        version:   s.version,
+        artist:    s.artist    ?? '',
+        catcode:   s.catcode   ?? '',
+        version:   s.version   ?? '',
         bpm:       s.bpm       ?? null,
         imageUrl:  s.image_url ?? null,
-        levBas:      s.lev_bas      ?? null,
-        levAdv:      s.lev_adv      ?? null,
-        levExp:      s.lev_exp      ?? null,
-        levMas:      s.lev_mas      ?? null,
-        levRemas:    s.lev_remas    ?? null,
-        levBasI:     s.lev_bas_i    ?? null,
-        levAdvI:     s.lev_adv_i    ?? null,
-        levExpI:     s.lev_exp_i    ?? null,
-        levMasI:     s.lev_mas_i    ?? null,
-        levRemasI:   s.lev_remas_i  ?? null,
-        levUtage:    s.lev_utage    ?? null,
-        kanji:       s.kanji        ?? null,
-        dxLevBas:    s.dx_lev_bas   ?? null,
-        dxLevAdv:    s.dx_lev_adv   ?? null,
-        dxLevExp:    s.dx_lev_exp   ?? null,
-        dxLevMas:    s.dx_lev_mas   ?? null,
-        dxLevRemas:  s.dx_lev_remas ?? null,
+        levBas:    s.lev_bas    ?? null,
+        levAdv:    s.lev_adv    ?? null,
+        levExp:    s.lev_exp    ?? null,
+        levMas:    s.lev_mas    ?? null,
+        levRemas:  s.lev_remas  ?? null,
+        levUtage:  s.lev_utage  ?? null,
+        kanji:     s.kanji      ?? null,
+        levBasI:   s.lev_bas_i   ?? null,
+        levAdvI:   s.lev_adv_i   ?? null,
+        levExpI:   s.lev_exp_i   ?? null,
+        levMasI:   s.lev_mas_i   ?? null,
+        levRemasI: s.lev_remas_i ?? null,
+        dxLevBas:   s.dx_lev_bas   ?? null,
+        dxLevAdv:   s.dx_lev_adv   ?? null,
+        dxLevExp:   s.dx_lev_exp   ?? null,
+        dxLevMas:   s.dx_lev_mas   ?? null,
+        dxLevRemas: s.dx_lev_remas ?? null,
         dxLevBasI:   s.dx_lev_bas_i   ?? null,
         dxLevAdvI:   s.dx_lev_adv_i   ?? null,
         dxLevExpI:   s.dx_lev_exp_i   ?? null,
         dxLevMasI:   s.dx_lev_mas_i   ?? null,
         dxLevRemasI: s.dx_lev_remas_i ?? null,
-        jp:        s.jp ?? true,
+        jp:        s.jp   ?? true,
         intl:      s.intl ?? true,
         dateAdded: s.date_added ?? null,
+        dxratingVersion: dxratingVersion ?? null,
+        refreshedAt: new Date(),
       }))
     ).onConflictDoUpdate({
-      target: songCache.title,
+      target: songs.title,
       set: {
         sort:      sql`excluded.sort`,
         titleKana: sql`excluded.title_kana`,
@@ -169,43 +248,43 @@ export async function persistSongsToDb(songs: Song[]): Promise<void> {
         version:   sql`excluded.version`,
         bpm:       sql`excluded.bpm`,
         imageUrl:  sql`excluded.image_url`,
-        levBas:      sql`excluded.lev_bas`,
-        levAdv:      sql`excluded.lev_adv`,
-        levExp:      sql`excluded.lev_exp`,
-        levMas:      sql`excluded.lev_mas`,
-        levRemas:    sql`excluded.lev_remas`,
-        levBasI:     sql`excluded.lev_bas_i`,
-        levAdvI:     sql`excluded.lev_adv_i`,
-        levExpI:     sql`excluded.lev_exp_i`,
-        levMasI:     sql`excluded.lev_mas_i`,
-        levRemasI:   sql`excluded.lev_remas_i`,
-        levUtage:    sql`excluded.lev_utage`,
-        kanji:       sql`excluded.kanji`,
-        dxLevBas:    sql`excluded.dx_lev_bas`,
-        dxLevAdv:    sql`excluded.dx_lev_adv`,
-        dxLevExp:    sql`excluded.dx_lev_exp`,
-        dxLevMas:    sql`excluded.dx_lev_mas`,
-        dxLevRemas:  sql`excluded.dx_lev_remas`,
+        levBas:    sql`excluded.lev_bas`,
+        levAdv:    sql`excluded.lev_adv`,
+        levExp:    sql`excluded.lev_exp`,
+        levMas:    sql`excluded.lev_mas`,
+        levRemas:  sql`excluded.lev_remas`,
+        levUtage:  sql`excluded.lev_utage`,
+        kanji:     sql`excluded.kanji`,
+        levBasI:   sql`excluded.lev_bas_i`,
+        levAdvI:   sql`excluded.lev_adv_i`,
+        levExpI:   sql`excluded.lev_exp_i`,
+        levMasI:   sql`excluded.lev_mas_i`,
+        levRemasI: sql`excluded.lev_remas_i`,
+        dxLevBas:   sql`excluded.dx_lev_bas`,
+        dxLevAdv:   sql`excluded.dx_lev_adv`,
+        dxLevExp:   sql`excluded.dx_lev_exp`,
+        dxLevMas:   sql`excluded.dx_lev_mas`,
+        dxLevRemas: sql`excluded.dx_lev_remas`,
         dxLevBasI:   sql`excluded.dx_lev_bas_i`,
         dxLevAdvI:   sql`excluded.dx_lev_adv_i`,
         dxLevExpI:   sql`excluded.dx_lev_exp_i`,
         dxLevMasI:   sql`excluded.dx_lev_mas_i`,
         dxLevRemasI: sql`excluded.dx_lev_remas_i`,
-        jp:        sql`excluded.jp`,
-        intl:      sql`excluded.intl`,
-        dateAdded: sql`excluded.date_added`,
-        cachedAt:  sql`now()`,
+        jp:   sql`excluded.jp`,
+        intl: sql`excluded.intl`,
+        dateAdded:       sql`excluded.date_added`,
+        dxratingVersion: sql`excluded.dxrating_version`,
+        refreshedAt:     sql`now()`,
       },
     });
   }
 }
 
-/**
- * Load songs from the DB cache table, converting column names back to Song shape.
- * Returns an empty array if the table is empty.
- */
+// ─── Reading ───────────────────────────────────────────────────────────────────
+
+/** Load the full song list from the DB `songs` table. Returns [] if empty. */
 async function loadSongsFromDb(): Promise<Song[]> {
-  const rows = await db.select().from(songCache);
+  const rows = await db.select().from(songs);
   return rows.map(r => ({
     sort:        r.sort        ?? '',
     title:       r.title,
@@ -216,94 +295,87 @@ async function loadSongsFromDb(): Promise<Song[]> {
     bpm:         r.bpm         ?? '',
     image_url:   r.imageUrl    ?? '',
     release:     '',
-    lev_bas:       r.levBas       ?? undefined,
-    lev_adv:       r.levAdv       ?? undefined,
-    lev_exp:       r.levExp       ?? undefined,
-    lev_mas:       r.levMas       ?? undefined,
-    lev_remas:     r.levRemas     ?? undefined,
-    lev_bas_i:     r.levBasI      ?? undefined,
-    lev_adv_i:     r.levAdvI      ?? undefined,
-    lev_exp_i:     r.levExpI      ?? undefined,
-    lev_mas_i:     r.levMasI      ?? undefined,
-    lev_remas_i:   r.levRemasI    ?? undefined,
-    lev_utage:     r.levUtage     ?? undefined,
-    kanji:         r.kanji        ?? undefined,
-    dx_lev_bas:    r.dxLevBas     ?? undefined,
-    dx_lev_adv:    r.dxLevAdv     ?? undefined,
-    dx_lev_exp:    r.dxLevExp     ?? undefined,
-    dx_lev_mas:    r.dxLevMas     ?? undefined,
-    dx_lev_remas:  r.dxLevRemas   ?? undefined,
-    dx_lev_bas_i:  r.dxLevBasI    ?? undefined,
-    dx_lev_adv_i:  r.dxLevAdvI    ?? undefined,
-    dx_lev_exp_i:  r.dxLevExpI    ?? undefined,
-    dx_lev_mas_i:  r.dxLevMasI    ?? undefined,
+    lev_bas:     r.levBas      ?? undefined,
+    lev_adv:     r.levAdv      ?? undefined,
+    lev_exp:     r.levExp      ?? undefined,
+    lev_mas:     r.levMas      ?? undefined,
+    lev_remas:   r.levRemas    ?? undefined,
+    lev_bas_i:   r.levBasI     ?? undefined,
+    lev_adv_i:   r.levAdvI     ?? undefined,
+    lev_exp_i:   r.levExpI     ?? undefined,
+    lev_mas_i:   r.levMasI     ?? undefined,
+    lev_remas_i: r.levRemasI   ?? undefined,
+    lev_utage:   r.levUtage    ?? undefined,
+    kanji:       r.kanji       ?? undefined,
+    dx_lev_bas:   r.dxLevBas   ?? undefined,
+    dx_lev_adv:   r.dxLevAdv   ?? undefined,
+    dx_lev_exp:   r.dxLevExp   ?? undefined,
+    dx_lev_mas:   r.dxLevMas   ?? undefined,
+    dx_lev_remas: r.dxLevRemas ?? undefined,
+    dx_lev_bas_i:   r.dxLevBasI   ?? undefined,
+    dx_lev_adv_i:   r.dxLevAdvI   ?? undefined,
+    dx_lev_exp_i:   r.dxLevExpI   ?? undefined,
+    dx_lev_mas_i:   r.dxLevMasI   ?? undefined,
     dx_lev_remas_i: r.dxLevRemasI ?? undefined,
-    jp:          r.jp          ?? undefined,
-    intl:        r.intl        ?? undefined,
-    date_added:  r.dateAdded   ?? undefined,
+    jp:          r.jp    ?? undefined,
+    intl:        r.intl  ?? undefined,
+    date_added:  r.dateAdded ?? undefined,
   }));
 }
 
 /**
- * Main entry point. Priority order:
- *   1. In-memory cache (5 min TTL — avoids DB round-trips within same process)
- *   2. DB cache (populated by the admin refresh endpoint)
- *   3. GitHub fallback (if DB is empty — first-run bootstrap)
+ * Main entry point for reading songs.
  *
- * After a GitHub fetch, results are automatically persisted to the DB.
+ * Priority order:
+ *   1. In-memory cache (5 min TTL — avoids DB round-trips within the same process)
+ *   2. DB (songs table — the canonical source)
+ *
+ * No automatic GitHub fallback. If the DB is empty, returns [].
+ * To populate/refresh the DB, call POST /api/refresh-songs.
  */
-export async function fetchSongs(forceRefresh = false): Promise<Song[]> {
+export async function fetchSongs(): Promise<Song[]> {
   const now = Date.now();
 
   // 1. In-memory cache
-  if (!forceRefresh && memCache && now - memCacheTimestamp < MEM_CACHE_TTL_MS) {
+  if (memCache && now - memCacheTimestamp < MEM_CACHE_TTL_MS) {
     return memCache;
   }
 
-  // 2. DB cache
+  // 2. DB
   try {
-    if (!forceRefresh) {
-      const dbSongs = await loadSongsFromDb();
-      if (dbSongs.length > 0) {
-        // Detect stale cache: if >50% of songs have no internal level data,
-        // the DB was populated before normalization was fixed — fall through to GitHub
-        const missingLevels = dbSongs.filter(s => !s.lev_mas_i && !s.lev_exp_i).length;
-        const isStale = missingLevels / dbSongs.length > 0.5;
-        if (!isStale) {
-          memCache = dbSongs;
-          memCacheTimestamp = now;
-          return dbSongs;
-        }
-        console.warn(`Song DB cache is stale (${missingLevels}/${dbSongs.length} songs missing levels), refreshing from GitHub...`);
-      }
-    }
+    const dbSongs = await loadSongsFromDb();
+    memCache = dbSongs;
+    memCacheTimestamp = now;
+    return dbSongs;
   } catch (err) {
-    console.warn('Failed to load songs from DB, falling back to GitHub:', err);
+    console.error('Failed to load songs from DB:', err);
+    return [];
   }
-
-  // 3. GitHub fallback / forced refresh
-  const songs = await fetchSongsFromGitHub();
-  memCache = songs;
-  memCacheTimestamp = now;
-
-  // Persist to DB in background (don't block response)
-  persistSongsToDb(songs).catch(err =>
-    console.error('Failed to persist songs to DB:', err)
-  );
-
-  return songs;
 }
 
+// ─── Backwards-compat exports ─────────────────────────────────────────────────
+
 /**
- * Build a lookup map from song title -> Song object.
+ * @deprecated Use refreshSongsDb() instead (returns richer result).
+ * Kept for any code that still calls fetchSongsFromGitHub() directly.
+ */
+export async function fetchSongsFromGitHub(): Promise<Song[]> {
+  const result = await refreshSongsDb();
+  return fetchSongs();
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+/**
+ * Build a lookup map: normalised title → Song.
+ * Prefers entries that have more internal level data.
  */
 export function buildSongMap(songs: Song[]): Map<string, Song> {
   const map = new Map<string, Song>();
   for (const song of songs) {
     const key = normalizeTitle(song.title);
     const existing = map.get(key);
-    // Prefer the entry that has more internal level data
-    if (!existing || ((song.lev_mas_i || song.lev_exp_i) && !existing.lev_mas_i && !existing.lev_exp_i)) {
+    if (!existing || ((song.lev_mas_i || song.dx_lev_mas_i || song.lev_exp_i || song.dx_lev_exp_i) && !existing.lev_mas_i && !existing.dx_lev_mas_i)) {
       map.set(key, song);
     }
   }
@@ -311,39 +383,28 @@ export function buildSongMap(songs: Song[]): Map<string, Song> {
 }
 
 /**
- * Auto-detect the current game version number from the song DB.
- * Requires at least 20 songs at a version to consider it a real release.
+ * Auto-detect the current game version from the song DB.
+ * Requires at least 20 songs at a version to count as a real release.
  */
 export function detectCurrentVersion(songs: Song[]): number {
   const counts = new Map<number, number>();
   let max = 0;
-
   for (const song of songs) {
     const v = parseInt(song.version, 10);
-    if (!isNaN(v)) {
-      counts.set(v, (counts.get(v) || 0) + 1);
-    }
+    if (!isNaN(v)) counts.set(v, (counts.get(v) || 0) + 1);
   }
-
   for (const [v, count] of counts.entries()) {
-    if (count >= 20 && v > max) {
-      max = v;
-    }
+    if (count >= 20 && v > max) max = v;
   }
-
   return max || 25000;
 }
 
-/**
- * Get all unique categories in the song DB.
- */
+/** Get all unique categories in the song DB. */
 export function getSongCategories(songs: Song[]): string[] {
   return Array.from(new Set(songs.map(s => s.catcode))).sort();
 }
 
-/**
- * Filter songs by search query (title or artist).
- */
+/** Filter songs by search query (title, artist, or kana). */
 export function searchSongs(songs: Song[], query: string): Song[] {
   const q = query.toLowerCase();
   return songs.filter(
