@@ -1,7 +1,7 @@
 import type { Song } from './types';
 import { db } from './db';
-import { songs } from './db/schema';
-import { sql } from 'drizzle-orm';
+import { songs, settings } from './db/schema';
+import { sql, eq } from 'drizzle-orm';
 import { normalizeTitle } from './normalize';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
@@ -98,6 +98,9 @@ export interface RefreshResult {
 export async function refreshSongsDb(): Promise<RefreshResult> {
   const t0 = Date.now();
 
+  const settingRow = await db.select().from(settings).where(eq(settings.key, 'region'));
+  const userRegion = settingRow[0]?.value === 'jp' ? 'jp' : 'intl';
+
   // Fetch sequentially to stay under GitHub unauthenticated rate limits
   const resJp = await fetchWithRetry(OTOGE_DB_JP_URL);
   if (!resJp.ok) throw new Error(`otoge-db JP fetch failed: ${resJp.status}`);
@@ -123,8 +126,12 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
 
   // ── Merge: JP as base, INTL overrides where present ─────────────────────────
   const mergedMap = new Map<string, Song>();
-  for (const s of dataJp)   mergedMap.set(s.title, normalizeSong(s));
-  for (const s of dataIntl) mergedMap.set(s.title, normalizeSong(s)); // overrides JP
+  for (const s of dataJp) mergedMap.set(s.title, normalizeSong(s));
+  for (const s of dataIntl) {
+    if (userRegion === 'intl' || !mergedMap.has(s.title)) {
+      mergedMap.set(s.title, normalizeSong(s)); // overrides JP if INTL region is selected, or if song is INTL exclusive
+    }
+  }
 
   // ── Enrich with dxrating data ────────────────────────────────────────────────
   // dxdata.json structure:
@@ -148,15 +155,23 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
       const resolveInternalLevel = (sh: any) => {
         let val = sh.internalLevelValue ?? sh.internalLevel;
         if (sh.multiverInternalLevelValue) {
-          const versions = [
-            'CiRCLE PLUS', 'CiRCLE',
-            'PRiSM PLUS', 'PRiSM',
-            'BUDDiES PLUS', 'BUDDiES',
-            'FESTiVAL PLUS', 'FESTiVAL',
-            'UNiVERSE PLUS', 'UNiVERSE',
-            'Splash PLUS', 'Splash',
-            'maimaiでらっくす PLUS', 'maimaiでらっくす'
-          ];
+          const versions = userRegion === 'intl' 
+            ? [
+                'CiRCLE PLUS', 'CiRCLE',
+                'BUDDiES PLUS', 'BUDDiES',
+                'FESTiVAL PLUS', 'FESTiVAL',
+                'UNiVERSE PLUS', 'UNiVERSE',
+                'Splash PLUS', 'Splash',
+                'maimaiでらっくす PLUS', 'maimaiでらっくす'
+              ]
+            : [
+                'PRiSM PLUS', 'PRiSM',
+                'BUDDiES PLUS', 'BUDDiES',
+                'FESTiVAL PLUS', 'FESTiVAL',
+                'UNiVERSE PLUS', 'UNiVERSE',
+                'Splash PLUS', 'Splash',
+                'maimaiでらっくす PLUS', 'maimaiでらっくす'
+              ];
           for (const v of versions) {
             if (v in sh.multiverInternalLevelValue) {
               val = sh.multiverInternalLevelValue[v];
