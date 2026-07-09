@@ -137,7 +137,7 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
         let val = sh.internalLevelValue ?? sh.internalLevel;
         if (sh.multiverInternalLevelValue) {
           const versions = [
-            'CiRCLE PLUS', 'CiRCLE',
+            'CiRCLE',
             'BUDDiES PLUS', 'BUDDiES',
             'FESTiVAL PLUS', 'FESTiVAL',
             'UNiVERSE PLUS', 'UNiVERSE',
