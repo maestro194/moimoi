@@ -4,8 +4,8 @@ import { songs } from './db/schema';
 import { sql } from 'drizzle-orm';
 import { normalizeTitle } from './normalize';
 
-const SEGA_INTL_JSON_URL = 'https://maimai.sega.com/assets/data/maimai_songs.json';
-const DXDATA_URL         = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
+const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
+const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
 
 // Short-lived in-memory cache to avoid hammering DB on every request within the same process
 let memCache: Song[] | null = null;
@@ -98,19 +98,19 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
   const t0 = Date.now();
 
   // Fetch sequentially to stay under unauthenticated rate limits if applicable
-  const resSega = await fetchWithRetry(SEGA_INTL_JSON_URL);
-  if (!resSega.ok) throw new Error(`SEGA INTL fetch failed: ${resSega.status}`);
+  const resOtoge = await fetchWithRetry(OTOGE_DB_INTL_URL);
+  if (!resOtoge.ok) throw new Error(`otoge-db INTL fetch failed: ${resOtoge.status}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const dataSega: any[] = await resSega.json();
+  const dataOtoge: any[] = await resOtoge.json();
 
   const resDx = await fetchWithRetry(DXDATA_URL);
   if (!resDx.ok) throw new Error(`dxdata fetch failed: ${resDx.status}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataDx: any = await resDx.json();
 
-  // ── Transform SEGA data ───────────────────────────────────────────────────────
+  // ── Transform otoge-db data ───────────────────────────────────────────────────
   const mergedMap = new Map<string, Song>();
-  for (const s of dataSega) {
+  for (const s of dataOtoge) {
     mergedMap.set(s.title, normalizeSong(s));
   }
 
