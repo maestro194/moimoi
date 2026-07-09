@@ -140,7 +140,7 @@ function MatrixCard({ chart, score }: { chart: MinimalChart, score?: ScoreWithRa
       {chart.image ? (
         <img 
           loading="lazy" 
-          src={`https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${chart.image}`} 
+          src={`https://maimaidx-eng.com/maimai-mobile/img/Music/${chart.image}`} 
           alt={chart.title} 
           className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
         />

@@ -403,7 +403,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                       >
                         {song.image_url ? (
                           <img
-                            src={`https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}`}
+                            src={`https://maimaidx-eng.com/maimai-mobile/img/Music/${song.image_url}`}
                             alt={song.title}
                             className="absolute inset-0 w-full h-full object-cover"
                             loading="lazy"
@@ -442,7 +442,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
               const row = tableRows[virtualRow.index];
               const isNew = parseInt(row.song.version) >= currentVersion - 500;
               const jacketUrl = row.song.image_url
-                ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${row.song.image_url}`
+                ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${row.song.image_url}`
                 : null;
 
               return (

@@ -143,7 +143,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
       <div className="flex flex-col gap-3">
         {trackerData.map(d => {
           const song = songMap.get(normalizeTitle(d.tracker.songTitle));
-          const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
+          const jacketUrl = song?.image_url ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${song.image_url}` : null;
           
           return (
             <div 
@@ -302,7 +302,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
               ) : (
                 filteredCharts.map((c, i) => {
                   const song = songMap.get(normalizeTitle(c.title));
-                  const jacketUrl = song?.image_url ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${song.image_url}` : null;
+                  const jacketUrl = song?.image_url ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${song.image_url}` : null;
                   
                   return (
                     <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">

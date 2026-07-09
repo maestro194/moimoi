@@ -137,7 +137,7 @@ function PlayRow({ play }: { play: HydratedLog }) {
   const achvNum = parseFloat(play.achievement);
 
   const jacketUrl = play.song?.image_url 
-    ? `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${play.song.image_url}`
+    ? `https://maimaidx-eng.com/maimai-mobile/img/Music/${play.song.image_url}`
     : null;
 
   const d = play.details;

@@ -199,7 +199,7 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
                 
                 <div className="w-12 h-12 shrink-0 bg-white/5 overflow-hidden rounded relative ml-7">
                   {s.song?.image_url ? (
-                    <img loading="lazy" src={`https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${s.song.image_url}`} alt={s.songTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <img loading="lazy" src={`https://maimaidx-eng.com/maimai-mobile/img/Music/${s.song.image_url}`} alt={s.songTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                   ) : (
                     <div className="w-full h-full bg-white/5" />
                   )}
