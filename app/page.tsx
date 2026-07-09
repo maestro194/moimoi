@@ -40,32 +40,14 @@ async function getDashboardData() {
       courseRank: getSet('profile_course_rank'),
       classRank: getSet('profile_class_rank'),
       ratingBase: getSet('profile_rating_base'),
+      rating: getSet('profile_rating'),
+      title: getSet('profile_title'),
+      stars: getSet('profile_stars'),
+      versionPlays: getSet('profile_version_plays'),
+      totalPlays: getSet('profile_total_plays'),
     };
     
-    // Fetch recent credit
-    const dbLogs = await db.select().from(playLog).orderBy(desc(playLog.playedAt)).limit(20);
-    const recentCredit = [];
-    if (dbLogs.length > 0) {
-      for (let i = 0; i < dbLogs.length; i++) {
-        recentCredit.push(dbLogs[i]);
-        if (dbLogs[i].track === 1) {
-          break; // End of the latest credit
-        }
-        if (i < dbLogs.length - 1) {
-          // Time gap fallback
-          const gap = dbLogs[i].playedAt.getTime() - dbLogs[i+1].playedAt.getTime();
-          if (gap > 30 * 60 * 1000) break;
-          // Track anomaly fallback
-          if (dbLogs[i].track !== null && dbLogs[i+1].track !== null && dbLogs[i+1].track! >= dbLogs[i].track!) break;
-        }
-      }
-    }
-
-    // Since we iterated backwards in time (desc), the array is [Track 4, Track 3, Track 2, Track 1]
-    // We reverse it to display Track 1 first.
-    recentCredit.reverse();
-
-    return { ratingData, lastSync, recentCredit, totalSongs: songs.length, currentVersion, profile };
+    return { ratingData, lastSync, totalSongs: songs.length, currentVersion, profile };
   } catch {
     return null;
   }

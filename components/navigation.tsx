@@ -67,7 +67,7 @@ export function Navigation() {
   return (
     <>
       {/* ── Desktop Sidebar ── */}
-      <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-white/10 bg-black/60 backdrop-blur-xl">
+      <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-white/10 bg-black/60 backdrop-blur-xl overflow-y-auto">
         <SidebarContent />
       </aside>
 

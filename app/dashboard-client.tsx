@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, Music2, Clock, Star, Zap } from 'lucide-react';
+import { RefreshCw, Zap } from 'lucide-react';
 import type { RatingData, Score } from '@/lib/types';
 import { getRankTitle } from '@/lib/rating';
 
@@ -11,7 +11,7 @@ interface Props {
   data: {
     ratingData: RatingData;
     lastSync: string | null;
-    recentCredit: any[];
+
     totalSongs: number;
     currentVersion: number;
     profile: {
@@ -20,6 +20,11 @@ interface Props {
       courseRank: string | null;
       classRank: string | null;
       ratingBase: string | null;
+      rating?: string | null;
+      title?: string | null;
+      stars?: string | null;
+      versionPlays?: string | null;
+      totalPlays?: string | null;
     };
   } | null;
 }
@@ -43,38 +48,7 @@ function RankBadge({ achievement }: { achievement: number }) {
   );
 }
 
-function RatingCircle({ rating }: { rating: number }) {
-  const circumference = 2 * Math.PI * 54;
-  const progress = Math.min(rating / 15000, 1);
 
-  return (
-    <div className="relative flex items-center justify-center w-40 h-40">
-      {/* Background circle */}
-      <svg className="absolute inset-0 -rotate-90" width="160" height="160" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(139,92,246,0.1)" strokeWidth="8" />
-        <circle
-          cx="60" cy="60" r="54" fill="none"
-          stroke="url(#ratingGrad)"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - progress)}
-          style={{ transition: 'stroke-dashoffset 1s ease' }}
-        />
-        <defs>
-          <linearGradient id="ratingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#7c3aed" />
-            <stop offset="100%" stopColor="#f472b6" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="text-center z-10">
-        <div className="text-3xl font-bold font-num gradient-text">{rating.toLocaleString()}</div>
-        <div className="text-xs mt-0.5" style={{ color: 'var(--foreground-subtle)' }}>DX Rating</div>
-      </div>
-    </div>
-  );
-}
 
 export default function DashboardClient({ data }: Props) {
   const [syncing, setSyncing] = useState(false);
@@ -146,7 +120,7 @@ export default function DashboardClient({ data }: Props) {
     );
   }
 
-  const { ratingData, lastSync, recentCredit, profile } = data;
+  const { ratingData, lastSync, profile } = data;
   const lastSyncDate = lastSync ? new Date(lastSync) : null;
 
   return (
@@ -197,98 +171,68 @@ export default function DashboardClient({ data }: Props) {
         </div>
       )}
 
-      {/* User Profile & Rating Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        
+      {/* User Profile Overview */}
+      <div className="flex flex-col md:flex-row gap-6 items-start">
         {/* Profile Card */}
         {profile.name ? (
-          <div className="glass rounded-2xl relative overflow-hidden flex items-center p-6 gap-6">
-            {profile.ratingBase && (
-              <div className="absolute inset-0 z-0 opacity-40 mix-blend-overlay" style={{
-                backgroundImage: `url(${profile.ratingBase})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }} />
-            )}
-            <div className="relative z-10 flex-shrink-0">
+          <div className="flex flex-col gap-4 w-full">
+            <div className="flex flex-wrap items-center gap-6">
               {profile.avatar && (
-                <img src={profile.avatar} alt="Avatar" className="w-24 h-24 rounded-lg shadow-xl" />
+                <div className="flex-shrink-0 w-28 h-28 p-1 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl shadow-lg">
+                  <img src={profile.avatar} alt="Avatar" className="w-full h-full rounded-lg object-cover" />
+                </div>
               )}
+              <div className="flex flex-col justify-center gap-1">
+                {profile.title && (
+                  <div className="bg-[#423f40] px-4 py-1.5 rounded-full inline-block self-start shadow-inner mb-2" style={{ border: '2px solid #555' }}>
+                    <span className="text-sm font-bold text-white tracking-widest uppercase">{profile.title}</span>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-4">
+                  <h2 className="text-2xl md:text-3xl font-bold tracking-[0.2em] text-white">
+                    {profile.name}
+                  </h2>
+                  <div className="relative h-[44px] flex items-center">
+                    {profile.ratingBase && (
+                      <img src={profile.ratingBase} alt="Rating Base" className="h-full object-contain drop-shadow-md" />
+                    )}
+                    <span className="absolute inset-0 flex items-center justify-end pr-2.5 font-num font-bold text-base md:text-lg text-white" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+                      {profile.rating || ratingData.totalRating}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="relative z-10 flex flex-col justify-center">
-              <h2 className="text-2xl font-bold mb-2 tracking-wide" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                {profile.name}
-              </h2>
-              <div className="flex gap-2 h-10 items-center">
-                {profile.courseRank && <img src={profile.courseRank} alt="Course Rank" className="h-full object-contain drop-shadow-md" />}
-                {profile.classRank && <img src={profile.classRank} alt="Class Rank" className="h-full object-contain drop-shadow-md" />}
+
+            <div className="glass rounded-2xl p-6 bg-[#363233]/80 border border-white/5 shadow-xl mt-2 w-full max-w-2xl">
+              <h3 className="text-lg font-bold text-white/90 mb-4">Player Info</h3>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                <div>
+                  <span className="text-white/60 mr-2">Rating:</span>
+                  <span className="text-white font-semibold">{profile.rating || ratingData.totalRating}</span>
+                </div>
+                <div>
+                  <span className="text-white/60 mr-2">Stars:</span>
+                  <span className="text-white font-semibold">{profile.stars || '0'}</span>
+                </div>
+                <div>
+                  <span className="text-white/60 mr-2">Version Plays:</span>
+                  <span className="text-white font-semibold">{profile.versionPlays || '0'}</span>
+                </div>
+                <div>
+                  <span className="text-white/60 mr-2">Total Plays:</span>
+                  <span className="text-white font-semibold">{profile.totalPlays || '0'}</span>
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="glass rounded-2xl p-6 flex flex-col justify-center items-center text-center">
+          <div className="glass rounded-2xl p-6 flex flex-col justify-center items-center text-center w-full max-w-2xl h-48">
             <div className="text-[var(--foreground-muted)] mb-2">No Profile Data</div>
             <div className="text-xs text-[var(--foreground-subtle)]">Sync to fetch your maimai profile</div>
           </div>
         )}
-
-        {/* DX Rating circle */}
-        <div className="glass rounded-2xl p-6 flex items-center justify-between glow-purple">
-          <RatingCircle rating={ratingData.totalRating} />
-          <div className="flex flex-col gap-4 text-right">
-            <div>
-              <div className="text-2xl font-bold font-num" style={{ color: 'var(--accent-pink)' }}>
-                {ratingData.newRating.toLocaleString()}
-              </div>
-              <div className="text-sm font-medium tracking-wide uppercase" style={{ color: 'var(--foreground-subtle)' }}>NEW (Top 15)</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold font-num" style={{ color: 'var(--accent-purple)' }}>
-                {ratingData.oldRating.toLocaleString()}
-              </div>
-              <div className="text-sm font-medium tracking-wide uppercase" style={{ color: 'var(--foreground-subtle)' }}>OLD (Top 35)</div>
-            </div>
-          </div>
-        </div>
       </div>
-
-      {/* Top rating charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <RatingList title="🆕 NEW Pool (Top 15)" charts={ratingData.newCharts} accent="var(--accent-pink)" />
-      </div>
-
-      {/* Recent Credit */}
-      {data.recentCredit.length > 0 && (
-        <div className="glass rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock size={16} style={{ color: 'var(--accent-cyan)' }} />
-            <h2 className="font-semibold">Recent Credit</h2>
-          </div>
-          <div className="space-y-2">
-            {data.recentCredit.map((score: any, i: number) => (
-              <div
-                key={score.id}
-                className="flex items-center justify-between py-2 px-3 rounded-lg card-hover"
-                style={{ background: 'rgba(255,255,255,0.03)', animationDelay: `${i * 60}ms` }}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="text-[10px] font-bold text-white/50 bg-black/50 px-1.5 py-0.5 rounded">
-                    {score.track ? `TRK ${score.track}` : '-'}
-                  </div>
-                  <DiffBadge diff={score.difficulty} />
-                  <span className="text-sm font-medium truncate">{score.songTitle}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-num font-semibold" style={{ color: 'var(--foreground-muted)' }}>
-                    {parseFloat(score.achievement).toFixed(4)}%
-                  </span>
-                  <RankBadge achievement={parseFloat(score.achievement)} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </PageWrapper>
   );
 }

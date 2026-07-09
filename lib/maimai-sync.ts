@@ -525,6 +525,47 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
       await saveSetting('profile_course_rank', courseRankUrl);
       await saveSetting('profile_class_rank', classRankUrl);
       await saveSetting('profile_rating_base', ratingBaseUrl);
+      await saveSetting('profile_rating', rating);
+
+      // Fetch playerData/ for extra stats
+      try {
+        const pdHtml = await maimaiGet(region, 'playerData/', clal!);
+        const $pd = cheerio.load(pdHtml);
+        
+        const title = $pd('.trophy_block').text().trim();
+        if (title) await saveSetting('profile_title', title);
+
+        const pdText = $pd.text();
+        
+        // Match stars/awakening
+        const starsMatch = pdText.match(/(?:覚醒数|Awakening|Stars)[:：]?\s*([0-9,]+)/i) || pdText.match(/[★☆]\s*×\s*([0-9]+)/);
+        if (starsMatch) await saveSetting('profile_stars', starsMatch[1]);
+
+        // Match play counts. maimai usually shows play counts as プレイ回数：xxx回 or Play Count：xxx
+        // In the newest version they separate Version Plays and Total Plays sometimes, or just Total.
+        const playCounts = [...pdText.matchAll(/(?:プレイ回数|Play Count)[:：]?\s*([0-9,]+)/ig)];
+        if (playCounts.length > 0) {
+          // If there are multiple, usually the first is version, second is total. If only 1, it's total.
+          if (playCounts.length >= 2) {
+            await saveSetting('profile_version_plays', playCounts[0][1]);
+            await saveSetting('profile_total_plays', playCounts[1][1]);
+          } else {
+            await saveSetting('profile_total_plays', playCounts[0][1]);
+            // Use same for version plays if only one found
+            await saveSetting('profile_version_plays', playCounts[0][1]);
+          }
+        } else {
+          // Fallback regex looking for "xxx times"
+          const times = [...pdText.matchAll(/([0-9,]+)\s*(?:回|times)/ig)];
+          if (times.length >= 2) {
+             await saveSetting('profile_version_plays', times[0][1]);
+             await saveSetting('profile_total_plays', times[1][1]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to parse playerData', err);
+      }
+
       if (onProgress) onProgress(`Profile updated: ${name} (${rating})`);
     }
   } catch (err) {
