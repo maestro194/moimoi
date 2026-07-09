@@ -144,12 +144,36 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
       const stdSheets = dxSong.sheets.filter((sh: any) => sh.type === 'std');
       const dxSheets  = dxSong.sheets.filter((sh: any) => sh.type === 'dx');
 
+      // Helper to resolve the most recent internal level
+      const resolveInternalLevel = (sh: any) => {
+        let val = sh.internalLevelValue ?? sh.internalLevel;
+        if (sh.multiverInternalLevelValue) {
+          const versions = [
+            'CiRCLE PLUS', 'CiRCLE',
+            'PRiSM PLUS', 'PRiSM',
+            'BUDDiES PLUS', 'BUDDiES',
+            'FESTiVAL PLUS', 'FESTiVAL',
+            'UNiVERSE PLUS', 'UNiVERSE',
+            'Splash PLUS', 'Splash',
+            'maimaiでらっくす PLUS', 'maimaiでらっくす'
+          ];
+          for (const v of versions) {
+            if (v in sh.multiverInternalLevelValue) {
+              val = sh.multiverInternalLevelValue[v];
+              break;
+            }
+          }
+        }
+        return val;
+      };
+
       // Apply STD constants
       for (let i = 0; i < stdSheets.length && i < diffKeys.length; i++) {
         const sh = stdSheets[i];
         const dk = diffKeys[i];
-        if (sh.internalLevel != null) {
-          (existing as any)[`lev_${dk}_i`] = String(sh.internalLevel);
+        const level = resolveInternalLevel(sh);
+        if (level != null) {
+          (existing as any)[`lev_${dk}_i`] = String(level);
         }
       }
 
@@ -157,8 +181,9 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
       for (let i = 0; i < dxSheets.length && i < diffKeys.length; i++) {
         const sh = dxSheets[i];
         const dk = diffKeys[i];
-        if (sh.internalLevel != null) {
-          (existing as any)[`dx_lev_${dk}_i`] = String(sh.internalLevel);
+        const level = resolveInternalLevel(sh);
+        if (level != null) {
+          (existing as any)[`dx_lev_${dk}_i`] = String(level);
         }
         if (i === 0 && sh.regions) {
           existing.intl = sh.regions.intl ?? true;

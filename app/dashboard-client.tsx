@@ -196,7 +196,7 @@ export default function DashboardClient({ data }: Props) {
                     {profile.ratingBase && (
                       <img src={profile.ratingBase} alt="Rating Base" className="h-full object-contain drop-shadow-md" />
                     )}
-                    <span className="absolute inset-0 flex items-center justify-end pr-2.5 font-num font-bold text-base md:text-lg text-white" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+                    <span className="absolute inset-0 flex items-center justify-end pr-4 pb-[1px] font-num font-bold text-[17px] md:text-[19px] text-white" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
                       {profile.rating || ratingData.totalRating}
                     </span>
                   </div>
