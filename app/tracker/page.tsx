@@ -8,6 +8,7 @@ import { getSetting } from '@/lib/maimai-sync';
 import { getAllCharts } from '@/app/scores/actions';
 
 export const metadata = { title: 'Score Tracker' };
+export const dynamic = 'force-dynamic';
 
 export default async function TrackerPage() {
   try {

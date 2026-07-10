@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 // Max duration for the serverless function (Vercel hobby limit is usually 10s, but we'll ask for 60s if possible)
 export const maxDuration = 60;
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
+  const forceFullSync = req.nextUrl.searchParams.get('full') === 'true';
   const encoder = new TextEncoder();
   
   const stream = new ReadableStream({
@@ -17,7 +18,7 @@ export async function POST(_req: NextRequest) {
       try {
         const result = await syncFromMaimaiNet((msg) => {
           send({ type: 'progress', message: msg });
-        });
+        }, { forceFullSync });
         send({ type: 'done', result });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

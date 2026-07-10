@@ -7,6 +7,7 @@ import AnalysisClient from './analysis-client';
 import { getSetting } from '@/lib/maimai-sync';
 
 export const metadata = { title: 'Analysis' };
+export const dynamic = 'force-dynamic';
 
 export default async function AnalysisPage() {
   try {

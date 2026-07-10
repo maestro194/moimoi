@@ -8,7 +8,7 @@ import { computeRating, calcSingleRating, getSongInternalLevel } from '@/lib/rat
 import { normalizeTitle } from '@/lib/normalize';
 import { addTracker, deleteTracker } from './actions';
 import type { MinimalChart } from '@/app/scores/actions';
-import { getJacketUrl } from '@/lib/song-db';
+import { Jacket } from '@/components/jacket';
 
 interface Tracker {
   id: number;
@@ -144,7 +144,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
       <div className="flex flex-col gap-3">
         {trackerData.map(d => {
           const song = songMap.get(normalizeTitle(d.tracker.songTitle));
-          const jacketUrl = song?.image_url ? getJacketUrl(song.image_url, song.intl) : null;
+
           
           return (
             <div 
@@ -169,13 +169,14 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
               
               {/* Jacket & Info */}
               <div className="flex items-center gap-3 w-full md:w-[280px] shrink-0">
-                <div className="w-12 h-12 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
-                  {jacketUrl ? (
-                    <img src={jacketUrl} alt={d.tracker.songTitle} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={16} /></div>
-                  )}
-                </div>
+                <Jacket 
+                  imageUrl={song?.image_url} 
+                  intl={song?.intl} 
+                  songTitle={d.tracker.songTitle}
+                  difficulty={d.tracker.difficulty}
+                  internalLevel={d.internalLevel}
+                  className="w-12 h-12"
+                />
                 <div className="min-w-0 pr-8 md:pr-2">
                   <div className="text-sm font-bold text-white truncate">{d.tracker.songTitle}</div>
                   <div className="text-[10px] text-white/50 truncate mb-1">{song?.artist}</div>
@@ -303,18 +304,19 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
               ) : (
                 filteredCharts.map((c, i) => {
                   const song = songMap.get(normalizeTitle(c.title));
-                  const jacketUrl = song?.image_url ? getJacketUrl(song.image_url, song.intl) : null;
+
                   
                   return (
                     <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">
                       <div className="flex items-center gap-3 min-w-0 pr-4">
-                        <div className="w-10 h-10 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
-                          {jacketUrl ? (
-                            <img src={jacketUrl} alt={c.title} className="w-full h-full object-cover" loading="lazy" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={14} /></div>
-                          )}
-                        </div>
+                        <Jacket 
+                          imageUrl={song?.image_url} 
+                          intl={song?.intl} 
+                          songTitle={c.title}
+                          difficulty={c.diff}
+                          internalLevel={c.level}
+                          className="w-10 h-10"
+                        />
                         <div className="min-w-0">
                           <div className="text-sm font-bold text-white truncate leading-tight mb-0.5">{c.title}</div>
                           <div className="text-[10px] text-white/50 truncate mb-1">{song?.artist}</div>

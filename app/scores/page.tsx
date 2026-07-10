@@ -1,12 +1,13 @@
 import { db } from '@/lib/db';
-import { scores } from '@/lib/db/schema';
+import { scores, settings } from '@/lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
 import { computeRating } from '@/lib/rating';
-import type { Score, Difficulty } from '@/lib/types';
+import type { Score, Difficulty, PlayerProfile } from '@/lib/types';
 import ScoresClient from './scores-client';
 import { getSetting } from '@/lib/maimai-sync';
 
 export const metadata = { title: 'Scores' };
+export const dynamic = 'force-dynamic';
 
 export default async function ScoresPage() {
   try {
@@ -29,8 +30,26 @@ export default async function ScoresPage() {
     }));
 
     const ratingData = computeRating(typedScores, songMap, currentVersion);
-    
-    return <ScoresClient scored={ratingData.allScores} total={typedScores.length} />;
+
+    const lastSync = await getSetting('last_sync');
+    const regionStr = await getSetting('maimai_region');
+    const profile: PlayerProfile = {
+      name: await getSetting('profile_name') || 'Player',
+      rating: parseInt(await getSetting('profile_rating') || '0', 10),
+      region: (regionStr as PlayerProfile['region']) || 'intl',
+    };
+
+    return (
+      <ScoresClient
+        scored={ratingData.allScores}
+        total={typedScores.length}
+        totalRating={ratingData.totalRating}
+        newRating={ratingData.newRating}
+        oldRating={ratingData.oldRating}
+        profile={profile}
+        lastSync={lastSync}
+      />
+    );
   } catch {
     return (
       <div className="p-8 text-center" style={{ color: 'var(--foreground-muted)' }}>

@@ -5,7 +5,7 @@ import { FCBadge, FSBadge } from '@/components/badges';
 import type { RatingData, ScoreWithRating } from '@/lib/types';
 import type { TargetSuggestion } from '@/lib/rating';
 import { RANK_DEFINITIONS } from '@/lib/rating';
-import { getJacketUrl } from '@/lib/song-db';
+import { Jacket } from '@/components/jacket';
 import { PageWrapper } from '@/components/page-wrapper';
 import { motion, useSpring, useTransform, Variants } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -198,12 +198,15 @@ export default function AnalysisClient({ ratingData, suggestions, totalScores }:
 
                 <div className="w-1.5 h-16 shrink-0 z-10" style={{ background: DIFF_COLOR[s.difficulty] }} />
                 
-                <div className="w-12 h-12 shrink-0 bg-white/5 overflow-hidden rounded relative ml-7">
-                  {s.song?.image_url ? (
-                    <img loading="lazy" src={getJacketUrl(s.song.image_url, s.song.intl)} alt={s.songTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                  ) : (
-                    <div className="w-full h-full bg-white/5" />
-                  )}
+                <div className="ml-4 shrink-0">
+                  <Jacket 
+                    imageUrl={s.song?.image_url} 
+                    intl={s.song?.intl} 
+                    songTitle={s.songTitle}
+                    difficulty={s.difficulty}
+                    internalLevel={s.internalLevel}
+                    className="w-12 h-12"
+                  />
                 </div>
                 
                 <div className="flex-1 min-w-0 py-2">

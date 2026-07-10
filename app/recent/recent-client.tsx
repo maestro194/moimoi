@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import type { FC, FS, Difficulty, PlayerProfile } from '@/lib/types';
-import { Clock, DownloadCloud, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { FCBadge, FSBadge } from '@/components/badges';
 import { PageWrapper } from '@/components/page-wrapper';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getJacketUrl } from '@/lib/song-db';
+import { Jacket } from '@/components/jacket';
+import { SyncBar } from '@/components/sync-bar';
 
 interface HydratedLog {
   id: number;
@@ -137,10 +138,6 @@ function PlayRow({ play }: { play: HydratedLog }) {
   const bg = getDifficultyGradient(play.difficulty);
   const achvNum = parseFloat(play.achievement);
 
-  const jacketUrl = play.song?.image_url 
-    ? getJacketUrl(play.song.image_url, play.song.intl)
-    : null;
-
   const d = play.details;
   const hasDetails = !!d && !!d.tap;
   const drops = hasDetails ? calculateDrops(d) : null;
@@ -173,12 +170,14 @@ function PlayRow({ play }: { play: HydratedLog }) {
         onClick={() => hasDetails && setExpanded(!expanded)}
       >
         <div className="flex gap-4 flex-1 items-center min-w-0">
-          <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-black/40 relative border border-white/10">
-            {jacketUrl && <img src={jacketUrl} alt={play.songTitle} className="w-full h-full object-cover" />}
-            <div className="absolute bottom-0 left-0 right-0 py-0.5 text-center text-[10px] font-bold text-white shadow-lg" style={{ background: bg }}>
-              {play.internalLevel > 0 ? play.internalLevel.toFixed(1) : play.difficulty}
-            </div>
-          </div>
+          <Jacket 
+            imageUrl={play.song?.image_url} 
+            intl={play.song?.intl} 
+            songTitle={play.songTitle}
+            difficulty={play.difficulty}
+            internalLevel={play.internalLevel}
+            className="w-16 h-16"
+          />
           
           <div className="flex-1 min-w-0 flex flex-col justify-center">
             <h3 className="font-bold text-white text-base sm:text-lg line-clamp-1">{play.songTitle}</h3>
@@ -373,41 +372,8 @@ export default function RecentClient({ logs, lastSync, profile }: RecentClientPr
   return (
     <PageWrapper className="space-y-8 max-w-4xl mx-auto p-4 md:p-6">
       
-      {/* ── Data Snapshot Header ── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#111] border border-white/10 rounded-2xl p-5 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-        
-        <div className="flex items-center gap-4 relative z-10">
-          <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-            <Clock className="text-purple-400" size={24} />
-          </div>
-          <div>
-            <div className="text-sm font-bold text-white/60 mb-1 flex items-center gap-2">
-              Data Snapshot
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="font-bold text-lg text-white tracking-wider">{profile.name}</span>
-              <span className="px-2 py-0.5 rounded bg-[#da3633]/20 text-[#da3633] text-xs font-bold font-num border border-[#da3633]/30 shadow-sm">
-                {profile.rating}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-white/10 text-white/60 text-[10px] font-bold uppercase border border-white/5">
-                {profile.region}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto relative z-10">
-          <div className="text-xs text-right text-white/40 hidden md:block" suppressHydrationWarning>
-            Last synced:<br/>
-            {lastSync ? new Date(lastSync).toLocaleString() : 'Never'}
-          </div>
-          <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm hover:bg-white/90 active:scale-95 transition-all shadow-lg">
-            <DownloadCloud size={16} />
-            Fetch New Data
-          </button>
-        </div>
-      </div>
+      {/* ── Data Snapshot Header with Sync ── */}
+      <SyncBar profile={profile} lastSync={lastSync} />
 
       {/* ── List of Credits ── */}
       <div className="space-y-10">

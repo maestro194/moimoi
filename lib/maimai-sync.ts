@@ -466,7 +466,7 @@ export interface SyncResult {
  * Main sync function: scrapes all difficulties from maimai NET and
  * upserts best scores into the database.
  */
-export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Promise<SyncResult> {
+export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, options?: { forceFullSync?: boolean }): Promise<SyncResult> {
   let clal = await getSetting('maimai_clal');
   const regionStr = await getSetting('maimai_region');
   const region: Region = (regionStr as Region) || 'intl';
@@ -582,6 +582,10 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
   const lastSync = lastSyncStr ? new Date(lastSyncStr) : null;
   let doFullSync = true;
 
+  // If force full sync requested, skip fast sync logic entirely
+  if (options?.forceFullSync) {
+    if (onProgress) onProgress('Force Full Sync requested — re-scraping all scores...');
+  } else {
   // --- Fetch Recent Plays ---
   // We fetch this first to check if we can skip the slow full sync,
   // and we always need it to populate the playLog anyway.
@@ -660,16 +664,17 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
         doFullSync = false;
         // Only process scores newer than lastSync
         const newPlays = recentScores.filter(s => s.playedAt > lastSync);
-        if (onProgress) onProgress(`Found ${newPlays.length} new plays since last sync.`);
-        allParsed.push(...newPlays);
+        if (onProgress) onProgress(`Found ${newPlays.length} new plays since last sync. Evaluating all recent plays to ensure data integrity...`);
+        allParsed.push(...recentScores);
       } else {
         if (onProgress) onProgress('You played more than 50 times since last sync. Falling back to Full Sync...');
       }
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    result.errors.push(`Recent Plays Error: ${msg}`);
-  }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.errors.push(`Recent Plays Error: ${msg}`);
+    }
+  } // end of !forceFullSync else block
 
   if (doFullSync) {
     // 1. Scrape standard song list
@@ -711,8 +716,8 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
   }
 
   // Filter allParsed into what actually needs to be inserted or updated
-  const scoresToInsert: typeof allParsed = [];
-  const scoresToUpdate: { parsed: typeof allParsed[0]; existing: typeof existingScoresRaw[0] }[] = [];
+  const scoresToInsertMap = new Map<string, typeof allParsed[0]>();
+  const scoresToUpdateSet = new Set<typeof existingScoresRaw[0]>();
 
   for (const score of allParsed) {
     const key = `${score.songTitle}::${score.difficulty}::${score.songType}`;
@@ -727,12 +732,34 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
       const betterFS = getBestFS(existingForDiff.fs, score.fs) !== existingForDiff.fs;
 
       if (betterAchv || betterFC || betterFS) {
-        scoresToUpdate.push({ parsed: score, existing: existingForDiff });
+        if (betterAchv) {
+          existingForDiff.achievement = String(parsedAchv);
+          existingForDiff.dxScore = score.dxScore ?? existingForDiff.dxScore;
+          existingForDiff.playedAt = now;
+        }
+        existingForDiff.fc = getBestFC(existingForDiff.fc, score.fc);
+        existingForDiff.fs = getBestFS(existingForDiff.fs, score.fs);
+
+        scoresToUpdateSet.add(existingForDiff);
       }
     } else {
-      scoresToInsert.push(score);
+      const existingInsert = scoresToInsertMap.get(key);
+      if (existingInsert) {
+        const betterAchv = score.achievement > existingInsert.achievement;
+        if (betterAchv) {
+          existingInsert.achievement = score.achievement;
+          existingInsert.dxScore = score.dxScore ?? existingInsert.dxScore;
+        }
+        existingInsert.fc = getBestFC(existingInsert.fc, score.fc);
+        existingInsert.fs = getBestFS(existingInsert.fs, score.fs);
+      } else {
+        scoresToInsertMap.set(key, { ...score });
+      }
     }
   }
+
+  const scoresToUpdate = Array.from(scoresToUpdateSet);
+  const scoresToInsert = Array.from(scoresToInsertMap.values());
 
   const totalToSave = scoresToInsert.length + scoresToUpdate.length;
   if (onProgress && totalToSave > 0) {
@@ -744,23 +771,20 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void): Pro
   // Upsert into database
   for (const item of scoresToUpdate) {
     try {
-      const { parsed, existing } = item;
-      const betterAchv = parsed.achievement > parseFloat(existing.achievement as string);
-      
       await db
         .update(scores)
         .set({
-          achievement: betterAchv ? String(parsed.achievement) : existing.achievement,
-          dxScore: betterAchv ? (parsed.dxScore ?? existing.dxScore) : existing.dxScore,
-          fc: getBestFC(existing.fc, parsed.fc),
-          fs: getBestFS(existing.fs, parsed.fs),
-          playedAt: betterAchv ? now : existing.playedAt,
+          achievement: item.achievement,
+          dxScore: item.dxScore,
+          fc: item.fc,
+          fs: item.fs,
+          playedAt: item.playedAt,
         })
-        .where(eq(scores.id, existing.id));
+        .where(eq(scores.id, item.id));
       result.updated++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      result.errors.push(`DB Error (${item.parsed.songTitle}): ${msg}`);
+      result.errors.push(`DB Error (${item.songTitle}): ${msg}`);
     }
   }
 
