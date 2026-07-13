@@ -5,8 +5,10 @@ import { computeRating } from '@/lib/rating';
 import type { Score, Difficulty } from '@/lib/types';
 import { desc, sql } from 'drizzle-orm';
 import { Suspense } from 'react';
-import DashboardClient from './dashboard-client';
+import nextDynamic from 'next/dynamic';
 import { getSetting } from '@/lib/maimai-sync';
+
+const DashboardClient = nextDynamic(() => import('./dashboard-client'));
 
 async function getDashboardData() {
   try {
