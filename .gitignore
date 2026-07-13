@@ -43,4 +43,5 @@ next-env.d.ts
 
 # temp data
 /temp/
+/scratch/*
 login_trace.js
