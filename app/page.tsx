@@ -1,23 +1,29 @@
 import { db } from '@/lib/db';
-import { scores, playLog, settings } from '@/lib/db/schema';
+import { scores, settings } from '@/lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
 import { computeRating } from '@/lib/rating';
 import type { Score, Difficulty } from '@/lib/types';
-import { desc, sql } from 'drizzle-orm';
+import { desc } from 'drizzle-orm';
 import { Suspense } from 'react';
 import nextDynamic from 'next/dynamic';
-import { getSetting } from '@/lib/maimai-sync';
 
 const DashboardClient = nextDynamic(() => import('./dashboard-client'));
 
 async function getDashboardData() {
   try {
-    const songs = await fetchSongs();
+    // Fire all independent DB queries in parallel
+    const [songs, dbScores, settingRows] = await Promise.all([
+      fetchSongs(),
+      db.select().from(scores).orderBy(desc(scores.playedAt)),
+      db.select().from(settings),
+    ]);
+
+    const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
+
     const songMap = buildSongMap(songs);
-    const versionStr = await getSetting('maimai_version');
+    const versionStr = getSet('maimai_version');
     const currentVersion = versionStr ? parseInt(versionStr, 10) : detectCurrentVersion(songs);
 
-    const dbScores = await db.select().from(scores).orderBy(desc(scores.playedAt));
     const typedScores: Score[] = dbScores.map(s => ({
       id: s.id,
       songTitle: s.songTitle,
@@ -32,10 +38,6 @@ async function getDashboardData() {
 
     const ratingData = computeRating(typedScores, songMap, currentVersion);
 
-    const settingsRows = await db.select().from(settings);
-    const getSet = (k: string) => settingsRows.find(r => r.key === k)?.value ?? null;
-    
-    const lastSync = getSet('last_sync');
     const profile = {
       name: getSet('profile_name'),
       avatar: getSet('profile_avatar'),
@@ -48,8 +50,8 @@ async function getDashboardData() {
       versionPlays: getSet('profile_version_plays'),
       totalPlays: getSet('profile_total_plays'),
     };
-    
-    return { ratingData, lastSync, totalSongs: songs.length, currentVersion, profile };
+
+    return { ratingData, lastSync: getSet('last_sync'), totalSongs: songs.length, currentVersion, profile };
   } catch {
     return null;
   }

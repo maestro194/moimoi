@@ -1,22 +1,27 @@
 import { db } from '@/lib/db';
-import { scores } from '@/lib/db/schema';
+import { scores, settings } from '@/lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
 import { computeRating, getTargetSuggestions } from '@/lib/rating';
 import type { Score, Difficulty } from '@/lib/types';
 import AnalysisClient from './analysis-client';
-import { getSetting } from '@/lib/maimai-sync';
+import { inArray } from 'drizzle-orm';
 
 export const metadata = { title: 'Analysis' };
 export const dynamic = 'force-dynamic';
 
 export default async function AnalysisPage() {
   try {
-    const songs = await fetchSongs();
+    const [songs, dbScores, settingRows] = await Promise.all([
+      fetchSongs(),
+      db.select().from(scores),
+      db.select().from(settings).where(inArray(settings.key, ['maimai_version'])),
+    ]);
+
+    const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
     const songMap = buildSongMap(songs);
-    const versionStr = await getSetting('maimai_version');
+    const versionStr = getSet('maimai_version');
     const currentVersion = versionStr ? parseInt(versionStr, 10) : detectCurrentVersion(songs);
 
-    const dbScores = await db.select().from(scores);
     const typedScores: Score[] = dbScores.map(s => ({
       id: s.id,
       songTitle: s.songTitle,

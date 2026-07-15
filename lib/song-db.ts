@@ -3,7 +3,6 @@ import { db } from './db';
 import { songs } from './db/schema';
 import { sql } from 'drizzle-orm';
 import { normalizeTitle } from './normalize';
-import { unstable_cache } from 'next/cache';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
 const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
@@ -361,27 +360,16 @@ async function loadSongsFromDb(): Promise<Song[]> {
  * No automatic GitHub fallback. If the DB is empty, returns [].
  * To populate/refresh the DB, call POST /api/refresh-songs.
  */
-/**
- * Cached DB song fetch — persists across serverless cold starts via Next.js data cache.
- * Revalidates every 5 minutes. The in-memory cache above acts as a sub-process fast path.
- */
-const fetchSongsCached = unstable_cache(
-  async () => loadSongsFromDb(),
-  ['songs-db'],
-  { revalidate: 300 }, // 5 minutes, automatically invalidated on song refresh via revalidatePath
-);
-
 export async function fetchSongs(): Promise<Song[]> {
   const now = Date.now();
 
-  // 1. In-memory cache (fastest, same process)
+  // In-memory cache: fast path within the same serverless invocation
   if (memCache && now - memCacheTimestamp < MEM_CACHE_TTL_MS) {
     return memCache;
   }
 
-  // 2. Next.js data cache (survives cold starts)
   try {
-    const dbSongs = await fetchSongsCached();
+    const dbSongs = await loadSongsFromDb();
     memCache = dbSongs;
     memCacheTimestamp = now;
     return dbSongs;
@@ -390,7 +378,6 @@ export async function fetchSongs(): Promise<Song[]> {
     return [];
   }
 }
-
 
 // ─── Backwards-compat exports ─────────────────────────────────────────────────
 

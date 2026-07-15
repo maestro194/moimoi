@@ -1,10 +1,10 @@
 import { db } from '@/lib/db';
-import { scores, scoreTrackers } from '@/lib/db/schema';
+import { scores, scoreTrackers, settings } from '@/lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
 import { computeRating } from '@/lib/rating';
 import type { Score, Difficulty, ScoreWithRating } from '@/lib/types';
 import TrackerClient from './tracker-client';
-import { getSetting } from '@/lib/maimai-sync';
+import { inArray } from 'drizzle-orm';
 import { getAllCharts } from '@/app/scores/actions';
 
 export const metadata = { title: 'Score Tracker' };
@@ -12,12 +12,19 @@ export const dynamic = 'force-dynamic';
 
 export default async function TrackerPage() {
   try {
-    const songs = await fetchSongs();
+    const [songs, dbScores, trackers, allCharts, settingRows] = await Promise.all([
+      fetchSongs(),
+      db.select().from(scores),
+      db.select().from(scoreTrackers),
+      getAllCharts(),
+      db.select().from(settings).where(inArray(settings.key, ['maimai_version'])),
+    ]);
+
+    const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
     const songMap = buildSongMap(songs);
-    const versionStr = await getSetting('maimai_version');
+    const versionStr = getSet('maimai_version');
     const currentVersion = versionStr ? parseInt(versionStr, 10) : detectCurrentVersion(songs);
 
-    const dbScores = await db.select().from(scores);
     const typedScores: Score[] = dbScores.map(s => ({
       id: s.id,
       songTitle: s.songTitle,
@@ -31,8 +38,6 @@ export default async function TrackerPage() {
     }));
 
     const currentRating = computeRating(typedScores, songMap, currentVersion);
-    const trackers = await db.select().from(scoreTrackers);
-    const allCharts = await getAllCharts();
 
     return (
       <TrackerClient 

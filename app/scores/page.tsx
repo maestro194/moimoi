@@ -4,19 +4,27 @@ import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
 import { computeRating } from '@/lib/rating';
 import type { Score, Difficulty, PlayerProfile } from '@/lib/types';
 import ScoresClient from './scores-client';
-import { getSetting } from '@/lib/maimai-sync';
+import { inArray } from 'drizzle-orm';
 
 export const metadata = { title: 'Scores' };
 export const dynamic = 'force-dynamic';
 
 export default async function ScoresPage() {
   try {
-    const songs = await fetchSongs();
+    // Fire all independent DB queries in parallel
+    const SETTING_KEYS = ['maimai_version', 'last_sync', 'maimai_region', 'profile_name', 'profile_rating'];
+    const [songs, dbScores, settingRows] = await Promise.all([
+      fetchSongs(),
+      db.select().from(scores),
+      db.select().from(settings).where(inArray(settings.key, SETTING_KEYS)),
+    ]);
+
+    const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
+
     const songMap = buildSongMap(songs);
-    const versionStr = await getSetting('maimai_version');
+    const versionStr = getSet('maimai_version');
     const currentVersion = versionStr ? parseInt(versionStr, 10) : detectCurrentVersion(songs);
 
-    const dbScores = await db.select().from(scores);
     const typedScores: Score[] = dbScores.map(s => ({
       id: s.id,
       songTitle: s.songTitle,
@@ -31,11 +39,10 @@ export default async function ScoresPage() {
 
     const ratingData = computeRating(typedScores, songMap, currentVersion);
 
-    const lastSync = await getSetting('last_sync');
-    const regionStr = await getSetting('maimai_region');
+    const regionStr = getSet('maimai_region');
     const profile: PlayerProfile = {
-      name: await getSetting('profile_name') || 'Player',
-      rating: parseInt(await getSetting('profile_rating') || '0', 10),
+      name: getSet('profile_name') || 'Player',
+      rating: parseInt(getSet('profile_rating') || '0', 10),
       region: (regionStr as PlayerProfile['region']) || 'intl',
     };
 
@@ -47,7 +54,7 @@ export default async function ScoresPage() {
         newRating={ratingData.newRating}
         oldRating={ratingData.oldRating}
         profile={profile}
-        lastSync={lastSync}
+        lastSync={getSet('last_sync')}
       />
     );
   } catch {
