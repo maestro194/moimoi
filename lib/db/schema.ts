@@ -90,11 +90,15 @@ export const songs = pgTable('songs', {
   jp:   boolean('jp').default(true),
   intl: boolean('intl').default(true),
 
-  dateAdded: text('date_added'), // YYYY-MM-DD from otoge-db
+  dateAdded: text('date_added'),     // YYYYMMDD JP release from otoge-db
+  dateIntlAdded: text('date_intl_added'), // YYYYMMDD INTL release from otoge-db
 
   // Provenance — when was this row last fetched and from which dxrating version
   dxratingVersion: text('dxrating_version'), // e.g. "1.5.3" from dxdata.json
   refreshedAt: timestamp('refreshed_at').notNull().defaultNow(),
+
+  // Raw sheets array from dxdata.json containing detailed note counts and chart designers
+  sheets: jsonb('sheets'),
 });
 
 // Backwards-compat alias — all existing imports of songCache still work

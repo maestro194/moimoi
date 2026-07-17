@@ -52,6 +52,8 @@ export interface Song {
   jp?: boolean;
   intl?: boolean;
   date_added?: string;
+  date_intl_added?: string;
+  sheets?: any[];
 }
 
 export interface Score {

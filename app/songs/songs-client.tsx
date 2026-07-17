@@ -10,6 +10,7 @@ import { toRomaji } from '@/lib/romaji';
 import { getJacketUrl } from '@/lib/song-db';
 import { addTracker } from '@/app/tracker/actions';
 import { useRouter } from 'next/navigation';
+import { SongDetailsModal } from './SongDetailsModal';
 
 interface Props {
   songs: Song[];
@@ -190,19 +191,19 @@ const SELECT_STYLE: React.CSSProperties = {
   color: 'var(--foreground)',
 };
 
-type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title' | 'bpm_desc' | 'bpm_asc';
+type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title' | 'bpm_desc' | 'bpm_asc' | 'date_desc' | 'date_asc';
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SongsClient({ songs, currentVersion, categories }: Props) {
   const [query, setQuery]     = useState('');
   const [cat, setCat]         = useState('all');
   const [levelG, setLevelG]   = useState('all');
-  const [region, setRegion]   = useState('all');
-  const [sort, setSort]       = useState<SortKey>('newest');
+  const [sort, setSort]       = useState<SortKey>('date_desc');
 
   const [windowWidth, setWindowWidth] = useState(1200);
   
   const [trackTarget, setTrackTarget] = useState<{ songTitle: string, diff: string, type: 'DX' | 'STD', level: number } | null>(null);
+  const [detailsRow, setDetailsRow] = useState<{ song: Song; type: 'DX' | 'STD' } | null>(null);
   const [targetVal, setTargetVal] = useState('100.5000');
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -233,7 +234,7 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   const filtered = useMemo(() => {
     let list = songs.filter(matchesQuery);
     if (cat !== 'all')     list = list.filter(s => s.catcode === cat);
-    if (region !== 'all')  list = list.filter(s => region === 'jp' ? s.jp : s.intl);
+    list = list.filter(s => s.intl);
     if (levelG !== 'all')  list = list.filter(s => {
       const g = levelGroup(s.lev_mas) ?? levelGroup(s.lev_exp);
       return g === levelG;
@@ -252,11 +253,30 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
       case 'title':    list.sort((a, b) => a.title.localeCompare(b.title)); break;
       case 'bpm_desc': list.sort((a, b) => (parseInt(b.bpm || '0') || 0) - (parseInt(a.bpm || '0') || 0)); break;
       case 'bpm_asc':  list.sort((a, b) => (parseInt(a.bpm || '0') || 0) - (parseInt(b.bpm || '0') || 0)); break;
+      case 'date_desc': list.sort((a, b) => (b.date_intl_added || '0').localeCompare(a.date_intl_added || '0')); break;
+      case 'date_asc': list.sort((a, b) => (a.date_intl_added || '0').localeCompare(b.date_intl_added || '0')); break;
     }
     return list;
-  }, [songs, matchesQuery, cat, region, levelG, sort]);
+  }, [songs, matchesQuery, cat, levelG, sort]);
 
-  const tableRows = useMemo(() => filtered.flatMap(expandToRows), [filtered]);
+  // Build flat rows: if sorted by date, insert date-group header rows between date boundaries
+  const tableRows = useMemo(() => {
+    const songRows = filtered.flatMap(expandToRows);
+    const isByDate = sort === 'date_desc' || sort === 'date_asc';
+    if (!isByDate) return songRows.map(r => ({ kind: 'song' as const, row: r }));
+
+    const result: ({ kind: 'header'; date: string } | { kind: 'song'; row: typeof songRows[0] })[] = [];
+    let lastDate = '';
+    for (const r of songRows) {
+      const d = r.song.date_intl_added || '';
+      if (d !== lastDate) {
+        result.push({ kind: 'header', date: d });
+        lastDate = d;
+      }
+      result.push({ kind: 'song', row: r });
+    }
+    return result;
+  }, [filtered, sort]);
 
   function handleColSort(colKey: string) {
     if (colKey === 'lev') {
@@ -265,15 +285,15 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
       setSort(s => s === 'newest' ? 'oldest' : 'newest');
     } else if (colKey === 'title') {
       setSort('title');
+    } else if (colKey === 'date') {
+      setSort(s => s === 'date_desc' ? 'date_asc' : 'date_desc');
     }
   }
 
   // ── Virtualization ──
-  const rowCount = tableRows.length;
-
   const virtualizer = useWindowVirtualizer({
-    count: rowCount,
-    estimateSize: () => 60,
+    count: tableRows.length,
+    estimateSize: (i) => tableRows[i]?.kind === 'header' ? 36 : 60,
     overscan: 5,
   });
 
@@ -316,12 +336,6 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap gap-3">
-        <select id="region-filter" value={region} onChange={e => setRegion(e.target.value)}
-          className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>
-          <option value="all">All regions</option>
-          <option value="jp">JP (Japan)</option>
-          <option value="intl">INTL (International)</option>
-        </select>
         <select id="level-filter" value={levelG} onChange={e => setLevelG(e.target.value)}
           className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>
           <option value="all">All levels</option>
@@ -342,12 +356,15 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
       {filtered.length > 0 && (
         <div className="glass rounded-t-2xl px-4 py-2 flex items-center text-sm font-semibold sticky top-0 z-10 backdrop-blur-md" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="w-[300px] flex-shrink-0 cursor-pointer text-left" onClick={() => handleColSort('title')} style={{ color: sort === 'title' ? '#c4b5fd' : 'var(--foreground-muted)' }}>
-            曲名・アーティスト <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
+            Title / Artist <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
           </div>
           <div className="w-[120px] hidden md:block" onClick={() => handleColSort('version')} style={{ color: sort.startsWith('version') || sort.startsWith('newest') || sort.startsWith('oldest') ? '#c4b5fd' : 'var(--foreground-muted)', cursor: 'pointer' }}>
-            バージョン <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
+            Version <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
           </div>
-          <div className="w-[100px] hidden lg:block text-[var(--foreground-muted)]">ジャンル</div>
+          <div className="w-[100px] hidden lg:block text-[var(--foreground-muted)]">Category</div>
+          <div className="w-[100px] hidden xl:block cursor-pointer" onClick={() => handleColSort('date')} style={{ color: sort.startsWith('date') ? '#c4b5fd' : 'var(--foreground-muted)' }}>
+            Date added <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
+          </div>
           <div className="w-[60px] text-center text-[var(--foreground-muted)] hidden sm:block">DX/Std</div>
           
           <div className="flex flex-1 justify-end items-center gap-1">
@@ -372,7 +389,28 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
           </div>
         ) : (
           virtualizer.getVirtualItems().map((virtualRow) => {
-            const row = tableRows[virtualRow.index];
+            const item = tableRows[virtualRow.index];
+
+            // ── Date group header ──
+            if (item.kind === 'header') {
+              const d = item.date;
+              const label = d ? formatDate(d) ?? d : 'Unknown date';
+              return (
+                <div
+                  key={`header-${d}`}
+                  className="absolute top-0 left-0 w-full"
+                  style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/10" style={{ background: 'rgba(139,92,246,0.08)' }}>
+                    <Calendar size={12} style={{ color: '#c4b5fd' }} />
+                    <span className="text-xs font-semibold tracking-wide" style={{ color: '#c4b5fd' }}>{label}</span>
+                  </div>
+                </div>
+              );
+            }
+
+            // ── Song row ──
+            const row = item.row;
             const isNew = parseInt(row.song.version) >= currentVersion - 500;
             const jacketUrl = row.song.image_url
               ? getJacketUrl(row.song.image_url, row.song.intl)
@@ -392,7 +430,10 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                   className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02]"
                   style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
                 >
-                  <div className="flex items-center gap-3 w-[300px] flex-shrink-0 pr-4">
+                  <div 
+                    className="flex items-center gap-3 w-[300px] flex-shrink-0 pr-4 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setDetailsRow({ song: row.song, type: row.type })}
+                  >
                     <div className="w-12 h-12 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
                       {jacketUrl ? (
                         <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" />
@@ -412,6 +453,10 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                   
                   <div className="w-[100px] hidden lg:block text-[11px] text-white/50 truncate pr-2">
                     {CAT_LABELS[row.song.catcode] || row.song.catcode}
+                  </div>
+
+                  <div className="w-[100px] hidden xl:block text-[11px] text-white/50 truncate pr-2 font-num">
+                    {formatDate(row.song.date_intl_added) || '-'}
                   </div>
 
                   <div className="w-[60px] hidden sm:flex justify-center shrink-0 pr-2">
@@ -460,6 +505,34 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
                 <span className="text-xs font-bold text-white/50">{trackTarget.type}</span>
               </div>
               
+              <div className="mb-4">
+                <label className="block text-xs text-white/50 font-bold uppercase tracking-wider mb-2">Quick Pick Rank</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    { rank: 'S',    val: '97.0000',  color: '#60a5fa' },
+                    { rank: 'S+',   val: '98.0000',  color: '#818cf8' },
+                    { rank: 'SS',   val: '99.0000',  color: '#a78bfa' },
+                    { rank: 'SS+',  val: '99.5000',  color: '#c084fc' },
+                    { rank: 'SSS',  val: '100.0000', color: '#f472b6' },
+                    { rank: 'SSS+', val: '100.5000', color: '#fb923c' },
+                  ] as const).map(({ rank, val, color }) => (
+                    <button
+                      key={rank}
+                      onClick={() => setTargetVal(val)}
+                      className="py-2 rounded-lg text-xs font-bold transition-all hover:brightness-125 active:scale-95"
+                      style={{
+                        background: targetVal === val ? color + '33' : 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${targetVal === val ? color + '99' : 'rgba(255,255,255,0.08)'}`,
+                        color: targetVal === val ? color : 'rgba(255,255,255,0.5)',
+                      }}
+                    >
+                      {rank}
+                      <span className="block text-[10px] opacity-70 font-normal">{parseFloat(val).toFixed(1)}%</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="mb-6">
                 <label className="block text-xs text-white/50 font-bold uppercase tracking-wider mb-2">Target Accuracy (%)</label>
                 <input 
@@ -498,6 +571,8 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
           </motion.div>
         )}
       </AnimatePresence>
+
+      <SongDetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />
     </PageWrapper>
   );
 }

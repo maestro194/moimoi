@@ -63,6 +63,9 @@ function normalizeSong(song: any): Song {
     dx_lev_exp_i:   song.dx_lev_exp_i   ?? undefined,
     dx_lev_mas_i:   song.dx_lev_mas_i   ?? undefined,
     dx_lev_remas_i: song.dx_lev_remas_i ?? undefined,
+    date_added:       song.date_added       ?? undefined,
+    date_intl_added:  song.date_intl_added   ?? undefined,
+    sheets:           song.sheets            ?? undefined,
   };
 }
 
@@ -189,6 +192,9 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
         existing.bpm = String(dxSong.bpm);
       }
       
+      // Save raw sheets for note counts & designers
+      existing.sheets = dxSong.sheets;
+
       // Attempt to backfill date_added from the earliest sheet releaseDate
       const allSheets = [...stdSheets, ...dxSheets];
       const validDates = allSheets.map((sh: any) => sh.releaseDate).filter(Boolean);
@@ -261,9 +267,11 @@ export async function persistSongsToDb(songList: Song[], dxratingVersion: string
         dxLevRemasI: s.dx_lev_remas_i ?? null,
         jp:        s.jp   ?? true,
         intl:      s.intl ?? true,
-        dateAdded: s.date_added ?? null,
+        dateAdded:      s.date_added       ?? null,
+        dateIntlAdded:  s.date_intl_added  ?? null,
         dxratingVersion: dxratingVersion ?? null,
         refreshedAt: new Date(),
+        sheets:    s.sheets ?? null,
       }))
     ).onConflictDoUpdate({
       target: songs.title,
@@ -300,8 +308,10 @@ export async function persistSongsToDb(songList: Song[], dxratingVersion: string
         jp:   sql`excluded.jp`,
         intl: sql`excluded.intl`,
         dateAdded:       sql`excluded.date_added`,
+        dateIntlAdded:   sql`excluded.date_intl_added`,
         dxratingVersion: sql`excluded.dxrating_version`,
         refreshedAt:     sql`now()`,
+        sheets:          sql`excluded.sheets`,
       },
     });
   }
@@ -346,7 +356,9 @@ async function loadSongsFromDb(): Promise<Song[]> {
     dx_lev_remas_i: r.dxLevRemasI ?? undefined,
     jp:          r.jp    ?? undefined,
     intl:        r.intl  ?? undefined,
-    date_added:  r.dateAdded ?? undefined,
+    date_added:       r.dateAdded      ?? undefined,
+    date_intl_added:  r.dateIntlAdded  ?? undefined,
+    sheets:      (r.sheets as any[]) ?? undefined,
   }));
 }
 
