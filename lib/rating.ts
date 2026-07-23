@@ -159,22 +159,18 @@ export function deriveBigVersions(songDb: Map<string, Song>): number[] {
 /**
  * Compute the pool threshold for the "new" (B15) pool.
  *
- * The new pool covers the 2 most recent big versions at or before `currentVersion`
- * and ALL their mid-update songs.
- *
- * Examples (with all big versions [26500, 26000, 25500, 25000, …]):
- *   currentVersion = 26500 → threshold = 26000  (CiRCLE + CiRCLE PLUS are new)
- *   currentVersion = 25500 → threshold = 25000  (PRiSM + PRiSM PLUS are new)
+ * The new pool covers the current major version and its PLUS version.
+ * e.g., CiRCLE (26000) and CiRCLE PLUS (26500) both have a threshold of 26000.
+ * PRiSM (25000) and PRiSM PLUS (25500) both have a threshold of 25000.
  *
  * When a user overrides the version in Settings, this function automatically
  * adjusts which pool songs fall into.
  */
 export function getNewPoolThreshold(songDb: Map<string, Song>, currentVersion: number): number {
-  const bigVersions = deriveBigVersions(songDb);
-  // Keep only big versions at or below the selected/detected current version
-  const relevant = bigVersions.filter(v => v <= currentVersion);
-  // relevant[0] = current big version, relevant[1] = previous big version
-  return relevant[1] ?? relevant[0] ?? 0;
+  // A major version is a multiple of 1000.
+  // Base versions end in 000, PLUS versions end in 500.
+  // The threshold for the new pool is always the base version of the current cycle.
+  return Math.floor(currentVersion / 1000) * 1000;
 }
 
 // ─── Full DX Rating computation ──────────────────────────────────────────────
