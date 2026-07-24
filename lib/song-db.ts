@@ -319,12 +319,10 @@ export async function persistSongsToDb(songList: Song[], dxratingVersion: string
 
 // ─── Reading ───────────────────────────────────────────────────────────────────
 
-/** Load the full song list from the DB `songs` table. Returns empty array if empty. */
-async function loadSongsFromDb(): Promise<{ dbSongs: Song[], refreshedAt: Date | null }> {
+/** Load the full song list from the DB `songs` table. Returns [] if empty. */
+async function loadSongsFromDb(): Promise<Song[]> {
   const rows = await db.select().from(songs);
-  const refreshedAt = rows.length > 0 ? rows[0].refreshedAt : null;
-  
-  const dbSongs = rows.map(r => ({
+  return rows.map(r => ({
     sort:        r.sort        ?? '',
     title:       r.title,
     title_kana:  r.titleKana   ?? '',
@@ -362,8 +360,6 @@ async function loadSongsFromDb(): Promise<{ dbSongs: Song[], refreshedAt: Date |
     date_intl_added:  r.dateIntlAdded  ?? undefined,
     sheets:      (r.sheets as any[]) ?? undefined,
   }));
-  
-  return { dbSongs, refreshedAt };
 }
 
 /**
@@ -385,18 +381,7 @@ export async function fetchSongs(): Promise<Song[]> {
   }
 
   try {
-    const { dbSongs, refreshedAt } = await loadSongsFromDb();
-    
-    // Auto-refresh in the background if the DB data is older than 24 hours
-    if (dbSongs.length > 0 && refreshedAt) {
-      const ageMs = now - refreshedAt.getTime();
-      if (ageMs > 24 * 60 * 60 * 1000) {
-        console.log(`[song-db] DB is ${(ageMs / 3600000).toFixed(1)}h old. Triggering background refresh...`);
-        // Fire-and-forget background promise
-        refreshSongsDb().catch(e => console.error('[song-db] Background auto-refresh failed:', e));
-      }
-    }
-
+    const dbSongs = await loadSongsFromDb();
     memCache = dbSongs;
     memCacheTimestamp = now;
     return dbSongs;
