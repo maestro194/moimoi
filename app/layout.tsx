@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geist.variable} h-full`}>
-      <body className="bg-mesh min-h-dvh flex">
+      <body className="bg-mesh h-dvh overflow-hidden flex">
         <Navigation />
 
         {/* ── Main content ─────────────────────────────────────────── */}

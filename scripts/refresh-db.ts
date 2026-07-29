@@ -1,4 +1,4 @@
-import { refreshSongsDb } from './lib/song-db';
+import { refreshSongsDb } from '../lib/song-db';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
