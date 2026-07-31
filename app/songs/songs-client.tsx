@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Music2, LayoutGrid, List, ArrowUpDown, Calendar } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Search, Music2, ArrowUpDown, Calendar, Tag, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import type { Song } from '@/lib/types';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { PageWrapper } from '@/components/page-wrapper';
@@ -11,6 +11,7 @@ import { getJacketUrl } from '@/lib/song-db';
 import { addTracker } from '@/app/tracker/actions';
 import { useRouter } from 'next/navigation';
 import { SongDetailsModal } from './SongDetailsModal';
+import { useTags } from '@/lib/useTags';
 
 interface Props {
   songs: Song[];
@@ -18,7 +19,15 @@ interface Props {
   categories: string[];
 }
 
-// ── Version labels ─────────────────────────────────────────────────────────────
+interface ChartRow {
+  song: Song;
+  type: 'DX' | 'STD';
+  difficulty: 'basic' | 'advanced' | 'expert' | 'master' | 'remaster';
+  abbr: 'BAS' | 'ADV' | 'EXP' | 'MAS' | 'REMAS';
+  display: string;
+  internal: string;
+}
+
 const VERSION_NAMES: Record<string, string> = {
   '20000': 'maimai DX',   '20500': 'DX PLUS',
   '21000': 'Splash',      '21500': 'Splash PLUS',
@@ -35,6 +44,7 @@ const VERSION_NAMES: Record<string, string> = {
   '19000': 'PRiSM (JP)',  '19500': 'PRiSM PLUS (JP)',
   '19900': 'CiRCLE (JP)',
 };
+
 function versionLabel(v: string) { return VERSION_NAMES[v] ?? `v${v}`; }
 
 const CAT_LABELS: Record<string, string> = {
@@ -46,124 +56,83 @@ const CAT_LABELS: Record<string, string> = {
   'original&joypolis': 'Original',
 };
 
-// ── Difficulty colours ─────────────────────────────────────────────────────────
 const DIFF_COLOR: Record<string, string> = {
   bas: '#3fb950', adv: '#d4a017', exp: '#da3633',
   mas: '#8957e5', remas: '#d2a8ff', utage: '#bf1b5e',
 };
 
-// ── Date formatting ────────────────────────────────────────────────────────────
 function formatDate(d?: string): string | null {
   if (!d || d.length < 8) return null;
   return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
 }
 
-// ── SongRow: one table row represents one chart type (DX or STD) ───────────────
-interface DiffData { display?: string; internal?: string; }
-interface SongRow {
-  song: Song;
-  type: 'DX' | 'STD';
-  bas: DiffData; adv: DiffData; exp: DiffData; mas: DiffData; remas: DiffData; utage?: DiffData; kanji?: string;
-}
+const SELECT_STYLE: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid var(--border)',
+  color: 'var(--foreground)',
+};
 
-/** Expand a single Song into 1 or 2 rows (DX and/or STD). */
-function expandToRows(song: Song): SongRow[] {
+type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title' | 'bpm_desc' | 'bpm_asc' | 'date_desc' | 'date_asc' | 'tags_desc';
+
+function expandToChartRows(song: Song, includeUtage = false, showLowerDiffs = false): ChartRow[] {
+  const rows: ChartRow[] = [];
   const hasDX = !!(song.dx_lev_mas_i || song.dx_lev_exp_i || song.dx_lev_bas_i);
   const hasSTD = !!(song.lev_mas_i || song.lev_exp_i || song.lev_bas_i);
 
-  const rows: SongRow[] = [];
+  const DIFFS: Array<{ abbr: ChartRow['abbr']; difficulty: ChartRow['difficulty'];
+    dxDisplay?: string; dxInternal?: string; stdDisplay?: string; stdInternal?: string; }> = [
+    { abbr: 'EXP', difficulty: 'expert',   dxDisplay: song.dx_lev_exp,   dxInternal: song.dx_lev_exp_i,   stdDisplay: song.lev_exp,   stdInternal: song.lev_exp_i },
+    { abbr: 'MAS', difficulty: 'master',   dxDisplay: song.dx_lev_mas,   dxInternal: song.dx_lev_mas_i,   stdDisplay: song.lev_mas,   stdInternal: song.lev_mas_i },
+    { abbr: 'REMAS', difficulty: 'remaster', dxDisplay: song.dx_lev_remas, dxInternal: song.dx_lev_remas_i, stdDisplay: song.lev_remas, stdInternal: song.lev_remas_i },
+  ];
 
-  if (hasDX) {
-    rows.push({
-      song, type: 'DX',
-      bas:   { display: song.dx_lev_bas,   internal: song.dx_lev_bas_i   },
-      adv:   { display: song.dx_lev_adv,   internal: song.dx_lev_adv_i   },
-      exp:   { display: song.dx_lev_exp,   internal: song.dx_lev_exp_i   },
-      mas:   { display: song.dx_lev_mas,   internal: song.dx_lev_mas_i   },
-      remas: { display: song.dx_lev_remas, internal: song.dx_lev_remas_i },
-      utage: { display: song.lev_utage },
-      kanji: song.kanji,
-    });
-    if (hasSTD) {
-      rows.push({
-        song, type: 'STD',
-        bas:   { display: song.lev_bas,   internal: song.lev_bas_i   },
-        adv:   { display: song.lev_adv,   internal: song.lev_adv_i   },
-        exp:   { display: song.lev_exp,   internal: song.lev_exp_i   },
-        mas:   { display: song.lev_mas,   internal: song.lev_mas_i   },
-        remas: { display: song.lev_remas, internal: song.lev_remas_i },
-        utage: { display: song.lev_utage },
-        kanji: song.kanji,
-      });
-    }
-  } else {
-    rows.push({
-      song, type: 'STD',
-      bas:   { display: song.lev_bas,   internal: song.lev_bas_i   },
-      adv:   { display: song.lev_adv,   internal: song.lev_adv_i   },
-      exp:   { display: song.lev_exp,   internal: song.lev_exp_i   },
-      mas:   { display: song.lev_mas,   internal: song.lev_mas_i   },
-      remas: { display: song.lev_remas, internal: song.lev_remas_i },
-      utage: { display: song.lev_utage },
-      kanji: song.kanji,
-    });
+  if (showLowerDiffs) {
+    DIFFS.unshift(
+      { abbr: 'BAS', difficulty: 'basic',    dxDisplay: song.dx_lev_bas,   dxInternal: song.dx_lev_bas_i,   stdDisplay: song.lev_bas,   stdInternal: song.lev_bas_i },
+      { abbr: 'ADV', difficulty: 'advanced', dxDisplay: song.dx_lev_adv,   dxInternal: song.dx_lev_adv_i,   stdDisplay: song.lev_adv,   stdInternal: song.lev_adv_i },
+    );
+  }
+
+  if (includeUtage) {
+    // UTAGE is typically mapped to stdDisplay/stdInternal in the scraper logic since it's "STD"
+    DIFFS.push({ abbr: 'UTAGE' as any, difficulty: 'utage' as any, dxDisplay: undefined, dxInternal: undefined, stdDisplay: song.lev_utage, stdInternal: song.lev_utage });
+  }
+
+  for (const d of DIFFS) {
+    if (hasDX && d.dxInternal) rows.push({ song, type: 'DX', difficulty: d.difficulty, abbr: d.abbr, display: d.dxDisplay ?? d.dxInternal, internal: d.dxInternal });
+    if (hasSTD && d.stdInternal) rows.push({ song, type: 'STD', difficulty: d.difficulty, abbr: d.abbr, display: d.stdDisplay ?? d.stdInternal, internal: d.stdInternal });
   }
   return rows;
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function DiffCell({ data, diff, kanji, onClick }: { data?: DiffData; diff: string; kanji?: string; onClick?: () => void }) {
-  if (!data?.display) return <div className="w-[60px] md:w-[70px]" />;
-  const color = DIFF_COLOR[diff];
-  const intStr = data.internal ? parseFloat(data.internal).toFixed(1) : null;
+function ChartRowTags({ songTitle, type, abbr }: { songTitle: string; type: 'DX' | 'STD'; abbr: string }) {
+  const { getTagsForChart, tagsData } = useTags();
+  if (!tagsData) return null;
+  const tags = getTagsForChart(songTitle, type, abbr);
+  if (tags.length === 0) return null;
+  const shown = tags.slice(0, 3);
+  const extra = tags.length - shown.length;
   return (
-    <div className="w-[60px] md:w-[70px] flex shrink-0 justify-center">
-      <div 
-        onClick={onClick}
-        className={`w-full rounded text-center py-0.5 px-1 min-h-[36px] flex flex-col justify-center ${onClick ? 'cursor-pointer hover:brightness-125 active:scale-95 transition-all' : ''}`} 
-        style={{ background: color + '28' }}
-      >
-        <div className="font-bold text-sm leading-tight text-white flex items-center justify-center gap-0.5">
-          {kanji && <span className="text-[10px] opacity-80" style={{ color }}>[{kanji}]</span>}
-          {data.display.replace('?', '')}
-        </div>
-        {intStr && (
-          <div className="text-[10px] leading-tight tabular-nums font-num" style={{ color }}>
-            {intStr}
-          </div>
-        )}
-      </div>
+    <div className="flex flex-wrap gap-1 mt-0.5">
+      {shown.map(tag => (
+        <span key={tag.key}
+          className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full leading-none font-semibold"
+          style={{ backgroundColor: tag.color+'28', color: tag.color, border: `1px solid ${tag.color}40` }}
+          title={tag.description ?? tag.name}
+        >{tag.name}</span>
+      ))}
+      {extra > 0 && <span className="text-[10px] text-white/30 leading-none self-center">+{extra}</span>}
     </div>
   );
 }
 
-function TypeBadge({ type }: { type: 'DX' | 'STD' }) {
-  const isDX = type === 'DX';
+function DiffPill({ abbr, color }: { abbr: string; color: string }) {
+  const labels: Record<string,string> = { BAS:'BASIC', ADV:'ADVANCED', EXP:'EXPERT', MAS:'MASTER', REMAS:'Re:MASTER' };
   return (
-    <img
-      src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
-      alt={isDX ? 'DX' : 'STD'}
-      className="h-3.5 object-contain"
-    />
-  );
-}
-
-function ColHeader({
-  label, colKey, sort, onSort, className = '',
-}: {
-  label: string; colKey: string; sort: string; onSort: (k: string) => void; className?: string;
-}) {
-  const active = sort.startsWith(colKey);
-  return (
-    <div
-      className={`px-2 py-2 text-left text-[11px] font-semibold cursor-pointer select-none whitespace-nowrap flex items-center gap-1 ${className}`}
-      style={{ color: active ? '#c4b5fd' : 'var(--foreground-muted)' }}
-      onClick={() => onSort(colKey)}
-    >
-      {label}
-      <ArrowUpDown size={10} className="opacity-60" />
-    </div>
+    <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-sm tracking-wider leading-none"
+      style={{ backgroundColor: color+'30', color, border: `1px solid ${color}60` }}>
+      {labels[abbr] ?? abbr}
+    </span>
   );
 }
 
@@ -180,42 +149,44 @@ function allLevelGroups(songs: Song[]): string[] {
   }
   return Array.from(s).sort((a, b) => parseFloat(a.replace('+', '.5')) - parseFloat(b.replace('+', '.5')));
 }
-function allVersions(songs: Song[]): string[] {
-  return Array.from(new Set(songs.map(s => s.version).filter(Boolean)))
-    .sort((a, b) => parseInt(b) - parseInt(a));
-}
 
-const SELECT_STYLE: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid var(--border)',
-  color: 'var(--foreground)',
-};
-
-type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title' | 'bpm_desc' | 'bpm_asc' | 'date_desc' | 'date_asc';
-
-// ── Main component ─────────────────────────────────────────────────────────────
 export default function SongsClient({ songs, currentVersion, categories }: Props) {
-  const [query, setQuery]     = useState('');
-  const [cat, setCat]         = useState('all');
-  const [levelG, setLevelG]   = useState('all');
-  const [sort, setSort]       = useState<SortKey>('date_desc');
+  const allSongs = songs;
+  const [query, setQuery] = useState('');
+  const [cat, setCat] = useState('all');
+  const [levelG, setLevelG] = useState('all');
+  const [sort, setSort] = useState<SortKey>('date_desc');
+  const [selectedTagKeys, setSelectedTagKeys] = useState<string[]>([]);
+  const [tagPanelOpen, setTagPanelOpen] = useState(false);
+  const [showUtage, setShowUtage] = useState(false);
+  const [showLowerDiffs, setShowLowerDiffs] = useState(false);
 
-  const [windowWidth, setWindowWidth] = useState(1200);
-  
+  const { getAllUnifiedTags, getTagSongCount, chartHasAnyTag, getChartTagCount, tagsData, isLoading: tagsLoading } = useTags();
+  const allUnifiedTags = useMemo(() => getAllUnifiedTags(), [getAllUnifiedTags, tagsData]);
+
+  const tagFilterGroups = useMemo(() => {
+    const communityByGroup = new Map<string, { groupName: string; color: string; tags: typeof allUnifiedTags }>();
+    const personalByGroup = new Map<string, { groupName: string; color: string; tags: typeof allUnifiedTags }>();
+
+    for (const tag of allUnifiedTags) {
+      const map = tag.source === 'community' ? communityByGroup : personalByGroup;
+      const existing = map.get(tag.groupName);
+      if (existing) { existing.tags.push(tag); }
+      else { map.set(tag.groupName, { groupName: tag.groupName, color: tag.color, tags: [tag] }); }
+    }
+
+    return { community: Array.from(communityByGroup.values()), personal: Array.from(personalByGroup.values()) };
+  }, [allUnifiedTags]);
+
+  const songTitles = useMemo(() => allSongs.map(s => s.title), [allSongs]);
+
   const [trackTarget, setTrackTarget] = useState<{ songTitle: string, diff: string, type: 'DX' | 'STD', level: number } | null>(null);
-  const [detailsRow, setDetailsRow] = useState<{ song: Song; type: 'DX' | 'STD' } | null>(null);
+  const [detailsRow, setDetailsRow] = useState<{ song: Song; type: 'DX' | 'STD'; difficulty: string; abbr: string } | null>(null);
   const [targetVal, setTargetVal] = useState('100.5000');
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    setWindowWidth(window.innerWidth);
-    const cb = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', cb);
-    return () => window.removeEventListener('resize', cb);
-  }, []);
-
-  const levelGroups = useMemo(() => allLevelGroups(songs), [songs]);
+  const levelGroups = useMemo(() => allLevelGroups(allSongs), [allSongs]);
 
   const matchesQuery = useMemo(() => {
     if (!query) return () => true;
@@ -232,47 +203,49 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
   }, [query]);
 
   const filtered = useMemo(() => {
-    let list = songs.filter(matchesQuery);
-    if (cat !== 'all')     list = list.filter(s => s.catcode === cat);
-    list = list.filter(s => s.intl);
-    if (levelG !== 'all')  list = list.filter(s => {
-      const g = levelGroup(s.lev_mas) ?? levelGroup(s.lev_exp);
-      return g === levelG;
+    // 1. song-level filters
+    let songsToFilter = allSongs.filter(matchesQuery);
+    if (cat !== 'all') songsToFilter = songsToFilter.filter(s => s.catcode === cat);
+    songsToFilter = songsToFilter.filter(s => s.intl);
+
+    // 2. expand to chart rows
+    let rows = songsToFilter.flatMap(s => expandToChartRows(s, showUtage, showLowerDiffs));
+
+    // 3. chart-level filters
+    if (levelG !== 'all') rows = rows.filter(r => {
+      const parsed = parseFloat(r.internal);
+      const g = Math.floor(parsed).toString() + (parsed % 1 >= 0.7 ? '+' : '');
+      // match on display level like '14+' or '14'
+      return r.display?.replace('?','').trim() === levelG;
     });
-    switch (sort) {
-      case 'newest':   list.sort((a, b) => parseInt(b.version) - parseInt(a.version) || parseInt(b.sort||'0') - parseInt(a.sort||'0')); break;
-      case 'oldest':   list.sort((a, b) => parseInt(a.version) - parseInt(b.version) || parseInt(a.sort||'0') - parseInt(b.sort||'0')); break;
-      case 'lev_desc': {
-        const getLev = (s: Song) => parseFloat(s.dx_lev_mas_i || s.lev_mas_i || s.dx_lev_exp_i || s.lev_exp_i || '0');
-        list.sort((a, b) => getLev(b) - getLev(a)); break;
-      }
-      case 'lev_asc': {
-        const getLev = (s: Song) => parseFloat(s.dx_lev_mas_i || s.lev_mas_i || s.dx_lev_exp_i || s.lev_exp_i || '0');
-        list.sort((a, b) => getLev(a) - getLev(b)); break;
-      }
-      case 'title':    list.sort((a, b) => a.title.localeCompare(b.title)); break;
-      case 'bpm_desc': list.sort((a, b) => (parseInt(b.bpm || '0') || 0) - (parseInt(a.bpm || '0') || 0)); break;
-      case 'bpm_asc':  list.sort((a, b) => (parseInt(a.bpm || '0') || 0) - (parseInt(b.bpm || '0') || 0)); break;
-      case 'date_desc': list.sort((a, b) => (b.date_intl_added || '0').localeCompare(a.date_intl_added || '0')); break;
-      case 'date_asc': list.sort((a, b) => (a.date_intl_added || '0').localeCompare(b.date_intl_added || '0')); break;
+    if (selectedTagKeys.length > 0) {
+      rows = rows.filter(r => chartHasAnyTag(r.song.title, r.type, r.abbr, selectedTagKeys));
     }
-    return list;
-  }, [songs, matchesQuery, cat, levelG, sort]);
 
-  // Build flat rows: if sorted by date, insert date-group header rows between date boundaries
+    // 4. sort
+    switch (sort) {
+      case 'newest':   rows.sort((a,b) => parseInt(b.song.version)-parseInt(a.song.version) || parseInt(b.song.sort||'0')-parseInt(a.song.sort||'0')); break;
+      case 'oldest':   rows.sort((a,b) => parseInt(a.song.version)-parseInt(b.song.version) || parseInt(a.song.sort||'0')-parseInt(b.song.sort||'0')); break;
+      case 'lev_desc': rows.sort((a,b) => parseFloat(b.internal)-parseFloat(a.internal)); break;
+      case 'lev_asc':  rows.sort((a,b) => parseFloat(a.internal)-parseFloat(b.internal)); break;
+      case 'title':    rows.sort((a,b) => a.song.title.localeCompare(b.song.title)); break;
+      case 'bpm_desc': rows.sort((a,b) => (parseInt(b.song.bpm||'0')||0)-(parseInt(a.song.bpm||'0')||0)); break;
+      case 'bpm_asc':  rows.sort((a,b) => (parseInt(a.song.bpm||'0')||0)-(parseInt(b.song.bpm||'0')||0)); break;
+      case 'date_desc': rows.sort((a,b) => (b.song.date_intl_added||'0').localeCompare(a.song.date_intl_added||'0')); break;
+      case 'date_asc': rows.sort((a,b) => (a.song.date_intl_added||'0').localeCompare(b.song.date_intl_added||'0')); break;
+      case 'tags_desc': rows.sort((a,b) => getChartTagCount(b.song.title,b.type,b.abbr)-getChartTagCount(a.song.title,a.type,a.abbr)); break;
+    }
+    return rows;
+  }, [allSongs, matchesQuery, cat, levelG, sort, showUtage, showLowerDiffs, selectedTagKeys, chartHasAnyTag, getChartTagCount]);
+
   const tableRows = useMemo(() => {
-    const songRows = filtered.flatMap(expandToRows);
     const isByDate = sort === 'date_desc' || sort === 'date_asc';
-    if (!isByDate) return songRows.map(r => ({ kind: 'song' as const, row: r }));
-
-    const result: ({ kind: 'header'; date: string } | { kind: 'song'; row: typeof songRows[0] })[] = [];
+    if (!isByDate) return filtered.map(r => ({ kind: 'song' as const, row: r }));
+    const result: Array<{ kind: 'header'; date: string } | { kind: 'song'; row: ChartRow }> = [];
     let lastDate = '';
-    for (const r of songRows) {
+    for (const r of filtered) {
       const d = r.song.date_intl_added || '';
-      if (d !== lastDate) {
-        result.push({ kind: 'header', date: d });
-        lastDate = d;
-      }
+      if (d !== lastDate) { result.push({ kind: 'header', date: d }); lastDate = d; }
       result.push({ kind: 'song', row: r });
     }
     return result;
@@ -290,10 +263,9 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
     }
   }
 
-  // ── Virtualization ──
   const virtualizer = useWindowVirtualizer({
     count: tableRows.length,
-    estimateSize: (i) => tableRows[i]?.kind === 'header' ? 36 : 60,
+    estimateSize: () => 58,
     overscan: 5,
   });
 
@@ -303,12 +275,11 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
         <div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>Songs</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--foreground-muted)' }}>
-            {songs.length.toLocaleString()} Total Songs Available
+            {allSongs.length.toLocaleString()} Total Songs Available
           </p>
         </div>
       </div>
 
-      {/* ── Search + view toggle ── */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-52">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--foreground-subtle)' }} />
@@ -331,10 +302,32 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
           <option value="bpm_desc">BPM (Fastest)</option>
           <option value="bpm_asc">BPM (Slowest)</option>
           <option value="title">Title (A-Z)</option>
+          <option value="tags_desc">Most Tagged</option>
         </select>
+        <button
+          onClick={() => setShowLowerDiffs(v => !v)}
+          className="px-3 py-2 rounded-xl text-sm transition-all border"
+          style={{
+            backgroundColor: showLowerDiffs ? 'rgba(63,185,80,0.2)' : 'rgba(255,255,255,0.05)',
+            borderColor: showLowerDiffs ? '#3fb95080' : 'var(--border)',
+            color: showLowerDiffs ? '#3fb950' : 'var(--foreground-muted)',
+          }}
+        >
+          {showLowerDiffs ? '● BAS/ADV' : '○ BAS/ADV'}
+        </button>
+        <button
+          onClick={() => setShowUtage(v => !v)}
+          className="px-3 py-2 rounded-xl text-sm transition-all border"
+          style={{
+            backgroundColor: showUtage ? 'rgba(191,27,94,0.2)' : 'rgba(255,255,255,0.05)',
+            borderColor: showUtage ? '#bf1b5e80' : 'var(--border)',
+            color: showUtage ? '#f472b6' : 'var(--foreground-muted)',
+          }}
+        >
+          {showUtage ? '● UTAGE' : '○ UTAGE'}
+        </button>
       </div>
 
-      {/* ── Filters ── */}
       <div className="flex flex-wrap gap-3">
         <select id="level-filter" value={levelG} onChange={e => setLevelG(e.target.value)}
           className="px-3 py-2 rounded-xl text-sm outline-none transition-colors hover:bg-white/10" style={SELECT_STYLE}>
@@ -348,50 +341,162 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
         </select>
       </div>
 
+      <div className="glass rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+        <button
+          className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left hover:bg-white/5 transition-colors"
+          onClick={() => setTagPanelOpen(v => !v)}
+        >
+          <Tag size={14} style={{ color: selectedTagKeys.length > 0 ? '#c4b5fd' : 'var(--foreground-muted)' }} />
+          <span style={{ color: selectedTagKeys.length > 0 ? '#c4b5fd' : 'var(--foreground-muted)' }} className="font-semibold">
+            Tags
+          </span>
+          {selectedTagKeys.length > 0 && (
+            <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold">
+              {selectedTagKeys.length} active
+            </span>
+          )}
+          {tagsLoading && <span className="text-[11px] text-white/30 ml-1">Loading…</span>}
+          <span className="ml-auto">
+            {tagPanelOpen ? <ChevronUp size={14} className="opacity-40" /> : <ChevronDown size={14} className="opacity-40" />}
+          </span>
+        </button>
+
+        <AnimatePresence>
+          {tagPanelOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden border-t"
+              style={{ borderColor: 'rgba(255,255,255,0.06)' }}
+            >
+              <div className="px-4 py-3 flex flex-col gap-4">
+                {allUnifiedTags.length === 0 && !tagsLoading && (
+                  <p className="text-xs text-white/30">No tags yet. Open a song's details to add personal tags, or community tags will appear here once dxrating data loads.</p>
+                )}
+
+                {tagFilterGroups.community.map(group => (
+                  <div key={`com-${group.groupName}`} className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Globe size={10} className="text-blue-400/60" />
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/35">{group.groupName}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.tags.map(tag => {
+                        const isActive = selectedTagKeys.includes(tag.key);
+                        const count = getTagSongCount(tag.key, songTitles);
+                        return (
+                          <button
+                            key={tag.key}
+                            onClick={(e) => {
+                              if (e.ctrlKey || e.metaKey) {
+                                setSelectedTagKeys([tag.key]);
+                              } else {
+                                setSelectedTagKeys(prev =>
+                                  prev.includes(tag.key)
+                                    ? prev.filter(k => k !== tag.key)
+                                    : [...prev, tag.key]
+                                );
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-all active:scale-95"
+                            style={{
+                              backgroundColor: isActive ? tag.color + '35' : tag.color + '15',
+                              border: `1px solid ${isActive ? tag.color + '80' : tag.color + '30'}`,
+                              color: isActive ? tag.color : tag.color + 'aa',
+                              opacity: selectedTagKeys.length > 0 && !isActive ? 0.5 : 1,
+                            }}
+                          >
+                            {tag.name}
+                            <span className="opacity-50 text-[10px]">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {tagFilterGroups.personal.map(group => (
+                  <div key={`per-${group.groupName}`} className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/35">{group.groupName}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.tags.map(tag => {
+                        const isActive = selectedTagKeys.includes(tag.key);
+                        const count = getTagSongCount(tag.key, songTitles);
+                        return (
+                          <button
+                            key={tag.key}
+                            onClick={(e) => {
+                              if (e.ctrlKey || e.metaKey) {
+                                setSelectedTagKeys([tag.key]);
+                              } else {
+                                setSelectedTagKeys(prev =>
+                                  prev.includes(tag.key)
+                                    ? prev.filter(k => k !== tag.key)
+                                    : [...prev, tag.key]
+                                );
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-all active:scale-95"
+                            style={{
+                              backgroundColor: isActive ? tag.color + '35' : tag.color + '15',
+                              border: `1px solid ${isActive ? tag.color + '80' : tag.color + '30'}`,
+                              color: isActive ? tag.color : tag.color + 'aa',
+                              opacity: selectedTagKeys.length > 0 && !isActive ? 0.5 : 1,
+                            }}
+                          >
+                            {tag.name}
+                            <span className="opacity-50 text-[10px]">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {selectedTagKeys.length > 0 && (
+                  <button
+                    onClick={() => setSelectedTagKeys([])}
+                    className="text-[11px] text-white/30 hover:text-white/60 transition-colors w-fit"
+                  >
+                    × Clear tag filter
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       <p className="text-xs" style={{ color: 'var(--foreground-subtle)' }}>
-        {filtered.length.toLocaleString()} results found
+        {filtered.length.toLocaleString()} charts found
       </p>
 
-      {/* ── Virtualized List Header ── */}
       {filtered.length > 0 && (
-        <div className="glass rounded-t-2xl px-4 py-2 flex items-center text-sm font-semibold sticky top-0 z-10 backdrop-blur-md" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="w-[300px] flex-shrink-0 cursor-pointer text-left" onClick={() => handleColSort('title')} style={{ color: sort === 'title' ? '#c4b5fd' : 'var(--foreground-muted)' }}>
-            Title / Artist <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
-          </div>
-          <div className="w-[120px] hidden md:block" onClick={() => handleColSort('version')} style={{ color: sort.startsWith('version') || sort.startsWith('newest') || sort.startsWith('oldest') ? '#c4b5fd' : 'var(--foreground-muted)', cursor: 'pointer' }}>
-            Version <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
-          </div>
-          <div className="w-[100px] hidden lg:block text-[var(--foreground-muted)]">Category</div>
-          <div className="w-[100px] hidden xl:block cursor-pointer" onClick={() => handleColSort('date')} style={{ color: sort.startsWith('date') ? '#c4b5fd' : 'var(--foreground-muted)' }}>
-            Date added <ArrowUpDown size={10} className="inline ml-1 opacity-60" />
-          </div>
-          <div className="w-[60px] text-center text-[var(--foreground-muted)] hidden sm:block">DX/Std</div>
-          
-          <div className="flex flex-1 justify-end items-center gap-1">
-            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.bas }}>BSC</div>
-            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.adv }}>ADV</div>
-            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.exp }}>EXP</div>
-            <div className="w-[60px] md:w-[70px] text-center cursor-pointer select-none" onClick={() => handleColSort('lev')} style={{ color: sort.startsWith('lev') ? '#c4b5fd' : DIFF_COLOR.mas }}>
-              MAS <ArrowUpDown size={10} className="inline ml-0.5 opacity-60" />
-            </div>
-            <div className="w-[60px] md:w-[70px] text-center" style={{ color: DIFF_COLOR.remas }}>Re:M</div>
-            <div className="w-[60px] md:w-[70px] text-center hidden xl:block" style={{ color: DIFF_COLOR.utage }}>UTA</div>
-          </div>
+        <div className="glass rounded-t-2xl px-4 py-2 flex items-center text-sm font-semibold sticky top-0 z-10 backdrop-blur-md">
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleColSort('title')}>Title / Artist</div>
+          <div className="w-[120px] hidden md:block cursor-pointer" onClick={() => handleColSort('version')}>Version</div>
+          <div className="w-[60px] hidden sm:block text-center">Type</div>
+          <div className="w-[100px] hidden sm:block text-center">Difficulty</div>
+          <div className="w-[80px] text-right cursor-pointer select-none" onClick={() => handleColSort('lev')}>Level ↕</div>
         </div>
       )}
 
-      {/* ── Virtualized Container ── */}
       <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
         {filtered.length === 0 ? (
           <div className="glass rounded-2xl p-12 text-center" style={{ color: 'var(--foreground-muted)' }}>
             <Music2 size={32} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No songs match your search</p>
+            <p className="text-sm">No charts match your search</p>
           </div>
         ) : (
           virtualizer.getVirtualItems().map((virtualRow) => {
             const item = tableRows[virtualRow.index];
 
-            // ── Date group header ──
             if (item.kind === 'header') {
               const d = item.date;
               const label = d ? formatDate(d) ?? d : 'Unknown date';
@@ -409,16 +514,15 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
               );
             }
 
-            // ── Song row ──
             const row = item.row;
             const isNew = parseInt(row.song.version) >= currentVersion - 500;
             const jacketUrl = row.song.image_url
               ? getJacketUrl(row.song.image_url, row.song.intl)
               : null;
-
+            
             return (
               <div
-                key={`${row.song.title}-${row.type}`}
+                key={`${row.song.title}-${row.type}-${row.abbr}`}
                 className="absolute top-0 left-0 w-full"
                 style={{
                   height: `${virtualRow.size}px`,
@@ -427,51 +531,37 @@ export default function SongsClient({ songs, currentVersion, categories }: Props
               >
                 <motion.div
                   whileHover={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
-                  className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02]"
+                  className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02] cursor-pointer"
                   style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
+                  onClick={() => setDetailsRow({ song: row.song, type: row.type, difficulty: row.difficulty, abbr: row.abbr })}
                 >
-                  <div 
-                    className="flex items-center gap-3 w-[300px] flex-shrink-0 pr-4 cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => setDetailsRow({ song: row.song, type: row.type })}
-                  >
-                    <div className="w-12 h-12 shrink-0 overflow-hidden rounded shadow-sm bg-black/20 relative">
-                      {jacketUrl ? (
-                        <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={16} /></div>
-                      )}
+                  <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                    <div className="w-10 h-10 shrink-0 overflow-hidden rounded shadow-sm bg-black/20">
+                      {jacketUrl ? <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" /> : <Music2 size={16} />}
                     </div>
                     <div className="min-w-0">
                       <div className="font-semibold text-sm truncate text-white">{row.song.title}</div>
                       <div className="text-xs truncate text-white/50">{row.song.artist}</div>
+                      <ChartRowTags songTitle={row.song.title} type={row.type} abbr={row.abbr} />
                     </div>
                   </div>
-                  
-                  <div className="w-[120px] hidden md:block text-xs text-white/60 truncate pr-2">
-                    {versionLabel(row.song.version)}
-                  </div>
-                  
-                  <div className="w-[100px] hidden lg:block text-[11px] text-white/50 truncate pr-2">
-                    {CAT_LABELS[row.song.catcode] || row.song.catcode}
+
+                  <div className="w-[120px] hidden md:block text-xs text-white/60 truncate pr-2">{versionLabel(row.song.version)}</div>
+
+                  <div className="w-[60px] hidden sm:flex justify-center shrink-0">
+                    <img src={row.type === 'DX' ? '/badges/music_dx.webp' : '/badges/music_standard.webp'} alt={row.type} className="h-3.5 object-contain" />
                   </div>
 
-                  <div className="w-[100px] hidden xl:block text-[11px] text-white/50 truncate pr-2 font-num">
-                    {formatDate(row.song.date_intl_added) || '-'}
+                  <div className="w-[100px] hidden sm:flex justify-center">
+                    <DiffPill abbr={row.abbr} color={DIFF_COLOR[row.abbr.toLowerCase().replace(':','')]} />
                   </div>
 
-                  <div className="w-[60px] hidden sm:flex justify-center shrink-0 pr-2">
-                    <TypeBadge type={row.type} />
-                  </div>
-
-                  <div className="flex flex-1 justify-end items-center gap-1">
-                    <DiffCell data={row.bas} diff="bas" onClick={row.bas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'BAS', type: row.type, level: parseFloat(row.bas.internal!) }) : undefined} />
-                    <DiffCell data={row.adv} diff="adv" onClick={row.adv.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'ADV', type: row.type, level: parseFloat(row.adv.internal!) }) : undefined} />
-                    <DiffCell data={row.exp} diff="exp" onClick={row.exp.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'EXP', type: row.type, level: parseFloat(row.exp.internal!) }) : undefined} />
-                    <DiffCell data={row.mas} diff="mas" onClick={row.mas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'MAS', type: row.type, level: parseFloat(row.mas.internal!) }) : undefined} />
-                    <DiffCell data={row.remas} diff="remas" onClick={row.remas.internal ? () => setTrackTarget({ songTitle: row.song.title, diff: 'REMAS', type: row.type, level: parseFloat(row.remas.internal!) }) : undefined} />
-                    <div className="hidden xl:block">
-                      <DiffCell data={row.utage} diff="utage" kanji={row.kanji} />
-                    </div>
+                  <div
+                    className="w-[80px] text-right font-bold font-num text-lg pr-1 shrink-0 hover:text-purple-300 transition-colors"
+                    style={{ color: DIFF_COLOR[row.abbr.toLowerCase() === 'remas' ? 'remas' : row.abbr.toLowerCase().replace('bas','bas').replace('adv','adv').replace('exp','exp').replace('mas','mas')] }}
+                    onClick={e => { e.stopPropagation(); setTrackTarget({ songTitle: row.song.title, diff: row.abbr, type: row.type, level: parseFloat(row.internal) }); }}
+                  >
+                    {parseFloat(row.internal).toFixed(1)}
                   </div>
                 </motion.div>
               </div>

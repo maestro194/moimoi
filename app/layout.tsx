@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Navigation />
 
         {/* ── Main content ─────────────────────────────────────────── */}
-        <main className="flex-1 min-w-0 overflow-auto md:pt-0 pt-14">
+        <main className="flex-1 min-w-0 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
         </main>
       </body>

@@ -105,3 +105,85 @@ export interface PlayerProfile {
   iconUrl?: string;
   region: Region;
 }
+
+// ── Tag System ────────────────────────────────────────────────────────────────
+
+/** Community tag group from dxrating's public API (read-only) */
+export interface CommunityTagGroup {
+  id: number;
+  localized_name: Record<string, string>; // { en: 'Technical', ja: '...' }
+  color: string;
+  source: 'community';
+}
+
+/** Community tag from dxrating's public API (read-only) */
+export interface CommunityTag {
+  id: number;
+  localized_name: Record<string, string>;
+  localized_description: Record<string, string>;
+  group_id: number | null;
+  source: 'community';
+}
+
+/** Community tag-song association from dxrating (lowercase keys) */
+export interface CommunityTagSong {
+  song_id: string;       // = song.title
+  sheet_type: string;    // 'dx' | 'std' (lowercase)
+  sheet_difficulty: string; // 'master' | 'expert' ... (lowercase)
+  tag_id: number;
+}
+
+/** Personal tag group stored in moimoi's local Neon DB */
+export interface PersonalTagGroup {
+  id: number;
+  name: string;
+  color: string;
+  sortOrder: number;
+  source: 'personal';
+}
+
+/** Personal tag stored in moimoi's local Neon DB */
+export interface PersonalTag {
+  id: number;
+  name: string;
+  description?: string | null;
+  groupId?: number | null;
+  source: 'personal';
+}
+
+/** Personal tag-song association (uppercase keys matching our DB) */
+export interface PersonalTagSong {
+  id: number;
+  tagId: number;
+  songTitle: string;
+  sheetType: string;    // 'DX' | 'STD'
+  sheetDifficulty: string; // 'BAS' | 'ADV' | 'EXP' | 'MAS' | 'REMAS'
+}
+
+/**
+ * Unified tag for display — works across both community and personal sources.
+ * key format: "c:{id}" for community, "p:{id}" for personal.
+ */
+export interface UnifiedTag {
+  key: string;
+  name: string;
+  description?: string;
+  color: string;
+  groupName: string;
+  groupId: number | null;
+  source: 'community' | 'personal';
+}
+
+/** Full payload returned by GET /api/tags/combined */
+export interface CombinedTagsPayload {
+  personal: {
+    tagGroups: PersonalTagGroup[];
+    tags: PersonalTag[];
+    tagSongs: PersonalTagSong[];
+  };
+  community: {
+    tagGroups: CommunityTagGroup[];
+    tags: CommunityTag[];
+    tagSongs: CommunityTagSong[];
+  };
+}

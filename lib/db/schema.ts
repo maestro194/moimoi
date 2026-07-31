@@ -124,3 +124,96 @@ export type InsertSong = typeof songs.$inferInsert;
 export type SelectSong = typeof songs.$inferSelect;
 export type InsertTracker = typeof scoreTrackers.$inferInsert;
 export type SelectTracker = typeof scoreTrackers.$inferSelect;
+
+// ── Tag System ──────────────────────────────────────────────────────────────
+
+/** Color-coded grouping of tags (e.g. "Technical", "Physical", "Personal") */
+export const tagGroups = pgTable('tag_groups', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  color: text('color').notNull(),        // Hex e.g. "#8957e5"
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+/** Individual tag label (e.g. "Gimmick", "Stream", "Practice") */
+export const tags = pgTable('tags', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),      // Shown in hover tooltip
+  groupId: integer('group_id').references(() => tagGroups.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+/** Per-chart tag assignment: which tag applies to which (song × type × difficulty) */
+export const tagSongs = pgTable('tag_songs', {
+  id: serial('id').primaryKey(),
+  tagId: integer('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+  songTitle: text('song_title').notNull(),
+  sheetType: varchar('sheet_type', { length: 5 }).notNull(),           // 'DX' | 'STD'
+  sheetDifficulty: varchar('sheet_difficulty', { length: 10 }).notNull(), // 'BAS'|'ADV'|'EXP'|'MAS'|'REMAS'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  uniqueTagChart: unique('unique_tag_chart').on(
+    table.tagId, table.songTitle, table.sheetType, table.sheetDifficulty
+  ),
+}));
+
+export type InsertTagGroup = typeof tagGroups.$inferInsert;
+export type SelectTagGroup = typeof tagGroups.$inferSelect;
+export type InsertTag = typeof tags.$inferInsert;
+export type SelectTag = typeof tags.$inferSelect;
+export type InsertTagSong = typeof tagSongs.$inferInsert;
+export type SelectTagSong = typeof tagSongs.$inferSelect;
+
+// ── Tracker Board ────────────────────────────────────────────────────────────
+
+/** Named playlist / collection of charts (e.g. "Grind Session", "Want to Play") */
+export const trackerLists = pgTable('tracker_lists', {
+  id:        serial('id').primaryKey(),
+  name:      text('name').notNull(),
+  emoji:     text('emoji').default('🎵'),
+  color:     text('color').default('#8957e5'),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+/**
+ * A chart entry inside a tracker list.
+ * targetScore is NULL for wishlist-style entries (no score goal).
+ * achievedAt is set when the user marks it done.
+ */
+export const trackerItems = pgTable('tracker_items', {
+  id:              serial('id').primaryKey(),
+  listId:          integer('list_id').notNull().references(() => trackerLists.id, { onDelete: 'cascade' }),
+  songTitle:       text('song_title').notNull(),
+  sheetType:       varchar('sheet_type', { length: 5 }).notNull().default('DX'),   // 'DX'|'STD'
+  sheetDifficulty: varchar('sheet_difficulty', { length: 10 }).notNull(),           // 'BAS'|'ADV'|'EXP'|'MAS'|'REMAS'
+  targetScore:     text('target_score'),    // e.g. "100.5000" — NULL = no goal
+  notes:           text('notes'),
+  sortOrder:       integer('sort_order').default(0),
+  achievedAt:      timestamp('achieved_at'),
+  createdAt:       timestamp('created_at').notNull().defaultNow(),
+});
+
+/**
+ * Today's Session — the persisted play queue.
+ * Each row is one chart in the current session.
+ * Cleared with a "Clear All" action (DELETE all rows).
+ */
+export const sessionItems = pgTable('session_items', {
+  id:              serial('id').primaryKey(),
+  songTitle:       text('song_title').notNull(),
+  sheetType:       varchar('sheet_type', { length: 5 }).notNull().default('DX'),
+  sheetDifficulty: varchar('sheet_difficulty', { length: 10 }).notNull(),
+  played:          boolean('played').default(false),
+  sortOrder:       integer('sort_order').default(0),
+  addedAt:         timestamp('added_at').notNull().defaultNow(),
+});
+
+export type InsertTrackerList = typeof trackerLists.$inferInsert;
+export type SelectTrackerList = typeof trackerLists.$inferSelect;
+export type InsertTrackerItem = typeof trackerItems.$inferInsert;
+export type SelectTrackerItem = typeof trackerItems.$inferSelect;
+export type InsertSessionItem = typeof sessionItems.$inferInsert;
+export type SelectSessionItem = typeof sessionItems.$inferSelect;
