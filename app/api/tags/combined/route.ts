@@ -10,20 +10,7 @@ import type {
 
 export const dynamic = 'force-dynamic';
 
-// ── Community tag cache ────────────────────────────────────────────────────────
-let communityCache: {
-  tagGroups: CommunityTagGroup[];
-  tags: CommunityTag[];
-  tagSongs: CommunityTagSong[];
-} | null = null;
-let communityCacheAt = 0;
-const COMMUNITY_TTL_MS = 60 * 60 * 1000; // 1 hour
-
 async function fetchCommunityTags() {
-  const now = Date.now();
-  if (communityCache && now - communityCacheAt < COMMUNITY_TTL_MS) {
-    return communityCache;
-  }
 
   try {
     const res = await fetch('https://miruku.dxrating.net/api/v1/tags', {
@@ -32,23 +19,22 @@ async function fetchCommunityTags() {
     });
 
     if (!res.ok) {
-      console.warn('[tags/combined] dxrating API returned', res.status, '— returning cached or empty');
-      return communityCache ?? { tagGroups: [], tags: [], tagSongs: [] };
+      console.warn('[tags/combined] dxrating API returned', res.status);
+      return { tagGroups: [], tags: [], tagSongs: [] };
     }
 
     const data = await res.json();
-    communityCache = {
+    return {
       tagGroups: (data.tagGroups ?? []).map((g: Record<string, unknown>) => ({ ...g, source: 'community' as const })),
       tags: (data.tags ?? []).map((t: Record<string, unknown>) => ({ ...t, source: 'community' as const })),
       tagSongs: data.tagSongs ?? [],
     };
-    communityCacheAt = now;
-    return communityCache;
   } catch (err) {
     console.warn('[tags/combined] Failed to fetch dxrating tags:', err);
-    return communityCache ?? { tagGroups: [], tags: [], tagSongs: [] };
+    return { tagGroups: [], tags: [], tagSongs: [] };
   }
 }
+
 
 // ── GET /api/tags/combined ─────────────────────────────────────────────────────
 export async function GET() {
