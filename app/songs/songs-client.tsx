@@ -193,12 +193,9 @@ function TagChips({ tags }: { tags: UnifiedTag[] }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export default function SongsClient() {
-  const { songs, currentVersion, categories, loading } = useSongs();
+// SongsContent receives pre-fetched data — always mounts with the same hook count.
+function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; currentVersion: number; categories: string[] }) {
   const allSongs = songs;
-
-  // Show loading skeleton on first fetch (cache miss)
-  if (loading) return <SongsLoading />;
 
   // ── Filter / sort state
   const [query, setQuery]             = useState('');
@@ -770,4 +767,13 @@ export default function SongsClient() {
       <SongDetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />
     </PageWrapper>
   );
+}
+
+// Thin wrapper — always calls exactly the same hooks (just useSongs).
+// SongsContent is only mounted when data is ready, so it can't violate
+// the Rules of Hooks by having fewer hooks than expected.
+export default function SongsClient() {
+  const { songs, currentVersion, categories, loading } = useSongs();
+  if (loading) return <SongsLoading />;
+  return <SongsContent songs={songs} currentVersion={currentVersion} categories={categories} />;
 }
