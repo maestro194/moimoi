@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Search, Music2, Calendar, Tag, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import type { Song, UnifiedTag } from '@/lib/types';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
@@ -11,11 +11,59 @@ import { getJacketUrl } from '@/lib/song-db';
 import { addTracker } from '@/app/tracker/actions';
 import { SongDetailsModal } from './SongDetailsModal';
 import { useTags } from '@/lib/useTags';
+import SongsLoading from './loading';
 
-interface Props {
+// ── Module-level cache — survives navigation (lives in JS module scope) ────────
+interface SongsPayload {
   songs: Song[];
   currentVersion: number;
   categories: string[];
+}
+let _cache: (SongsPayload & { fetchedAt: number }) | null = null;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// Exposed so the song-refresh flow can bust the cache immediately
+export function bustSongsCache() { _cache = null; }
+
+function useSongs() {
+  // Synchronous initialiser: if the cache is warm, we never enter a loading state
+  const [data, setData] = useState<SongsPayload | null>(() => {
+    if (_cache && Date.now() - _cache.fetchedAt < CACHE_TTL_MS) {
+      const { fetchedAt: _, ...payload } = _cache;
+      return payload;
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!data);
+
+  useEffect(() => {
+    // Cache hit — nothing to do
+    if (data) return;
+
+    let cancelled = false;
+    fetch('/api/songs')
+      .then(r => r.json())
+      .then((payload: SongsPayload) => {
+        if (cancelled) return;
+        _cache = { ...payload, fetchedAt: Date.now() };
+        setData(payload);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('[SongsClient] Failed to load songs:', err);
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — runs once on mount
+
+  return {
+    songs: data?.songs ?? [],
+    currentVersion: data?.currentVersion ?? 0,
+    categories: data?.categories ?? [],
+    loading,
+  };
 }
 
 interface ChartRow {
@@ -145,8 +193,12 @@ function TagChips({ tags }: { tags: UnifiedTag[] }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export default function SongsClient({ songs, currentVersion, categories }: Props) {
+export default function SongsClient() {
+  const { songs, currentVersion, categories, loading } = useSongs();
   const allSongs = songs;
+
+  // Show loading skeleton on first fetch (cache miss)
+  if (loading) return <SongsLoading />;
 
   // ── Filter / sort state
   const [query, setQuery]             = useState('');

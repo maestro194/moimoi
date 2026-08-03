@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Save, CheckCircle, AlertCircle, Globe, RefreshCw, Star, Trash2, Database } from 'lucide-react';
+import { bustSongsCache } from '@/app/songs/songs-client';
 
 export default function SettingsClient() {
   const [versionOverride, setVersionOverride] = useState('');
@@ -59,6 +60,7 @@ export default function SettingsClient() {
       const res = await fetch('/api/refresh-songs', { method: 'POST' });
       const j = await res.json();
       if (j.ok) {
+        bustSongsCache(); // Invalidate client module cache so Songs page re-fetches
         setRefreshDbMsg({ ok: true, text: `Song database refreshed — ${j.count.toLocaleString()} songs loaded.` });
       } else {
         setRefreshDbMsg({ ok: false, text: j.error || 'Failed to refresh.' });
