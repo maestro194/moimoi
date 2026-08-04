@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, useDeferredValue } from 'react';
 import { Search, Music2, Calendar, Tag, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import type { Song, UnifiedTag } from '@/lib/types';
 
@@ -208,6 +208,16 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
   const [showUtage, setShowUtage]     = useState(false);
   const [showLowerDiffs, setShowLowerDiffs] = useState(false);
 
+  const deferredQuery = useDeferredValue(query);
+  const deferredCat = useDeferredValue(cat);
+  const deferredLevelG = useDeferredValue(levelG);
+  const deferredSort = useDeferredValue(sort);
+  const deferredTagKeys = useDeferredValue(selectedTagKeys);
+  const deferredShowUtage = useDeferredValue(showUtage);
+  const deferredShowLowerDiffs = useDeferredValue(showLowerDiffs);
+  
+  const isFiltering = query !== deferredQuery || cat !== deferredCat || levelG !== deferredLevelG || sort !== deferredSort || selectedTagKeys !== deferredTagKeys || showUtage !== deferredShowUtage || showLowerDiffs !== deferredShowLowerDiffs;
+
   // ── Modal state
   const [trackTarget, setTrackTarget] = useState<{ songTitle: string; diff: string; type: 'DX' | 'STD'; level: number } | null>(null);
   const [detailsRow, setDetailsRow]   = useState<{ song: Song; type: 'DX' | 'STD'; difficulty: string; abbr: string } | null>(null);
@@ -234,8 +244,8 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
   const levelGroups = useMemo(() => allLevelGroups(allSongs), [allSongs]);
 
   const matchesQuery = useMemo(() => {
-    if (!query) return (_: Song) => true;
-    const q = query.toLowerCase();
+    if (!deferredQuery) return (_: Song) => true;
+    const q = deferredQuery.toLowerCase();
     return (song: Song) => {
       if (song.title.toLowerCase().includes(q)) return true;
       if (song.artist.toLowerCase().includes(q)) return true;
@@ -245,25 +255,25 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
       }
       return false;
     };
-  }, [query]);
+  }, [deferredQuery]);
 
   const filtered = useMemo(() => {
     let songsToFilter = allSongs.filter(matchesQuery);
-    if (cat !== 'all') songsToFilter = songsToFilter.filter(s => s.catcode === cat);
+    if (deferredCat !== 'all') songsToFilter = songsToFilter.filter(s => s.catcode === deferredCat);
     songsToFilter = songsToFilter.filter(s => s.intl);
 
-    let rows = songsToFilter.flatMap(s => expandToChartRows(s, showUtage, showLowerDiffs));
+    let rows = songsToFilter.flatMap(s => expandToChartRows(s, deferredShowUtage, deferredShowLowerDiffs));
 
-    if (levelG !== 'all') rows = rows.filter(r => r.display?.replace('?', '').trim() === levelG);
-    if (selectedTagKeys.length > 0) {
+    if (deferredLevelG !== 'all') rows = rows.filter(r => r.display?.replace('?', '').trim() === deferredLevelG);
+    if (deferredTagKeys.length > 0) {
       // ALL mode: chart must have every selected tag
       rows = rows.filter(r => {
         const chartTags = tagsData ? getTagsForChart(r.song.title, r.type, r.abbr).map(t => t.key) : [];
-        return selectedTagKeys.every(k => chartTags.includes(k));
+        return deferredTagKeys.every(k => chartTags.includes(k));
       });
     }
 
-    switch (sort) {
+    switch (deferredSort) {
       case 'newest':    rows.sort((a, b) => parseInt(b.song.version) - parseInt(a.song.version) || parseInt(b.song.sort || '0') - parseInt(a.song.sort || '0')); break;
       case 'oldest':    rows.sort((a, b) => parseInt(a.song.version) - parseInt(b.song.version) || parseInt(a.song.sort || '0') - parseInt(b.song.sort || '0')); break;
       case 'lev_desc':  rows.sort((a, b) => parseFloat(b.internal) - parseFloat(a.internal)); break;
@@ -276,12 +286,12 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
       case 'tags_desc': rows.sort((a, b) => getChartTagCount(b.song.title, b.type, b.abbr) - getChartTagCount(a.song.title, a.type, a.abbr)); break;
     }
     return rows;
-  }, [allSongs, matchesQuery, cat, levelG, sort, showUtage, showLowerDiffs, selectedTagKeys, getChartTagCount, getTagsForChart, tagsData]);
+  }, [allSongs, matchesQuery, deferredCat, deferredLevelG, deferredSort, deferredShowUtage, deferredShowLowerDiffs, deferredTagKeys, tagsData, getTagsForChart, getChartTagCount]);
 
   // Build rows with date headers; attach pre-computed tags to each row so
   // we don't call useTags() inside every virtualizer cell.
   const tableRows = useMemo(() => {
-    const isByDate = sort === 'date_desc' || sort === 'date_asc';
+    const isByDate = deferredSort === 'date_desc' || deferredSort === 'date_asc';
     type Row =
       | { kind: 'header'; date: string }
       | { kind: 'song'; row: ChartRow; tags: UnifiedTag[] };
@@ -301,7 +311,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
       result.push({ kind: 'song', row: r, tags });
     }
     return result;
-  }, [filtered, sort, tagsData, getTagsForChart]);
+  }, [filtered, deferredSort, tagsData, getTagsForChart]);
 
   function handleColSort(colKey: string) {
     if (colKey === 'lev') setSort(s => s === 'lev_desc' ? 'lev_asc' : 'lev_desc');
@@ -587,7 +597,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
       })()}
 
       {/* ── Chart list (current page) ─────────────────────────────────────────── */}
-      <div ref={parentRef} className="overflow-hidden rounded-b-xl">
+      <div ref={parentRef} className={`overflow-hidden rounded-b-xl transition-opacity duration-200 ${isFiltering ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
         {filtered.length === 0 ? (
           <div className="glass rounded-2xl p-12 text-center" style={{ color: 'var(--foreground-muted)' }}>
             <Music2 size={32} className="mx-auto mb-3 opacity-30" />
