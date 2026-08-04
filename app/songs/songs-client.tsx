@@ -10,6 +10,7 @@ import { toRomaji } from '@/lib/romaji';
 import { getJacketUrl } from '@/lib/song-db';
 import { addTracker } from '@/app/tracker/actions';
 import { SongDetailsModal } from './SongDetailsModal';
+import { ChartActionModal } from '@/components/chart-action-modal';
 import { useTags } from '@/lib/useTags';
 import SongsLoading from './loading';
 
@@ -671,100 +672,6 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
         </div>
       )}
 
-      {/* ── Track target modal ─────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {trackTarget && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-sm relative shadow-2xl"
-            >
-              <button onClick={() => setTrackTarget(null)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
-              <h2 className="text-xl font-bold text-white mb-1">Add Target</h2>
-              <div className="text-sm text-white/50 mb-4 truncate">{trackTarget.songTitle}</div>
-
-              <div className="flex items-center gap-3 mb-6 p-3 bg-white/5 rounded-xl border border-white/10">
-                <span
-                  className="text-xs font-bold px-2 py-1 rounded"
-                  style={{
-                    backgroundColor: (DIFF_COLOR[trackTarget.diff.toLowerCase()] ?? '#9ca3af') + '33',
-                    color: DIFF_COLOR[trackTarget.diff.toLowerCase()] ?? '#9ca3af',
-                  }}
-                >
-                  {trackTarget.diff} {trackTarget.level.toFixed(1)}
-                </span>
-                <span className="text-xs font-bold text-white/50">{trackTarget.type}</span>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-xs text-white/50 font-bold uppercase tracking-wider mb-2">Quick Pick Rank</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {([
-                    { rank: 'S',    val: '97.0000',  color: '#60a5fa' },
-                    { rank: 'S+',   val: '98.0000',  color: '#818cf8' },
-                    { rank: 'SS',   val: '99.0000',  color: '#a78bfa' },
-                    { rank: 'SS+',  val: '99.5000',  color: '#c084fc' },
-                    { rank: 'SSS',  val: '100.0000', color: '#f472b6' },
-                    { rank: 'SSS+', val: '100.5000', color: '#fb923c' },
-                  ] as const).map(({ rank, val, color }) => (
-                    <button
-                      key={rank}
-                      onClick={() => setTargetVal(val)}
-                      className="py-2 rounded-lg text-xs font-bold transition-all hover:brightness-125 active:scale-95"
-                      style={{
-                        background: targetVal === val ? color + '33' : 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${targetVal === val ? color + '99' : 'rgba(255,255,255,0.08)'}`,
-                        color: targetVal === val ? color : 'rgba(255,255,255,0.5)',
-                      }}
-                    >
-                      {rank}
-                      <span className="block text-[10px] opacity-70 font-normal">{parseFloat(val).toFixed(1)}%</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-xs text-white/50 font-bold uppercase tracking-wider mb-2">Target Accuracy (%)</label>
-                <input
-                  autoFocus
-                  type="number"
-                  step="0.0001"
-                  value={targetVal}
-                  onChange={e => setTargetVal(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white font-num text-lg outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setTrackTarget(null)}
-                  className="flex-1 py-3 rounded-xl font-bold text-white/70 bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={saving}
-                  onClick={async () => {
-                    const val = parseFloat(targetVal);
-                    if (isNaN(val)) return;
-                    setSaving(true);
-                    await addTracker(trackTarget.songTitle, trackTarget.diff, trackTarget.type, val);
-                    setSaving(false);
-                    setTrackTarget(null);
-                  }}
-                  className="flex-1 py-3 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-500 transition-colors disabled:opacity-50"
-                >
-                  {saving ? 'Adding...' : 'Track'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <SongDetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />
     </PageWrapper>
