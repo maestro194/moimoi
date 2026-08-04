@@ -14,6 +14,7 @@ import {
   Target,
   MoreHorizontal,
   X,
+  BookOpen,
 } from 'lucide-react';
 
 // ── Nav items ─────────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ const secondaryNav = [
   { href: '/recent',   label: 'Recent',   icon: Clock },
   { href: '/analysis', label: 'Analysis', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings2 },
+  { href: '/docs',     label: 'Docs',     icon: BookOpen },
 ];
 
 const allNav = [...primaryNav, ...secondaryNav];
