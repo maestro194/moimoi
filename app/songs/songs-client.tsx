@@ -544,18 +544,44 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
         </div>
       </div>
 
-      {/* ── Column header (sticky below filter bar) ─────────────────────────── */}
-      {filtered.length > 0 && (
-        <div className="glass rounded-xl px-4 py-2 flex items-center text-xs font-semibold sticky top-[var(--filter-bar-h,140px)] z-10 backdrop-blur-md"
-          style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <div className="flex-1 min-w-0 cursor-pointer select-none" onClick={() => handleColSort('title')}>Title / Artist</div>
-          <div className="w-[120px] hidden md:block cursor-pointer select-none" onClick={() => handleColSort('version')}>Version</div>
-          <div className="w-[60px] hidden sm:block text-center">Type</div>
-          <div className="w-[100px] hidden sm:block text-center">Difficulty</div>
-          <div className="w-[80px] text-right cursor-pointer select-none" onClick={() => handleColSort('lev')}>Level ↕</div>
-        </div>
-      )}
+      {/* ── Column header ───────────────────────────────────────────────────────── */}
+      {filtered.length > 0 && (() => {
+        const isLevSort  = sort === 'lev_desc' || sort === 'lev_asc';
+        const isVerSort  = sort === 'newest'   || sort === 'oldest';
+        const isTitleSort = sort === 'title';
+        const levArrow   = sort === 'lev_asc' ? '↑' : sort === 'lev_desc' ? '↓' : '↕';
+        const verArrow   = sort === 'oldest'  ? '↑' : sort === 'newest'   ? '↓' : '';
+
+        const col = (active: boolean) =>
+          `cursor-pointer select-none transition-colors ${
+            active
+              ? 'text-purple-300'
+              : 'text-white/30 hover:text-white/55'
+          }`;
+
+        return (
+          <div
+            className="flex items-center px-4 py-2 text-[11px] font-semibold tracking-widest uppercase sticky top-0 z-10 backdrop-blur-xl rounded-xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(12,9,24,0.92) 0%, rgba(20,14,42,0.88) 100%)',
+              border: '1px solid rgba(139,92,246,0.14)',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div className={`flex-1 min-w-0 ${col(isTitleSort)}`} onClick={() => handleColSort('title')}>
+              Title / Artist
+            </div>
+            <div className={`w-[120px] hidden md:flex items-center gap-1 ${col(isVerSort)}`} onClick={() => handleColSort('version')}>
+              Version {verArrow && <span className="opacity-60 text-base leading-none">{verArrow}</span>}
+            </div>
+            <div className="w-[60px] hidden sm:block text-center text-white/20">Type</div>
+            <div className="w-[100px] hidden sm:block text-center text-white/20">Difficulty</div>
+            <div className={`w-[80px] text-right flex items-center justify-end gap-0.5 ${col(isLevSort)}`} onClick={() => handleColSort('lev')}>
+              Level <span className="opacity-60 text-base leading-none">{levArrow}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Virtual list ──────────────────────────────────────────────────────── */}
       <div
