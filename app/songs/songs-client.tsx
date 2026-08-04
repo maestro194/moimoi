@@ -672,7 +672,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
         </div>
       )}
 
-
+      <ChartActionModal chart={trackTarget} onClose={() => setTrackTarget(null)} />
       <SongDetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />
     </PageWrapper>
   );
