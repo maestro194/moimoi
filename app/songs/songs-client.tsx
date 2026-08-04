@@ -467,7 +467,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
         {/* Row 2: Tags accordion */}
         <div>
           <button
-            className="w-full flex items-center gap-2 text-sm text-left transition-colors rounded-xl px-1"
+            className="w-full flex items-center gap-2 text-sm text-left transition-colors rounded-xl py-2.5 px-3 hover:bg-white/5 active:bg-white/10 mt-1"
             onClick={() => setTagPanelOpen(v => !v)}
           >
             <Tag size={13} style={{ color: selectedTagKeys.length > 0 ? '#c4b5fd' : 'var(--foreground-muted)' }} />
@@ -511,7 +511,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
                           <button
                             key={tag.key}
                             onClick={e => toggleTag(tag.key, e.ctrlKey || e.metaKey)}
-                            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-all active:scale-95"
+                            className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full transition-all active:scale-95"
                             style={{
                               backgroundColor: isActive ? tag.color + '35' : tag.color + '15',
                               border: `1px solid ${isActive ? tag.color + '80' : tag.color + '30'}`,
@@ -541,7 +541,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
                           <button
                             key={tag.key}
                             onClick={e => toggleTag(tag.key, e.ctrlKey || e.metaKey)}
-                            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-all active:scale-95"
+                            className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full transition-all active:scale-95"
                             style={{
                               backgroundColor: isActive ? tag.color + '35' : tag.color + '15',
                               border: `1px solid ${isActive ? tag.color + '80' : tag.color + '30'}`,
