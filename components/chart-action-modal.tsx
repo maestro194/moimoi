@@ -162,16 +162,7 @@ export function ChartActionModal({ chart, onClose }: Props) {
                     </div>
                   </div>
 
-                  <div className="mb-4">
-                    <label className="block text-xs text-white/50 font-bold uppercase tracking-wider mb-1">Target Accuracy (%)</label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={targetVal}
-                      onChange={e => setTargetVal(e.target.value)}
-                      className="w-full bg-[#222] border border-white/10 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 transition-colors font-num text-lg"
-                    />
-                  </div>
+
 
                   <button
                     onClick={handleAddGoal}

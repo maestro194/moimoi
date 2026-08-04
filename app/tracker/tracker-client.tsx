@@ -514,15 +514,31 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
               )}
 
               <div className="mb-4 shrink-0">
-                <label className="text-xs text-white/50 font-bold uppercase tracking-wider block mb-1.5">Target Accuracy (%)</label>
-                <input 
-                  type="number" 
-                  step="0.0001"
-                  value={targetVal}
-                  onChange={e => setTargetVal(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-white font-num outline-none focus:border-purple-500/50"
-                  autoFocus={!!selectedGoal}
-                />
+                <label className="text-xs text-white/50 font-bold uppercase tracking-wider block mb-1.5">Quick Pick Rank</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    { rank: 'S',    val: '97.0000',  color: '#60a5fa' },
+                    { rank: 'S+',   val: '98.0000',  color: '#818cf8' },
+                    { rank: 'SS',   val: '99.0000',  color: '#a78bfa' },
+                    { rank: 'SS+',  val: '99.5000',  color: '#c084fc' },
+                    { rank: 'SSS',  val: '100.0000', color: '#f472b6' },
+                    { rank: 'SSS+', val: '100.5000', color: '#fb923c' },
+                  ] as const).map(({ rank, val, color }) => (
+                    <button
+                      key={rank}
+                      onClick={() => setTargetVal(val)}
+                      className="py-1.5 rounded-lg text-xs font-bold transition-all hover:brightness-125 active:scale-95"
+                      style={{
+                        background: targetVal === val ? color + '33' : 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${targetVal === val ? color + '99' : 'rgba(255,255,255,0.08)'}`,
+                        color: targetVal === val ? color : 'rgba(255,255,255,0.5)',
+                      }}
+                    >
+                      {rank}
+                      <span className="block text-[9px] opacity-70 font-normal">{parseFloat(val).toFixed(1)}%</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {selectedGoal ? (
