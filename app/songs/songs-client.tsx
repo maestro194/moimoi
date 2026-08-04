@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Search, Music2, Calendar, Tag, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import type { Song, UnifiedTag } from '@/lib/types';
-import { useVirtualizer } from '@tanstack/react-virtual';
+
 import { PageWrapper } from '@/components/page-wrapper';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toRomaji } from '@/lib/romaji';
@@ -298,9 +298,6 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
       }
 
       result.push({ kind: 'song', row: r, tags });
-      // Rows with tags are taller — flag it so estimateSize can differentiate.
-      // (The virtualizer will measure actual height after render anyway.)
-      void hasTags;
     }
     return result;
   }, [filtered, sort, tagsData, getTagsForChart]);
@@ -312,29 +309,41 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
     else if (colKey === 'date') setSort(s => s === 'date_desc' ? 'date_asc' : 'date_desc');
   }
 
-  // ── Virtualizer with dynamic measurement ────────────────────────────────
-  // Uses the <main> element as scroll container (body has overflow:hidden;
-  // <main> has overflow:auto — so window scroll is always 0).
-  const parentRef = useRef<HTMLDivElement>(null);
+  // ── Pagination ─────────────────────────────────────────────────────────────
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.ceil(tableRows.length / PAGE_SIZE);
 
-  const virtualizer = useVirtualizer({
-    count: tableRows.length,
-    getScrollElement: () => {
-      // Walk up to find the scrollable <main> ancestor
-      if (typeof document === 'undefined') return null;
-      return document.querySelector('main') as HTMLElement | null;
-    },
-    estimateSize: (i) => {
-      const item = tableRows[i];
-      if (!item || item.kind === 'header') return 36;
-      return item.tags.length > 0 ? 72 : 58;
-    },
-    overscan: 8,
-    measureElement:
-      typeof window !== 'undefined'
-        ? (el) => el?.getBoundingClientRect().height ?? 58
-        : undefined,
-  });
+  // Reset to page 1 whenever any filter or sort changes
+  useEffect(() => { setPage(1); }, [query, cat, levelG, sort, showUtage, showLowerDiffs, selectedTagKeys]);
+
+  const pageRows = useMemo(
+    () => tableRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [tableRows, page]
+  );
+
+  const goToPage = useCallback((p: number) => {
+    setPage(p);
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Build pagination page numbers with ellipsis
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const delta = 2;
+    const range: (number | '...')[] = [];
+    const left  = Math.max(2, page - delta);
+    const right = Math.min(totalPages - 1, page + delta);
+
+    range.push(1);
+    if (left > 2) range.push('...');
+    for (let i = left; i <= right; i++) range.push(i);
+    if (right < totalPages - 1) range.push('...');
+    range.push(totalPages);
+    return range;
+  }, [totalPages, page]);
+
+  const parentRef = useRef<HTMLDivElement>(null); // kept for layout ref
 
   const toggleTag = useCallback((key: string, exclusive = false) => {
     setSelectedTagKeys(prev =>
@@ -551,33 +560,19 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
         </div>
       </div>
 
-      {/* ── Column header ───────────────────────────────────────────────────────── */}
+      {/* ── Column header ─────────────────────────────────────────────────────── */}
       {filtered.length > 0 && (() => {
-        const isLevSort  = sort === 'lev_desc' || sort === 'lev_asc';
-        const isVerSort  = sort === 'newest'   || sort === 'oldest';
+        const isLevSort   = sort === 'lev_desc' || sort === 'lev_asc';
+        const isVerSort   = sort === 'newest'   || sort === 'oldest';
         const isTitleSort = sort === 'title';
-        const levArrow   = sort === 'lev_asc' ? '↑' : sort === 'lev_desc' ? '↓' : '↕';
-        const verArrow   = sort === 'oldest'  ? '↑' : sort === 'newest'   ? '↓' : '';
-
+        const levArrow    = sort === 'lev_asc'  ? '↑' : sort === 'lev_desc' ? '↓' : '↕';
+        const verArrow    = sort === 'oldest'   ? '↑' : sort === 'newest'   ? '↓' : '';
         const col = (active: boolean) =>
-          `cursor-pointer select-none transition-colors ${
-            active
-              ? 'text-purple-300'
-              : 'text-white/30 hover:text-white/55'
-          }`;
-
+          `cursor-pointer select-none transition-colors ${active ? 'text-purple-300' : 'text-white/30 hover:text-white/55'}`;
         return (
-          <div
-            className="flex items-center px-4 py-2 text-[11px] font-semibold tracking-widest uppercase sticky top-0 z-10 backdrop-blur-xl rounded-xl"
-            style={{
-              background: 'linear-gradient(135deg, rgba(12,9,24,0.92) 0%, rgba(20,14,42,0.88) 100%)',
-              border: '1px solid rgba(139,92,246,0.14)',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
-            }}
-          >
-            <div className={`flex-1 min-w-0 ${col(isTitleSort)}`} onClick={() => handleColSort('title')}>
-              Title / Artist
-            </div>
+          <div className="flex items-center px-4 py-2 text-[11px] font-semibold tracking-widest uppercase sticky top-0 z-10 backdrop-blur-xl rounded-xl"
+            style={{ background: 'linear-gradient(135deg, rgba(12,9,24,0.92) 0%, rgba(20,14,42,0.88) 100%)', border: '1px solid rgba(139,92,246,0.14)', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
+            <div className={`flex-1 min-w-0 ${col(isTitleSort)}`} onClick={() => handleColSort('title')}>Title / Artist</div>
             <div className={`w-[120px] hidden md:flex items-center gap-1 ${col(isVerSort)}`} onClick={() => handleColSort('version')}>
               Version {verArrow && <span className="opacity-60 text-base leading-none">{verArrow}</span>}
             </div>
@@ -590,117 +585,91 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
         );
       })()}
 
-      {/* ── Virtual list ──────────────────────────────────────────────────────── */}
-      <div
-        ref={parentRef}
-        style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}
-      >
+      {/* ── Chart list (current page) ─────────────────────────────────────────── */}
+      <div ref={parentRef} className="overflow-hidden rounded-b-xl">
         {filtered.length === 0 ? (
           <div className="glass rounded-2xl p-12 text-center" style={{ color: 'var(--foreground-muted)' }}>
             <Music2 size={32} className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">No charts match your search</p>
           </div>
         ) : (
-          virtualizer.getVirtualItems().map(virtualRow => {
-            const item = tableRows[virtualRow.index];
-
-            // ── Date header row ──
+          pageRows.map(item => {
             if (item.kind === 'header') {
               const label = formatDate(item.date) ?? item.date ?? 'Unknown';
               return (
-                <div
-                  key={`header-${item.date}`}
-                  data-index={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  className="absolute top-0 left-0 w-full"
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
-                >
-                  <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/10" style={{ background: 'rgba(139,92,246,0.08)' }}>
-                    <Calendar size={12} style={{ color: '#c4b5fd' }} />
-                    <span className="text-xs font-semibold tracking-wide" style={{ color: '#c4b5fd' }}>{label}</span>
-                  </div>
+                <div key={`header-${item.date}`} className="flex items-center gap-2 px-4 py-1.5 border-b border-white/10" style={{ background: 'rgba(139,92,246,0.08)' }}>
+                  <Calendar size={12} style={{ color: '#c4b5fd' }} />
+                  <span className="text-xs font-semibold tracking-wide" style={{ color: '#c4b5fd' }}>{label}</span>
                 </div>
               );
             }
-
-            // ── Chart row ──
             const { row, tags } = item;
             const isNew = parseInt(row.song.version) >= currentVersion - 500;
             const jacketUrl = row.song.image_url ? getJacketUrl(row.song.image_url, row.song.intl) : null;
             const abbrKey = ABBR_TO_KEY[row.abbr] ?? row.abbr.toLowerCase();
             const diffColor = DIFF_COLOR[abbrKey] ?? '#9ca3af';
-
             return (
-              <div
-                key={`${row.song.title}-${row.type}-${row.abbr}`}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                className="absolute top-0 left-0 w-full"
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
-              >
-                {/* Pure-CSS hover — no framer-motion per row */}
-                <div
-                  className="song-list-row flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02] cursor-pointer transition-colors hover:bg-white/[0.05]"
-                  style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
-                  onClick={() => setDetailsRow({ song: row.song, type: row.type, difficulty: row.difficulty, abbr: row.abbr })}
-                >
-                  {/* Jacket + title */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0 pr-3">
-                    <div className="w-10 h-10 shrink-0 overflow-hidden rounded shadow-sm bg-black/20">
-                      {jacketUrl
-                        ? <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" />
-                        : <Music2 size={16} className="m-auto mt-2 text-white/20" />
-                      }
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-sm truncate text-white">{row.song.title}</div>
-                      <div className="text-xs truncate text-white/50">{row.song.artist}</div>
-                      {/* Tags pre-computed — no extra hook call per row */}
-                      <TagChips tags={tags} />
-                    </div>
+              <div key={`${row.song.title}-${row.type}-${row.abbr}`}
+                className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02] cursor-pointer transition-colors hover:bg-white/[0.05]"
+                style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
+                onClick={() => setDetailsRow({ song: row.song, type: row.type, difficulty: row.difficulty, abbr: row.abbr })}>
+                <div className="flex items-center gap-3 flex-1 min-w-0 pr-3">
+                  <div className="w-10 h-10 shrink-0 overflow-hidden rounded shadow-sm bg-black/20">
+                    {jacketUrl ? <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" /> : <Music2 size={16} className="m-auto mt-2 text-white/20" />}
                   </div>
-
-                  {/* Version */}
-                  <div className="w-[120px] hidden md:block text-xs text-white/50 truncate pr-2 shrink-0">
-                    {versionLabel(row.song.version)}
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm truncate text-white">{row.song.title}</div>
+                    <div className="text-xs truncate text-white/50">{row.song.artist}</div>
+                    <TagChips tags={tags} />
                   </div>
-
-                  {/* Type badge */}
-                  <div className="w-[60px] hidden sm:flex justify-center shrink-0">
-                    <img
-                      src={row.type === 'DX' ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
-                      alt={row.type}
-                      className="h-3.5 object-contain"
-                    />
-                  </div>
-
-                  {/* Difficulty pill */}
-                  <div className="w-[100px] hidden sm:flex justify-center shrink-0">
-                    <span
-                      className="text-[11px] font-extrabold px-2 py-0.5 rounded-sm tracking-wider leading-none"
-                      style={{ backgroundColor: diffColor + '30', color: diffColor, border: `1px solid ${diffColor}60` }}
-                    >
-                      {DIFF_LABELS[row.abbr] ?? row.abbr}
-                    </span>
-                  </div>
-
-                  {/* Level — click opens tracker target */}
-                  <div
-                    className="w-[80px] text-right font-bold font-num text-lg pr-1 shrink-0 hover:opacity-70 transition-opacity"
-                    style={{ color: diffColor }}
-                    onClick={e => {
-                      e.stopPropagation();
-                      setTrackTarget({ songTitle: row.song.title, diff: row.abbr, type: row.type, level: parseFloat(row.internal) });
-                    }}
-                  >
-                    {parseFloat(row.internal).toFixed(1)}
-                  </div>
+                </div>
+                <div className="w-[120px] hidden md:block text-xs text-white/50 truncate pr-2 shrink-0">{versionLabel(row.song.version)}</div>
+                <div className="w-[60px] hidden sm:flex justify-center shrink-0">
+                  <img src={row.type === 'DX' ? '/badges/music_dx.webp' : '/badges/music_standard.webp'} alt={row.type} className="h-3.5 object-contain" />
+                </div>
+                <div className="w-[100px] hidden sm:flex justify-center shrink-0">
+                  <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-sm tracking-wider leading-none"
+                    style={{ backgroundColor: diffColor + '30', color: diffColor, border: `1px solid ${diffColor}60` }}>
+                    {DIFF_LABELS[row.abbr] ?? row.abbr}
+                  </span>
+                </div>
+                <div className="w-[80px] text-right font-bold font-num text-lg pr-1 shrink-0 hover:opacity-70 transition-opacity"
+                  style={{ color: diffColor }}
+                  onClick={e => { e.stopPropagation(); setTrackTarget({ songTitle: row.song.title, diff: row.abbr, type: row.type, level: parseFloat(row.internal) }); }}>
+                  {parseFloat(row.internal).toFixed(1)}
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* ── Pagination bar ────────────────────────────────────────────────────── */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1 py-4 flex-wrap">
+          <button onClick={() => goToPage(Math.max(1, page - 1))} disabled={page === 1}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-25"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--foreground-muted)' }}>
+            ← PREV
+          </button>
+          {pageNumbers.map((p, i) =>
+            p === '...' ? (
+              <span key={`ellipsis-${i}`} className="px-2 text-white/25 text-xs select-none">…</span>
+            ) : (
+              <button key={p} onClick={() => goToPage(p as number)}
+                className="w-8 h-8 rounded-lg text-xs font-bold transition-all"
+                style={{ background: page === p ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.04)', border: `1px solid ${page === p ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.07)'}`, color: page === p ? '#c4b5fd' : 'rgba(255,255,255,0.4)' }}>
+                {p}
+              </button>
+            )
+          )}
+          <button onClick={() => goToPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-25"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--foreground-muted)' }}>
+            NEXT →
+          </button>
+        </div>
+      )}
 
       {/* ── Track target modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
