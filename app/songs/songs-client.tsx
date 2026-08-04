@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Search, Music2, Calendar, Tag, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import type { Song, UnifiedTag } from '@/lib/types';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { PageWrapper } from '@/components/page-wrapper';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toRomaji } from '@/lib/romaji';
@@ -214,7 +214,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
   const [saving, setSaving]           = useState(false);
 
   // ── Tags
-  const { getAllUnifiedTags, getTagSongCount, getTagsForChart, chartHasAnyTag, getChartTagCount, tagsData, isLoading: tagsLoading } = useTags();
+  const { getAllUnifiedTags, getTagSongCount, getTagsForChart, getChartTagCount, tagsData, isLoading: tagsLoading } = useTags();
   const allUnifiedTags = useMemo(() => getAllUnifiedTags(), [getAllUnifiedTags, tagsData]);
 
   const tagFilterGroups = useMemo(() => {
@@ -255,7 +255,11 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
 
     if (levelG !== 'all') rows = rows.filter(r => r.display?.replace('?', '').trim() === levelG);
     if (selectedTagKeys.length > 0) {
-      rows = rows.filter(r => chartHasAnyTag(r.song.title, r.type, r.abbr, selectedTagKeys));
+      // ALL mode: chart must have every selected tag
+      rows = rows.filter(r => {
+        const chartTags = tagsData ? getTagsForChart(r.song.title, r.type, r.abbr).map(t => t.key) : [];
+        return selectedTagKeys.every(k => chartTags.includes(k));
+      });
     }
 
     switch (sort) {
@@ -271,7 +275,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
       case 'tags_desc': rows.sort((a, b) => getChartTagCount(b.song.title, b.type, b.abbr) - getChartTagCount(a.song.title, a.type, a.abbr)); break;
     }
     return rows;
-  }, [allSongs, matchesQuery, cat, levelG, sort, showUtage, showLowerDiffs, selectedTagKeys, chartHasAnyTag, getChartTagCount]);
+  }, [allSongs, matchesQuery, cat, levelG, sort, showUtage, showLowerDiffs, selectedTagKeys, getChartTagCount, getTagsForChart, tagsData]);
 
   // Build rows with date headers; attach pre-computed tags to each row so
   // we don't call useTags() inside every virtualizer cell.
@@ -309,20 +313,23 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
   }
 
   // ── Virtualizer with dynamic measurement ────────────────────────────────
-  // measureElement allows the virtualizer to read the actual rendered height,
-  // so tag chips (which make rows taller) don't clip into the next row.
+  // Uses the <main> element as scroll container (body has overflow:hidden;
+  // <main> has overflow:auto — so window scroll is always 0).
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const virtualizer = useWindowVirtualizer({
+  const virtualizer = useVirtualizer({
     count: tableRows.length,
-    // Base estimate: 58 plain, 72 with tags (will be corrected by measureElement)
+    getScrollElement: () => {
+      // Walk up to find the scrollable <main> ancestor
+      if (typeof document === 'undefined') return null;
+      return document.querySelector('main') as HTMLElement | null;
+    },
     estimateSize: (i) => {
       const item = tableRows[i];
       if (!item || item.kind === 'header') return 36;
       return item.tags.length > 0 ? 72 : 58;
     },
     overscan: 8,
-    // measureElement lets the virtualizer read real heights after paint
     measureElement:
       typeof window !== 'undefined'
         ? (el) => el?.getBoundingClientRect().height ?? 58
