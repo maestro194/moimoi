@@ -140,7 +140,8 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
         let val = sh.internalLevelValue ?? sh.internalLevel;
         if (sh.multiverInternalLevelValue) {
           const versions = [
-            'CiRCLE',
+            'CiRCLE PLUS', 'CiRCLE',
+            'PRiSM PLUS', 'PRiSM',
             'BUDDiES PLUS', 'BUDDiES',
             'FESTiVAL PLUS', 'FESTiVAL',
             'UNiVERSE PLUS', 'UNiVERSE',
@@ -446,7 +447,7 @@ export function detectCurrentVersion(songs: Song[]): number {
   for (const [v, count] of counts.entries()) {
     if (count >= 20 && v > max) max = v;
   }
-  return max || 25000;
+  return max || 26000;
 }
 
 /** Get all unique categories in the song DB. */
