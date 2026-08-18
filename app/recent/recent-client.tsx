@@ -242,6 +242,11 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
                 <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70 text-[10px] font-bold tracking-wider">
                   Track {play.track || '?'}
                 </span>
+                {play.internalLevel > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider" style={{ backgroundColor: accent + '22', color: accent }}>
+                    {play.internalLevel.toFixed(1)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -251,7 +256,12 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
                 {achvNum.toFixed(4)}<span className="text-sm ml-0.5">%</span>
               </span>
             </div>
-            <div className="flex justify-end gap-1">
+            <div className="flex justify-end items-center gap-1">
+              {play.rating > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold font-num tabular-nums">
+                  ★ {play.rating}
+                </span>
+              )}
               <FCBadge fc={play.fc as FC} className="bg-white/5" />
               <FSBadge fs={play.fs as FS} className="bg-white/5" />
             </div>
