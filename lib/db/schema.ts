@@ -217,3 +217,47 @@ export type InsertTrackerItem = typeof trackerItems.$inferInsert;
 export type SelectTrackerItem = typeof trackerItems.$inferSelect;
 export type InsertSessionItem = typeof sessionItems.$inferInsert;
 export type SelectSessionItem = typeof sessionItems.$inferSelect;
+
+// ── Chart Statistics ─────────────────────────────────────────────────────────
+
+/**
+ * Aggregate play count per chart × version.
+ * One row per (song × difficulty × type × version).
+ * Allows tracking "how many times did I play this chart in CiRCLE vs CiRCLE PLUS".
+ */
+export const chartStats = pgTable('chart_stats', {
+  id:          serial('id').primaryKey(),
+  songTitle:   text('song_title').notNull(),
+  difficulty:  varchar('difficulty', { length: 10 }).notNull(),
+  songType:    varchar('song_type', { length: 5 }).notNull().default('DX'),
+  version:     text('version').notNull(), // e.g. '26500' = CiRCLE PLUS
+  playCount:   integer('play_count').notNull().default(0),
+  updatedAt:   timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  uniqueChartVersion: unique('unique_chart_version').on(
+    t.songTitle, t.difficulty, t.songType, t.version
+  ),
+}));
+
+/**
+ * Score improvement snapshots.
+ * A new row is inserted whenever a sync detects a chart score has improved.
+ * This builds a full progression history: 99.2% → 99.8% → 100.2%.
+ */
+export const scoreHistory = pgTable('score_history', {
+  id:          serial('id').primaryKey(),
+  songTitle:   text('song_title').notNull(),
+  difficulty:  varchar('difficulty', { length: 10 }).notNull(),
+  songType:    varchar('song_type', { length: 5 }).notNull().default('DX'),
+  achievement: text('achievement').notNull(),   // e.g. "99.8000"
+  dxScore:     integer('dx_score'),
+  fc:          varchar('fc', { length: 5 }),
+  fs:          varchar('fs', { length: 5 }),
+  rating:      integer('rating'),               // Computed at snapshot time
+  recordedAt:  timestamp('recorded_at').notNull().defaultNow(),
+});
+
+export type InsertChartStats = typeof chartStats.$inferInsert;
+export type SelectChartStats = typeof chartStats.$inferSelect;
+export type InsertScoreHistory = typeof scoreHistory.$inferInsert;
+export type SelectScoreHistory = typeof scoreHistory.$inferSelect;

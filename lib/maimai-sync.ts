@@ -15,7 +15,7 @@
 import * as cheerio from 'cheerio';
 import type { Difficulty, FC, FS, Region, SongType } from './types';
 import { db } from './db';
-import { scores, playLog, settings } from './db/schema';
+import { scores, playLog, settings, scoreHistory } from './db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { CookieJar } from 'tough-cookie';
 import makeFetchCookie from 'fetch-cookie';
@@ -781,6 +781,19 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
           playedAt: item.playedAt,
         })
         .where(eq(scores.id, item.id));
+
+      // Snapshot this improvement into score_history
+      await db.insert(scoreHistory).values({
+        songTitle: item.songTitle,
+        difficulty: item.difficulty,
+        songType: item.songType ?? 'DX',
+        achievement: String(item.achievement),
+        dxScore: item.dxScore ?? null,
+        fc: item.fc ?? null,
+        fs: item.fs ?? null,
+        recordedAt: now,
+      });
+
       result.updated++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

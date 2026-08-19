@@ -436,7 +436,7 @@ export default function RecentClient({ logs, lastSync, profile }: RecentClientPr
           <CreditSection
             key={credit.id}
             credit={credit}
-            creditNumber={credits.length - i}
+            creditNumber={credits.length - i + 8}
           />
         ))}
       </div>
