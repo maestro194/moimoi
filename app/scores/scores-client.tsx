@@ -321,7 +321,7 @@ function B50Card({ score: s, index = 0, animated = false }: { score: ScoreWithRa
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl h-[104px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 ${animated ? 'animate-slide-up' : ''}`}
+      className={`relative overflow-hidden rounded-xl h-[160px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 ${animated ? 'animate-slide-up' : ''}`}
       style={{ 
         border: `1.5px solid ${diffColor}`,
         animationDelay: animated ? `${index * 0.03}s` : undefined,
