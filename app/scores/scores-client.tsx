@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Search, Trophy, LayoutGrid, List, BarChart2 } from 'lucide-react';
 import type { ScoreWithRating, Difficulty, PlayerProfile } from '@/lib/types';
 import { PageWrapper } from '@/components/page-wrapper';
@@ -8,6 +8,7 @@ import MatrixView from './matrix-view';
 import { getJacketUrl } from '@/lib/song-db';
 import { Jacket } from '@/components/jacket';
 import { SyncBar } from '@/components/sync-bar';
+import { ChartDetailDrawer } from '@/components/chart-detail-drawer';
 
 interface Props {
   scored: ScoreWithRating[];
@@ -50,6 +51,11 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
   const [minLevel, setMinLevel] = useState<number>(14.0);
   const [maxLevel, setMaxLevel] = useState<number>(15.0);
   const [hideUnplayed, setHideUnplayed] = useState(false);
+
+  // Chart detail drawer
+  const [selectedScore, setSelectedScore] = useState<ScoreWithRating | null>(null);
+  const openDrawer = useCallback((s: ScoreWithRating) => setSelectedScore(s), []);
+  const closeDrawer = useCallback(() => setSelectedScore(null), []);
 
   const filtered = useMemo(() => {
     let list = [...scored];
@@ -112,15 +118,16 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
         
         {view === 'grid' ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {data.map((s, i) => <B50Card key={s.id} score={s} index={i} animated={limit !== null} />)}
+            {data.map((s, i) => <B50Card key={s.id} score={s} index={i} animated={limit !== null} onSelect={openDrawer} />)}
           </div>
         ) : (
           <div className="glass rounded-xl overflow-hidden divide-y divide-white/5">
             {data.map((s, i) => (
               <div 
                 key={s.id} 
-                className={`flex items-center gap-3 pr-4 hover:bg-white/5 transition-colors group ${limit !== null ? 'animate-slide-up' : ''}`}
+                className={`flex items-center gap-3 pr-4 hover:bg-white/5 transition-colors group cursor-pointer ${limit !== null ? 'animate-slide-up' : ''}`}
                 style={limit !== null ? { animationDelay: `${i * 0.03}s`, animationFillMode: 'both' } : undefined}
+                onClick={() => openDrawer(s)}
               >
                 <div className="w-1.5 h-14 shrink-0" style={{ background: DIFF_COLOR[s.difficulty] }} />
                 <Jacket 
@@ -154,7 +161,9 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
   }
 
   return (
-    <PageWrapper className="p-6 max-w-[1400px] mx-auto space-y-6">
+    <>
+      <ChartDetailDrawer score={selectedScore} onClose={closeDrawer} />
+      <PageWrapper className="p-6 max-w-[1400px] mx-auto space-y-6">
       <SyncBar profile={profile} lastSync={lastSync} />
       <div className="flex items-end justify-between">
         <div>
@@ -312,21 +321,23 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
         </div>
       )}
     </PageWrapper>
+    </>
   );
 }
 
-function B50Card({ score: s, index = 0, animated = false }: { score: ScoreWithRating, index?: number, animated?: boolean }) {
+function B50Card({ score: s, index = 0, animated = false, onSelect }: { score: ScoreWithRating, index?: number, animated?: boolean, onSelect?: (s: ScoreWithRating) => void }) {
   const diffColor = DIFF_COLOR[s.difficulty] ?? '#fff';
   const isDX = s.songType === 'DX';
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl h-[160px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 ${animated ? 'animate-slide-up' : ''}`}
+      className={`relative overflow-hidden rounded-xl h-[160px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 cursor-pointer ${animated ? 'animate-slide-up' : ''}`}
       style={{ 
         border: `1.5px solid ${diffColor}`,
         animationDelay: animated ? `${index * 0.03}s` : undefined,
         animationFillMode: animated ? 'both' : undefined
       }}
+      onClick={() => onSelect?.(s)}
     >
       {/* Background Image */}
       {s.song?.image_url && (
