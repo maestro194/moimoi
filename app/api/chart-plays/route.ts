@@ -15,32 +15,33 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'Missing title or diff' }, { status: 400 });
   }
 
-  // Top 10 individual plays for this chart from play_log, sorted by achievement desc
-  const plays = await db
-    .select()
-    .from(playLog)
-    .where(
-      and(
-        eq(playLog.songTitle, title),
-        eq(playLog.difficulty, diff),
-        eq(playLog.songType, type),
-      ),
-    )
-    .orderBy(desc(playLog.achievement))
-    .limit(10);
+  // Run both queries in parallel — no reason to await one before the other
+  const [plays, history] = await Promise.all([
+    db
+      .select()
+      .from(playLog)
+      .where(
+        and(
+          eq(playLog.songTitle, title),
+          eq(playLog.difficulty, diff),
+          eq(playLog.songType, type),
+        ),
+      )
+      .orderBy(desc(playLog.achievement))
+      .limit(10),
 
-  // Score improvement history (from score_history — snapshots on each improvement)
-  const history = await db
-    .select()
-    .from(scoreHistory)
-    .where(
-      and(
-        eq(scoreHistory.songTitle, title),
-        eq(scoreHistory.difficulty, diff),
-        eq(scoreHistory.songType, type),
-      ),
-    )
-    .orderBy(scoreHistory.recordedAt);
+    db
+      .select()
+      .from(scoreHistory)
+      .where(
+        and(
+          eq(scoreHistory.songTitle, title),
+          eq(scoreHistory.difficulty, diff),
+          eq(scoreHistory.songType, type),
+        ),
+      )
+      .orderBy(scoreHistory.recordedAt),
+  ]);
 
   return Response.json({ plays, history });
 }

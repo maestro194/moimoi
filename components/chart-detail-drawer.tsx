@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp, Trophy, ExternalLink } from 'lucide-react';
 import type { ScoreWithRating, FC, FS } from '@/lib/types';
@@ -39,19 +39,53 @@ interface Props {
   onClose: () => void;
 }
 
+// ── Module-level cache (B): survives re-renders, cleared on page navigation ──
+const playsCache = new Map<string, ChartPlaysData>();
+
+function cacheKey(s: ScoreWithRating) {
+  return `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
+}
+
 function useChartPlays(score: ScoreWithRating | null) {
   const [data, setData] = useState<ChartPlaysData | null>(null);
   const [loading, setLoading] = useState(false);
+  // Track the in-flight request so we can abort it if the card changes quickly
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!score) { setData(null); return; }
+
+    const key = cacheKey(score);
+
+    // Cache hit — instant render, no network needed
+    const cached = playsCache.get(key);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+      return;
+    }
+
+    // Abort any previous in-flight fetch
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     fetch(
       `/api/chart-plays?title=${encodeURIComponent(score.songTitle)}&diff=${score.difficulty}&type=${score.songType ?? 'DX'}`,
+      { signal: controller.signal },
     )
       .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then((d: ChartPlaysData) => {
+        playsCache.set(key, d);   // store in cache for next time
+        setData(d);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [score?.songTitle, score?.difficulty, score?.songType]);
 
   return { data, loading };
