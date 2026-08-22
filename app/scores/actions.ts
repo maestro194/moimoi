@@ -20,7 +20,7 @@ export async function getAllCharts(): Promise<MinimalChart[]> {
   const charts: MinimalChart[] = [];
 
   const region = await getSetting('maimai_region') ?? 'intl';
-
+  
   for (const s of songs) {
     if (region === 'intl' && s.intl === false) continue;
     if (region === 'jp' && s.jp === false) continue;

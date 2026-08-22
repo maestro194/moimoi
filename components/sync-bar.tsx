@@ -42,7 +42,11 @@ export function SyncBar({ profile, lastSync }: SyncBarProps) {
             if (data.type === 'progress') {
               setSyncMsg(data.message);
             } else if (data.type === 'done') {
-              setSyncMsg(`Synced! ${data.result.inserted} new, ${data.result.updated} updated.`);
+              const r = data.result;
+              const goalsPart = r.goalsCleared?.length
+                ? ` 🎯 ${r.goalsCleared.length} goal${r.goalsCleared.length > 1 ? 's' : ''} cleared!`
+                : '';
+              setSyncMsg(`Synced! ${r.inserted} new, ${r.updated} updated.${goalsPart}`);
               setTimeout(() => window.location.reload(), 1500);
             } else if (data.type === 'error') {
               setSyncMsg(`Error: ${data.message}`);

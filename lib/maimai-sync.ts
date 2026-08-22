@@ -15,7 +15,7 @@
 import * as cheerio from 'cheerio';
 import type { Difficulty, FC, FS, Region, SongType } from './types';
 import { db } from './db';
-import { scores, playLog, settings, scoreHistory } from './db/schema';
+import { scores, playLog, settings, scoreHistory, scoreTrackers } from './db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { CookieJar } from 'tough-cookie';
 import makeFetchCookie from 'fetch-cookie';
@@ -460,6 +460,7 @@ export interface SyncResult {
   inserted: number;
   updated: number;
   errors: string[];
+  goalsCleared: string[]; // Human-readable labels for each auto-cleared goal
 }
 
 /**
@@ -573,7 +574,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
     if (onProgress) onProgress('Warning: Failed to fetch player profile.');
   }
 
-  const result: SyncResult = { inserted: 0, updated: 0, errors: [] };
+  const result: SyncResult = { inserted: 0, updated: 0, errors: [], goalsCleared: [] };
   const allParsed: ParsedScore[] = [];
   const now = new Date();
 
@@ -818,6 +819,42 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`DB Error (${score.songTitle}): ${msg}`);
     }
+  }
+
+  // ── Auto-clear reached goals ─────────────────────────────────────────────
+  try {
+    const activeGoals = await db.select().from(scoreTrackers);
+    if (activeGoals.length > 0) {
+      // Build a fast lookup of the best scores we just saved/know about
+      const bestScoreMap = new Map<string, number>();
+      for (const s of existingScoresRaw) {
+        bestScoreMap.set(
+          `${s.songTitle}::${s.difficulty}::${s.songType}`,
+          parseFloat(s.achievement as string),
+        );
+      }
+      // Also fold in freshly inserted scores
+      for (const s of scoresToInsert) {
+        const key = `${s.songTitle}::${s.difficulty}::${s.songType}`;
+        const cur = bestScoreMap.get(key) ?? 0;
+        if (s.achievement > cur) bestScoreMap.set(key, s.achievement);
+      }
+
+      for (const goal of activeGoals) {
+        const key = `${goal.songTitle}::${goal.difficulty}::${goal.songType}`;
+        const best = bestScoreMap.get(key) ?? 0;
+        const target = parseFloat(goal.targetAchievement as string);
+        if (best >= target) {
+          await db.delete(scoreTrackers).where(eq(scoreTrackers.id, goal.id));
+          const label = `${goal.songTitle} [${goal.difficulty}] → ${target.toFixed(4)}%`;
+          result.goalsCleared.push(label);
+          if (onProgress) onProgress(`🎯 Goal cleared: ${label}`);
+        }
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    result.errors.push(`Goal auto-clear error: ${msg}`);
   }
 
   // Update last sync timestamp
