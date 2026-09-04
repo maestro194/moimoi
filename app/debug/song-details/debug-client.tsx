@@ -171,7 +171,8 @@ export default function SongDetailsDebugClient({ songMapRecord, trackerRows, ses
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {trackerRows.map((d, idx) => {
             const color = DIFF_COLOR[d.difficulty] ?? '#9ca3af';
-            const prog = Math.round(Math.random() * 80 + 10); // fake progress for preview
+            // Deterministic fake progress — derived from song title so SSR and client always agree
+            const prog = (d.songTitle.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 71) + 20;
             return (
               <div
                 key={idx}
