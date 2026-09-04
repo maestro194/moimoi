@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${geist.variable} h-full`}>
       <body className="bg-mesh h-dvh overflow-hidden flex">
-        <Navigation />
+        <Navigation isDev={process.env.NODE_ENV === 'development'} />
 
         {/* ── Main content ─────────────────────────────────────────── */}
         <main className="flex-1 min-w-0 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">

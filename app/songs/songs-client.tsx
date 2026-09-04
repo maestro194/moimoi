@@ -8,6 +8,7 @@ import { PageWrapper } from '@/components/page-wrapper';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toRomaji } from '@/lib/romaji';
 import { getJacketUrl } from '@/lib/song-db';
+import { versionLabel } from '@/lib/version-label';
 import { addTracker } from '@/app/tracker/actions';
 import { SongDetailsModal } from './SongDetailsModal';
 import { ChartActionModal } from '@/components/chart-action-modal';
@@ -77,25 +78,6 @@ interface ChartRow {
 }
 
 // ── Constants (module-level, never re-created) ──────────────────────────────
-
-const VERSION_NAMES: Record<string, string> = {
-  '20000': 'maimai DX',   '20500': 'DX PLUS',
-  '21000': 'Splash',      '21500': 'Splash PLUS',
-  '22000': 'UNiVERSE',    '22500': 'UNiVERSE PLUS',
-  '23000': 'FESTiVAL',    '23500': 'FESTiVAL PLUS',
-  '24000': 'BUDDiES',     '24500': 'BUDDiES PLUS',
-  '25000': 'PRiSM',       '25500': 'PRiSM PLUS',
-  '26000': 'CiRCLE',      '26500': 'CiRCLE PLUS',
-  '10000': 'maimai DX (JP)', '11000': 'DX PLUS (JP)',
-  '12000': 'Splash (JP)', '13000': 'Splash PLUS (JP)',
-  '14000': 'UNiVERSE (JP)', '15000': 'UNiVERSE PLUS (JP)',
-  '16000': 'FESTiVAL (JP)', '17000': 'FESTiVAL PLUS (JP)',
-  '18000': 'BUDDiES (JP)', '18500': 'BUDDiES PLUS (JP)',
-  '19000': 'PRiSM (JP)',  '19500': 'PRiSM PLUS (JP)',
-  '19900': 'CiRCLE (JP)',
-};
-
-function versionLabel(v: string) { return VERSION_NAMES[v] ?? `v${v}`; }
 
 const CAT_LABELS: Record<string, string> = {
   maimai: 'maimai',

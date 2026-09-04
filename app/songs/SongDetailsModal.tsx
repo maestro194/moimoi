@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Song } from '@/lib/types';
 import { getJacketUrl } from '@/lib/song-db';
+import { versionLabel } from '@/lib/version-label';
 import { useTags } from '@/lib/useTags';
 import type { UnifiedTag, PersonalTagGroup } from '@/lib/types';
 
@@ -37,13 +38,6 @@ const CAT_LABELS: Record<string, string> = {
   'niconico&vocaloid': 'niconico & Vocaloid', toho: 'Touhou Project',
   'original&joypolis': 'Original & Joypolis',
 };
-const VERSION_NAMES: Record<string, string> = {
-  '20000': 'maimai DX', '20500': 'DX PLUS', '21000': 'Splash', '21500': 'Splash PLUS',
-  '22000': 'UNiVERSE', '22500': 'UNiVERSE PLUS', '23000': 'FESTiVAL', '23500': 'FESTiVAL PLUS',
-  '24000': 'BUDDiES', '24500': 'BUDDiES PLUS', '25000': 'PRiSM', '25500': 'PRiSM PLUS',
-  '26000': 'CiRCLE', '26500': 'CiRCLE PLUS',
-};
-function versionLabel(v: string) { return VERSION_NAMES[v] ?? `ver. ${v}`; }
 
 // ── TagChip ───────────────────────────────────────────────────────────────────
 function TagChip({ tag, onRemove }: { tag: UnifiedTag; onRemove?: () => void }) {

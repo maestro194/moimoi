@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   X,
   BookOpen,
+  FlaskConical,
 } from 'lucide-react';
 
 // ── Nav items ─────────────────────────────────────────────────────────────────
@@ -32,13 +33,15 @@ const secondaryNav = [
   { href: '/docs',     label: 'Docs',     icon: BookOpen },
 ];
 
-const allNav = [...primaryNav, ...secondaryNav];
+const debugNav = { href: '/debug/song-details', label: 'Debug', icon: FlaskConical };
 
-export function Navigation() {
+export function Navigation({ isDev = false }: { isDev?: boolean }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const pathname = usePathname();
 
-  const isSecondaryActive = secondaryNav.some(n => n.href === pathname);
+  const effectiveSecondaryNav = isDev ? [...secondaryNav, debugNav] : secondaryNav;
+  const allNav = [...primaryNav, ...effectiveSecondaryNav];
+  const isSecondaryActive = effectiveSecondaryNav.some(n => n.href === pathname);
 
   return (
     <>
@@ -56,18 +59,28 @@ export function Navigation() {
         <nav className="flex-1 px-3 py-4 space-y-1">
           {allNav.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href;
+            const isDebug = href === debugNav.href;
             return (
               <Link
                 key={href}
                 href={href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
-                  isActive
-                    ? 'bg-purple-500/20 text-purple-300'
-                    : 'text-white/60 hover:bg-white/5 hover:text-white'
+                  isDebug
+                    ? isActive
+                      ? 'bg-amber-500/20 text-amber-300'
+                      : 'text-amber-500/60 hover:bg-amber-500/10 hover:text-amber-400'
+                    : isActive
+                      ? 'bg-purple-500/20 text-purple-300'
+                      : 'text-white/60 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <Icon size={16} className={`transition-all group-hover:scale-110 ${isActive ? 'text-purple-400' : ''}`} />
+                <Icon size={16} className={`transition-all group-hover:scale-110 ${isActive ? (isDebug ? 'text-amber-400' : 'text-purple-400') : ''}`} />
                 {label}
+                {isDebug && (
+                  <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 leading-none">
+                    DEV
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -120,7 +133,7 @@ export function Navigation() {
                 <div className="px-4 pb-4 pt-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3 px-2">More</p>
                   <div className="space-y-1">
-                    {secondaryNav.map(({ href, label, icon: Icon }) => {
+                    {effectiveSecondaryNav.map(({ href, label, icon: Icon }) => {
                       const isActive = pathname === href;
                       return (
                         <Link

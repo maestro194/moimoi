@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Target, Plus, Search, Trash2, Check, X, Play, List, Edit2 } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Target, Plus, Search, Trash2, Check, X, Play, List, Edit2, Info } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
-import type { ScoreWithRating, Score, Difficulty } from '@/lib/types';
+import type { ScoreWithRating, Score, Difficulty, Song } from '@/lib/types';
 import { computeRating, calcSingleRating, getSongInternalLevel } from '@/lib/rating';
 import { normalizeTitle } from '@/lib/normalize';
 import { addTracker, deleteTracker } from './actions';
@@ -11,6 +11,7 @@ import type { MinimalChart } from '@/app/scores/actions';
 import { Jacket } from '@/components/jacket';
 import { useBoard } from '@/lib/useBoard';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SongDetailsModal } from '@/app/songs/SongDetailsModal';
 
 interface Tracker {
   id: number;
@@ -63,6 +64,27 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
   // Goals detail state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedGoal, setSelectedGoal] = useState<any>(null);
+
+  // Song details modal state
+  const [detailsRow, setDetailsRow] = useState<{
+    song: Song; type: 'DX' | 'STD'; difficulty: string; abbr: string;
+  } | null>(null);
+
+  const DIFF_TO_FULL: Record<string, string> = {
+    BAS: 'basic', ADV: 'advanced', EXP: 'expert', MAS: 'master', REMAS: 'remaster',
+  };
+
+  const openDetails = useCallback((songTitle: string, sheetType: string, sheetDifficulty: string) => {
+    const song = songMap.get(normalizeTitle(songTitle)) as Song | undefined;
+    if (!song) return;
+    setDetailsRow({
+      song,
+      type: sheetType === 'DX' ? 'DX' : 'STD',
+      difficulty: DIFF_TO_FULL[sheetDifficulty] ?? sheetDifficulty.toLowerCase(),
+      abbr: sheetDifficulty,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songMap]);
 
   // Computed data for existing trackers
   const trackerData = useMemo(() => {
@@ -173,10 +195,19 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
             const level = songInfo ? getSongInternalLevel(songInfo, item.sheetDifficulty as Difficulty, item.sheetType as 'DX'|'STD') : 0;
             return (
               <div key={item.id} className={`glass p-3 rounded-xl border border-white/5 flex items-center gap-3 transition-colors ${item.played ? 'opacity-40' : ''}`}>
-                <button onClick={() => handleTogglePlayed(item.id, item.played)} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${item.played ? 'bg-purple-500 border-purple-500 text-white' : 'border-white/30 hover:border-white/60 text-transparent'}`}>
+                <button
+                  onClick={() => handleTogglePlayed(item.id, item.played)}
+                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${item.played ? 'bg-purple-500 border-purple-500 text-white' : 'border-white/30 hover:border-white/60 text-transparent'}`}
+                >
                   <Check size={14} />
                 </button>
-                <Jacket imageUrl={songInfo?.image_url} intl={songInfo?.intl} songTitle={item.songTitle} difficulty={item.sheetDifficulty} internalLevel={level} className="w-12 h-12" />
+                <button
+                  onClick={() => openDetails(item.songTitle, item.sheetType, item.sheetDifficulty)}
+                  className="shrink-0 rounded-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                  title="View song details"
+                >
+                  <Jacket imageUrl={songInfo?.image_url} intl={songInfo?.intl} songTitle={item.songTitle} difficulty={item.sheetDifficulty} internalLevel={level} className="w-12 h-12" />
+                </button>
                 <div className="min-w-0 flex-1">
                   <div className={`text-sm font-bold text-white truncate ${item.played ? 'line-through' : ''}`}>{item.songTitle}</div>
                   <div className="text-[10px] text-white/50 truncate mb-1">{songInfo?.artist}</div>
@@ -224,7 +255,13 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                 className="glass p-4 rounded-xl border border-white/5 relative overflow-hidden group cursor-pointer hover:bg-white/[0.02] transition-colors flex flex-col"
               >
                 <div className="flex gap-3 mb-3">
-                  <Jacket imageUrl={songInfo?.image_url} intl={songInfo?.intl} songTitle={d.tracker.songTitle} difficulty={d.tracker.difficulty} internalLevel={d.internalLevel} className="w-14 h-14" />
+                  <button
+                    onClick={e => { e.stopPropagation(); openDetails(d.tracker.songTitle, d.tracker.songType, d.tracker.difficulty); }}
+                    className="shrink-0 rounded-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                    title="View song details"
+                  >
+                    <Jacket imageUrl={songInfo?.image_url} intl={songInfo?.intl} songTitle={d.tracker.songTitle} difficulty={d.tracker.difficulty} internalLevel={d.internalLevel} className="w-14 h-14" />
+                  </button>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-white truncate">{d.tracker.songTitle}</div>
                     <div className="text-xs font-bold mt-1" style={{ color: DIFF_COLOR[d.tracker.difficulty] }}>
@@ -232,7 +269,14 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                       {d.tracker.difficulty} {d.internalLevel.toFixed(1)}
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
+                  <div className="shrink-0 text-right flex flex-col items-end gap-1">
+                    <button
+                      onClick={e => { e.stopPropagation(); openDetails(d.tracker.songTitle, d.tracker.songType, d.tracker.difficulty); }}
+                      className="w-6 h-6 flex items-center justify-center rounded-full text-white/20 hover:text-purple-400 hover:bg-purple-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                      title="View song details"
+                    >
+                      <Info size={13} />
+                    </button>
                     <div className="text-[10px] text-white/50 uppercase tracking-widest">Rating Δ</div>
                     <div className={`font-num font-bold ${d.delta > 0 ? 'text-green-400' : 'text-white/30'}`}>
                       {d.delta > 0 ? `+${d.delta}` : '0'}
@@ -318,7 +362,13 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                       return (
                         <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">
                           <div className="flex items-center gap-3">
-                            <Jacket imageUrl={songInfo?.image_url} intl={songInfo?.intl} songTitle={item.songTitle} difficulty={item.sheetDifficulty} internalLevel={level} className="w-8 h-8" />
+                            <button
+                              onClick={() => openDetails(item.songTitle, item.sheetType, item.sheetDifficulty)}
+                              className="shrink-0 rounded-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                              title="View song details"
+                            >
+                              <Jacket imageUrl={songInfo?.image_url} intl={songInfo?.intl} songTitle={item.songTitle} difficulty={item.sheetDifficulty} internalLevel={level} className="w-8 h-8" />
+                            </button>
                             <div>
                               <div className="text-sm font-bold text-white truncate max-w-[200px] md:max-w-[400px]">{item.songTitle}</div>
                               <div className="text-[10px] font-bold flex gap-1.5" style={{ color: DIFF_COLOR[item.sheetDifficulty] }}>
@@ -588,6 +638,8 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
           </div>
         )}
       </AnimatePresence>
+
+      <SongDetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />
     </PageWrapper>
   );
 }
