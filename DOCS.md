@@ -298,9 +298,31 @@ Checks if the stored session cookie can authenticate against maimai NET.
 
 - Full song database browser
 - Search: title, artist, or romaji transliteration of `title_kana`
-- Sort: newest / oldest / level ↑↓ / title A–Z
-- Filter: version, level group (12 / 12+ / 13 …), genre
-- Grid view: square album art cards with MAS constant badge
+- Sort: newest / oldest / level ↑↓ / BPM ↑↓ / title A–Z / most tagged
+- Filter: version, level group (12 / 12+ / 13 …), genre, tags
+- Clicking any chart row opens the **Song Details modal**
+- Clicking the level number opens the **Chart Action modal** (add goal / session / list)
+
+### Song Details Modal (`SongDetailsModal`)
+
+Shared modal used on both the Songs page and the Tracker page (all three tabs). Opens by clicking the album art jacket on any chart card.
+
+**Shows:**
+- Album jacket, title, artist, chart type badge (DX / STD), difficulty badge, internal level
+- Community and personal tags with inline add / remove
+- Song details: genre, BPM, version name, chart designer
+- Note counts: Tap / Hold / Slide / Touch / Break / Total
+- Regional availability: JP / INTL / USA / CN
+
+**Version label resolution** (`lib/version-label.ts`): version numbers are stored as arbitrary integers in a range (e.g. `26043` for a CiRCLE song). The shared `versionLabel()` utility uses a sorted threshold array — first threshold the version number is ≥ wins — so every song correctly resolves to its version name regardless of the exact number.
+
+### `/tracker` — The Board
+
+- Three tabs: **Session**, **Goals**, **Lists**
+- **Session:** play queue for an arcade visit; check off songs as played
+- **Goals:** target-achievement tracker with rating delta calculation; clicking a card opens the goal detail popup
+- **Lists:** permanent custom folders (emoji + name)
+- **Song Details:** clicking the album art jacket on any card in any tab opens the Song Details modal (see above). On Goals cards, a hoverable ⓘ button in the top-right corner also triggers it without dismissing the goal detail popup.
 
 ### `/analysis` — Rating Analysis
 
@@ -320,6 +342,10 @@ Checks if the stored session cookie can authenticate against maimai NET.
 - Version override
 - Song Database refresh button
 - Danger Zone: clear all score data
+
+### `/debug/song-details` — Debug Preview *(dev only)*
+
+A development-only sandbox page used to prototype and verify Tracker page features before they are applied to the real `/tracker` route. Uses live DB data so previews are faithful to production. Not linked in navigation on production builds.
 
 ---
 
