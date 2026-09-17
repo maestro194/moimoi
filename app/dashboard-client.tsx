@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RefreshCw, Zap } from 'lucide-react';
+import { RefreshCw, Zap, Download } from 'lucide-react';
 import type { RatingData, Score } from '@/lib/types';
 import { getRankTitle } from '@/lib/rating';
 
@@ -140,16 +140,29 @@ export default function DashboardClient({ data }: Props) {
           </p>
         </div>
 
-        <button
-          id="sync-button"
-          onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
-          style={{ background: 'linear-gradient(135deg,#7c3aed,#f472b6)', color: '#fff' }}
-        >
-          <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Syncing…' : 'Sync Now'}
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/b50-image"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border"
+            style={{ borderColor: 'rgba(167,139,250,0.4)', color: 'var(--accent-purple)' }}
+          >
+            <Download size={15} />
+            Export B50
+          </a>
+
+          <button
+            id="sync-button"
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg,#7c3aed,#f472b6)', color: '#fff' }}
+          >
+            <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync Now'}
+          </button>
+        </div>
       </div>
 
       {syncMsg && (

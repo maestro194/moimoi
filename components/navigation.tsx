@@ -33,7 +33,7 @@ const secondaryNav = [
   { href: '/docs',     label: 'Docs',     icon: BookOpen },
 ];
 
-const debugNav = { href: '/debug/song-details', label: 'Debug', icon: FlaskConical };
+const debugNav = { href: '/debug', label: 'Debug', icon: FlaskConical };
 
 export function Navigation({ isDev = false }: { isDev?: boolean }) {
   const [moreOpen, setMoreOpen] = useState(false);

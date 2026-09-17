@@ -25,9 +25,9 @@ const DIFF_ORDER: Difficulty[] = ['REMAS', 'MAS', 'EXP', 'ADV', 'BAS'];
 const DIFF_COLOR: Record<string, string> = {
   BAS:   '#3fb950',
   ADV:   '#d4a017',
-  EXP:   '#da3633',
-  MAS:   '#8957e5',
-  REMAS: '#d2a8ff',
+  EXP:   '#f64861',
+  MAS:   '#9f51dc',
+  REMAS: '#c484fc',
   UTAGE: '#bf1b5e',
 };
 

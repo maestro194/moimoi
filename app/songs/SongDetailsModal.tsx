@@ -27,8 +27,8 @@ export interface SongDetailsModalProps {
 
 // ── Styling maps ───────────────────────────────────────────────────────────────
 const DIFF_COLORS: Record<string, string> = {
-  BAS: '#3fb950', ADV: '#d4a017', EXP: '#da3633',
-  MAS: '#8957e5', REMAS: '#d2a8ff',
+  BAS: '#3fb950', ADV: '#d4a017', EXP: '#f64861',
+  MAS: '#9f51dc', REMAS: '#c484fc',
 };
 const DIFF_LABELS: Record<string, string> = {
   BAS: 'BASIC', ADV: 'ADVANCED', EXP: 'EXPERT', MAS: 'MASTER', REMAS: 'Re:MASTER',

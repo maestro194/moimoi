@@ -86,40 +86,67 @@ function groupLogsIntoCredits(logs: HydratedLog[]): CreditGroup[] {
 function computeDrops(d: any) {
   if (!d?.tap || !d?.break) return null;
 
-  const tap   = d.tap.cp + d.tap.p + d.tap.gr + d.tap.go + d.tap.miss;
-  const hold  = d.hold.cp + d.hold.p + d.hold.gr + d.hold.go + d.hold.miss;
+  const tap   = d.tap.cp   + d.tap.p   + d.tap.gr   + d.tap.go   + d.tap.miss;
+  const hold  = d.hold.cp  + d.hold.p  + d.hold.gr  + d.hold.go  + d.hold.miss;
   const slide = d.slide.cp + d.slide.p + d.slide.gr + d.slide.go + d.slide.miss;
   const touch = d.touch.cp + d.touch.p + d.touch.gr + d.touch.go + d.touch.miss;
-  const brk   = d.break.cp + d.break.p + d.break.gr + d.break.go + d.break.miss;
+
+  // Support both old 5-field schema (p/gr/go/miss) and new 7-field schema (p2500…miss)
+  const brk = d.break.cp +
+    (d.break.p2500 ?? d.break.p ?? 0) +
+    (d.break.p2000 ?? 0) +
+    (d.break.g1500 ?? d.break.gr ?? 0) +
+    (d.break.g1250 ?? 0) +
+    (d.break.g1000 ?? d.break.go ?? 0) +
+    d.break.miss;
 
   if (brk === 0) return null;
 
-  const maxBase = (tap + slide + touch) * 500 + hold * 1000 + brk * 2500;
+  const maxBase = tap * 500 + hold * 1000 + slide * 1500 + touch * 500 + brk * 2500;
   if (maxBase === 0) return null;
 
-  const bpb = 1 / brk; // bonus per break
-  const bpp = 100 / maxBase; // base per point
+  const bpb = 1 / brk;          // break bonus fraction per note (bonus pool = 1%)
+  const bpp = 100 / maxBase;    // base score per point
 
   const std = { gr: 100 * bpp, go: 250 * bpp, miss: 500 * bpp };
   const hld = { gr: 200 * bpp, go: 500 * bpp, miss: 1000 * bpp };
+  const sld = { gr: 300 * bpp, go: 750 * bpp, miss: 1500 * bpp };
+
+  // 7-tier break rates:
+  // p2500 (Perfect High): gets 2500 base, 75 bonus -> loses 0 base, 25 bonus
+  // p2000 (Perfect Low): gets 2500 base, 50 bonus -> loses 0 base, 50 bonus
+  // g1500 (Great High): gets 2000 base, 40 bonus -> loses 500 base, 60 bonus
+  // g1250 (Great Mid): gets 1500 base, 40 bonus -> loses 1000 base, 60 bonus
+  // g1000 (Great Low): gets 1250 base, 40 bonus -> loses 1250 base, 60 bonus
   const brkRates = {
-    p: 0.25 * bpb,
-    gr: 0.6 * bpb + 500 * bpp,
-    go: 0.7 * bpb + 1500 * bpp,
-    miss: 1 * bpb + 2500 * bpp,
+    p2500: 0.25 * bpb,
+    p2000: 0.50 * bpb,
+    g1500: 0.60 * bpb + 500 * bpp,
+    g1250: 0.60 * bpb + 1000 * bpp,
+    g1000: 0.60 * bpb + 1250 * bpp,
+    good:  0.70 * bpb + 1500 * bpp,
+    miss:  1.00 * bpb + 2500 * bpp,
   };
 
-  return { tap: std, hold: hld, slide: std, touch: std, break: brkRates };
+  return { tap: std, hold: hld, slide: sld, touch: std, break: brkRates };
 }
+
 
 function computeMaxDxScore(d: any): number {
   if (!d?.tap) return 0;
+  const brkTotal = d.break.cp +
+    (d.break.p2500 ?? d.break.p ?? 0) +
+    (d.break.p2000 ?? 0) +
+    (d.break.g1500 ?? d.break.gr ?? 0) +
+    (d.break.g1250 ?? 0) +
+    (d.break.g1000 ?? d.break.go ?? 0) +
+    d.break.miss;
   const total =
     (d.tap.cp + d.tap.p + d.tap.gr + d.tap.go + d.tap.miss) +
     (d.hold.cp + d.hold.p + d.hold.gr + d.hold.go + d.hold.miss) +
     (d.slide.cp + d.slide.p + d.slide.gr + d.slide.go + d.slide.miss) +
     (d.touch.cp + d.touch.p + d.touch.gr + d.touch.go + d.touch.miss) +
-    (d.break.cp + d.break.p + d.break.gr + d.break.go + d.break.miss);
+    brkTotal;
   return total * 3;
 }
 
@@ -133,18 +160,86 @@ const NoteRow = memo(function NoteRow({
   data: any;
   dropRates: any;
 }) {
-  if (!data || (data.cp === 0 && data.p === 0 && data.gr === 0 && data.go === 0 && data.miss === 0))
+  const isBreak = label === 'Break';
+
+  // Detect new 8-tier break schema vs old 5-tier fallback
+  const brk = isBreak ? {
+    cp:     data.cp     ?? 0,
+    p_high: data.p_high ?? data.p2500 ?? data.p  ?? 0,
+    p_low:  data.p_low  ?? data.p2000 ?? 0,
+    g_high: data.g_high ?? data.g1500 ?? data.gr ?? 0,
+    g_mid:  data.g_mid  ?? data.g1250 ?? 0,
+    g_low:  data.g_low  ?? data.g1000 ?? 0,
+    good:   data.good   ?? data.go    ?? 0,
+    miss:   data.miss   ?? 0,
+  } : null;
+
+  // For non-break, check if it has any data
+  if (!isBreak && (!data || (data.cp === 0 && data.p === 0 && data.gr === 0 && data.go === 0 && data.miss === 0)))
     return null;
+  if (isBreak && !brk) return null;
 
-  const total = data.cp + data.p + data.gr + data.go + data.miss;
+  // ── Break row ──────────────────────────────────────────────────────────────
+  if (isBreak && brk) {
+    const total = brk.cp + brk.p_high + brk.p_low + brk.g_high + brk.g_mid + brk.g_low + brk.good + brk.miss;
+    if (total === 0) return null;
+
+    const r = dropRates;
+    const pHighLoss = r ? r.p2500 * brk.p_high : 0;
+    const pLowLoss  = r ? r.p2000 * brk.p_low  : 0;
+    const gHighLoss = r ? r.g1500 * brk.g_high : 0;
+    const gMidLoss  = r ? r.g1250 * brk.g_mid  : 0;
+    const gLowLoss  = r ? r.g1000 * brk.g_low  : 0;
+    const goodLoss  = r && r.good ? r.good * brk.good : 0;
+    const missLoss  = r ? r.miss  * brk.miss   : 0;
+
+    const pTotalLoss  = pHighLoss + pLowLoss;
+    const grTotalLoss = gHighLoss + gMidLoss + gLowLoss;
+    const totalLoss   = pTotalLoss + grTotalLoss + goodLoss + missLoss;
+
+    // Perfect display: Always show full 2-tier breakdown
+    const pLabel = `${brk.p_high}-${brk.p_low}`;
+
+    // Great display: Always show full 3-tier breakdown
+    const grLabel = `${brk.g_high}-${brk.g_mid}-${brk.g_low}`;
+
+    return (
+      <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
+        <td className="py-2 px-2 font-bold text-left">{label}</td>
+        <td className="py-2 px-2 text-white/60">{total}</td>
+        <td className="py-2 px-1 text-[#facc15] font-bold">{brk.cp}</td>
+        <td className="py-2 px-1 text-[#fb923c] font-bold align-top">
+          <div>{pLabel}</div>
+          {pTotalLoss > 0 && <div className="text-[10px] font-normal opacity-80 leading-none mt-1">(-{pTotalLoss.toFixed(4)}%)</div>}
+        </td>
+        <td className="py-2 px-1 text-[#f472b6] font-bold align-top">
+          <div>{grLabel}</div>
+          {grTotalLoss > 0 && <div className="text-[10px] font-normal opacity-80 leading-none mt-1">(-{grTotalLoss.toFixed(4)}%)</div>}
+        </td>
+        <td className="py-2 px-1 text-[#4ade80] font-bold align-top">
+          <div>{brk.good}</div>
+          {goodLoss > 0 && <div className="text-[10px] font-normal opacity-80 leading-none mt-1">(-{goodLoss.toFixed(4)}%)</div>}
+        </td>
+        <td className="py-2 px-1 text-white/50 font-bold align-top">
+          <div>{brk.miss}</div>
+          {missLoss > 0 && <div className="text-[10px] font-normal opacity-80 leading-none mt-1">(-{missLoss.toFixed(4)}%)</div>}
+        </td>
+        <td className="py-2 px-2 text-red-400 align-top">
+          {totalLoss > 0 ? `-${totalLoss.toFixed(4)}%` : '-'}
+        </td>
+      </tr>
+    );
+  }
+
+  // ── Standard note row (tap / hold / slide / touch) ─────────────────────────
   let loss = 0, pLoss = 0, grLoss = 0, goLoss = 0, missLoss = 0;
-
   if (dropRates) {
-    if (label === 'Break' && 'p' in dropRates) { pLoss = dropRates.p * data.p; loss += pLoss; }
-    if ('gr' in dropRates) { grLoss = dropRates.gr * data.gr; loss += grLoss; }
-    if ('go' in dropRates) { goLoss = dropRates.go * data.go; loss += goLoss; }
+    if ('gr'   in dropRates) { grLoss   = dropRates.gr   * data.gr;   loss += grLoss;   }
+    if ('go'   in dropRates) { goLoss   = dropRates.go   * data.go;   loss += goLoss;   }
     if ('miss' in dropRates) { missLoss = dropRates.miss * data.miss; loss += missLoss; }
   }
+
+  const total = data.cp + data.p + data.gr + data.go + data.miss;
 
   return (
     <tr className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors text-center text-xs">

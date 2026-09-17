@@ -356,13 +356,42 @@ export function parsePlaylogDetail(html: string) {
     if (index >= 5) return;
     const cells = $(row).find('td');
     const noteType = noteTypes[index];
-    noteData[noteType] = {
-      cp: cells.length > 0 ? parseInt(cells.eq(0).text().trim(), 10) || 0 : 0,
-      p: cells.length > 1 ? parseInt(cells.eq(1).text().trim(), 10) || 0 : 0,
-      gr: cells.length > 2 ? parseInt(cells.eq(2).text().trim(), 10) || 0 : 0,
-      go: cells.length > 3 ? parseInt(cells.eq(3).text().trim(), 10) || 0 : 0,
-      miss: cells.length > 4 ? parseInt(cells.eq(4).text().trim(), 10) || 0 : 0,
-    };
+
+    if (noteType === 'break') {
+      // Break has 5 main columns in maimai net HTML, but Perfect and Great contain breakdowns.
+      // 0=CP | 1=Perfect(Total, P_High, P_Low) | 2=Great(Total, G_High, G_Mid, G_Low) | 3=Good | 4=Miss
+      const getNums = (i: number) => {
+        if (cells.length <= i) return [0];
+        const text = cells.eq(i).text();
+        const matches = text.match(/\d+/g);
+        return matches ? matches.map(s => parseInt(s, 10)) : [0];
+      };
+
+      const cpNums = getNums(0);
+      const pNums = getNums(1);
+      const grNums = getNums(2);
+      const goNums = getNums(3);
+      const mNums = getNums(4);
+
+      noteData.break = {
+        cp:     cpNums[0] || 0,
+        p_high: pNums.length > 1 ? pNums[1] : (pNums[0] || 0),
+        p_low:  pNums.length > 2 ? pNums[2] : 0,
+        g_high: grNums.length > 1 ? grNums[1] : (grNums[0] || 0),
+        g_mid:  grNums.length > 2 ? grNums[2] : 0,
+        g_low:  grNums.length > 3 ? grNums[3] : 0,
+        good:   goNums[0] || 0,
+        miss:   mNums[0] || 0,
+      };
+    } else {
+      noteData[noteType] = {
+        cp:   cells.length > 0 ? parseInt(cells.eq(0).text().trim(), 10) || 0 : 0,
+        p:    cells.length > 1 ? parseInt(cells.eq(1).text().trim(), 10) || 0 : 0,
+        gr:   cells.length > 2 ? parseInt(cells.eq(2).text().trim(), 10) || 0 : 0,
+        go:   cells.length > 3 ? parseInt(cells.eq(3).text().trim(), 10) || 0 : 0,
+        miss: cells.length > 4 ? parseInt(cells.eq(4).text().trim(), 10) || 0 : 0,
+      };
+    }
   });
 
   const ratingText = $('.playlog_rating_detail_block > * .rating_block').text().trim();
