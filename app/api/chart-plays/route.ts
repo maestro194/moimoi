@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { playLog, scoreHistory } from '@/lib/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'Missing title or diff' }, { status: 400 });
   }
 
-  // Run both queries in parallel — no reason to await one before the other
-  const [plays, history] = await Promise.all([
+  const [plays, history, countResult] = await Promise.all([
     db
       .select()
       .from(playLog)
@@ -41,7 +40,18 @@ export async function GET(req: NextRequest) {
         ),
       )
       .orderBy(scoreHistory.recordedAt),
+
+    db
+      .select({ count: count() })
+      .from(playLog)
+      .where(
+        and(
+          eq(playLog.songTitle, title),
+          eq(playLog.difficulty, diff),
+          eq(playLog.songType, type),
+        ),
+      ),
   ]);
 
-  return Response.json({ plays, history });
+  return Response.json({ plays, history, playCount: countResult[0].count });
 }

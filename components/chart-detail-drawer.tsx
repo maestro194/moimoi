@@ -32,6 +32,7 @@ interface HistoryPoint {
 interface ChartPlaysData {
   plays: Play[];
   history: HistoryPoint[];
+  playCount: number;
 }
 
 interface Props {
@@ -219,7 +220,14 @@ export function ChartDetailDrawer({ score: s, onClose }: Props) {
 
               {/* Current best */}
               <div className="px-5 py-4 border-b border-white/5">
-                <div className="text-[11px] text-white/40 uppercase tracking-widest font-bold mb-1">Current Best</div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[11px] text-white/40 uppercase tracking-widest font-bold">Current Best</div>
+                  {!loading && data && data.playCount > 0 && (
+                    <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                      {data.playCount} Plays
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-3xl font-extrabold font-num tabular-nums" style={{ color: diffColor }}>
                     {s.achievement.toFixed(4)}<span className="text-lg ml-0.5">%</span>
@@ -254,6 +262,9 @@ export function ChartDetailDrawer({ score: s, onClose }: Props) {
               <div className="px-5 py-4">
                 <div className="flex items-center gap-2 text-[11px] text-white/40 uppercase tracking-widest font-bold mb-3">
                   <Trophy size={12} /> Top Plays on this Chart
+                  {!loading && data && data.playCount > 0 && (
+                    <span className="ml-auto text-white/30 lowercase font-medium">({data.playCount} plays)</span>
+                  )}
                 </div>
 
                 {loading && (
