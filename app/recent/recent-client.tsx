@@ -102,33 +102,92 @@ function computeDrops(d: any) {
 
   if (brk === 0) return null;
 
-  const maxBase = tap * 500 + hold * 1000 + slide * 1500 + touch * 500 + brk * 2500;
-  if (maxBase === 0) return null;
+  // Weighted total: tap×1 + hold×2 + slide×3 + touch×1 + break×5
+  const totalWeighted = tap + hold * 2 + slide * 3 + touch + brk * 5;
+  if (totalWeighted === 0) return null;
 
-  const bpb = 1 / brk;          // break bonus fraction per note (bonus pool = 1%)
-  const bpp = 100 / maxBase;    // base score per point
+  const base = 100 / totalWeighted; // % value of 1 "unit" (= 1 tap/touch note)
+  const bpb = 1 / brk;             // break bonus pool per break note (1% total)
 
-  const std = { gr: 100 * bpp, go: 250 * bpp, miss: 500 * bpp };
-  const hld = { gr: 200 * bpp, go: 500 * bpp, miss: 1000 * bpp };
-  const sld = { gr: 300 * bpp, go: 750 * bpp, miss: 1500 * bpp };
+  // Per-note loss rates for non-break types
+  // Great loses 1/5 of note value, Good loses 1/2, Miss loses all
+  const std = { gr: base / 5, go: base / 2, miss: base };             // factor=1
+  const hld = { gr: 2 * base / 5, go: 2 * base / 2, miss: 2 * base }; // factor=2
+  const sld = { gr: 3 * base / 5, go: 3 * base / 2, miss: 3 * base }; // factor=3
 
-  // 7-tier break rates:
-  // p2500 (Perfect High): gets 2500 base, 75 bonus -> loses 0 base, 25 bonus
-  // p2000 (Perfect Low): gets 2500 base, 50 bonus -> loses 0 base, 50 bonus
-  // g1500 (Great High): gets 2000 base, 40 bonus -> loses 500 base, 60 bonus
-  // g1250 (Great Mid): gets 1500 base, 40 bonus -> loses 1000 base, 60 bonus
-  // g1000 (Great Low): gets 1250 base, 40 bonus -> loses 1250 base, 60 bonus
+  // Break Good and Miss rates (computable exactly)
   const brkRates = {
-    p2500: 0.25 * bpb,
-    p2000: 0.50 * bpb,
-    g1500: 0.60 * bpb + 500 * bpp,
-    g1250: 0.60 * bpb + 1000 * bpp,
-    g1000: 0.60 * bpb + 1250 * bpp,
-    good:  0.70 * bpb + 1500 * bpp,
-    miss:  1.00 * bpb + 2500 * bpp,
+    good: 3 * base + 0.7 * bpb,
+    miss: 5 * base + 1.0 * bpb,
   };
 
-  return { tap: std, hold: hld, slide: sld, touch: std, break: brkRates };
+  return { tap: std, hold: hld, slide: sld, touch: std, break: brkRates, _base: base, _bpb: bpb, _brk: brk };
+}
+
+/**
+ * Compute all per-type losses. Break Perfect+Great losses are derived as a
+ * residual (101 − achievement − known_losses) so the total always equals
+ * exactly 101% − achievement%. Uses a brute-force solver to estimate the
+ * Break Perfect and Great sub-tier breakdown for display.
+ */
+function computeAllLosses(d: any, achievement: number, drops: ReturnType<typeof computeDrops>) {
+  if (!drops || !d?.tap) return null;
+
+  // ── Non-break losses (exact) ───────────────────────────────────────────────
+  const tapLoss   = drops.tap.gr * d.tap.gr + drops.tap.go * d.tap.go + drops.tap.miss * d.tap.miss;
+  const holdLoss  = drops.hold.gr * d.hold.gr + drops.hold.go * d.hold.go + drops.hold.miss * d.hold.miss;
+  const slideLoss = drops.slide.gr * d.slide.gr + drops.slide.go * d.slide.go + drops.slide.miss * d.slide.miss;
+  const touchLoss = drops.touch.gr * d.touch.gr + drops.touch.go * d.touch.go + drops.touch.miss * d.touch.miss;
+
+  // ── Break Good + Miss (exact) ──────────────────────────────────────────────
+  const brkGood = d.break.good ?? d.break.go ?? 0;
+  const brkMiss = d.break.miss ?? 0;
+  const breakGoodLoss = drops.break.good * brkGood;
+  const breakMissLoss = drops.break.miss * brkMiss;
+
+  // ── Break Perfect + Great (residual — guarantees 101% identity) ────────────
+  const knownLoss = tapLoss + holdLoss + slideLoss + touchLoss + breakGoodLoss + breakMissLoss;
+  const breakPGLoss = Math.max(0, 101 - achievement - knownLoss);
+
+  // ── Brute-force solver for Perfect/Great sub-tier breakdown ────────────────
+  const brkP = (d.break.p2500 ?? d.break.p ?? 0) + (d.break.p2000 ?? 0); // total perfects
+  const brkG = (d.break.g1500 ?? d.break.gr ?? 0) + (d.break.g1250 ?? 0) + (d.break.g1000 ?? 0); // total greats
+  const numBreaks = drops._brk;
+  const base = drops._base;
+
+  let bestDist = Infinity;
+  let bestBreakdown = { pHigh: 0, pLow: 0, gHigh: 0, gMid: 0, gLow: 0 };
+
+  for (let pHigh = 0; pHigh <= brkP; pHigh++) {
+    const pLow = brkP - pHigh;
+    for (let gHigh = 0; gHigh <= brkG; gHigh++) {
+      for (let gMid = 0; gMid <= brkG - gHigh; gMid++) {
+        const gLow = brkG - gHigh - gMid;
+        const pLoss = (pHigh / 4 + pLow / 2) / numBreaks;
+        const gLoss =
+          (base + 0.6 / numBreaks) * gHigh +
+          (2 * base + 0.6 / numBreaks) * gMid +
+          (2.5 * base + 0.6 / numBreaks) * gLow;
+        const dist = Math.abs(pLoss + gLoss - breakPGLoss);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestBreakdown = { pHigh, pLow, gHigh, gMid, gLow };
+        }
+      }
+    }
+  }
+
+  // Distribute the residual proportionally between P and G sub-totals
+  const solvedPLoss = (bestBreakdown.pHigh / 4 + bestBreakdown.pLow / 2) / numBreaks;
+  const solvedGLoss = breakPGLoss - solvedPLoss;
+
+  return {
+    tap: tapLoss, hold: holdLoss, slide: slideLoss, touch: touchLoss,
+    breakGood: breakGoodLoss, breakMiss: breakMissLoss,
+    breakPLoss: solvedPLoss, breakGLoss: Math.max(0, solvedGLoss),
+    breakTotal: breakPGLoss + breakGoodLoss + breakMissLoss,
+    breakdown: bestBreakdown,
+  };
 }
 
 
@@ -155,10 +214,14 @@ const NoteRow = memo(function NoteRow({
   label,
   data,
   dropRates,
+  precomputedLoss,
+  breakLosses,
 }: {
   label: string;
   data: any;
   dropRates: any;
+  precomputedLoss?: number;
+  breakLosses?: { pLoss: number; gLoss: number; goodLoss: number; missLoss: number; total: number; breakdown: { pHigh: number; pLow: number; gHigh: number; gMid: number; gLow: number } };
 }) {
   const isBreak = label === 'Break';
 
@@ -184,24 +247,17 @@ const NoteRow = memo(function NoteRow({
     const total = brk.cp + brk.p_high + brk.p_low + brk.g_high + brk.g_mid + brk.g_low + brk.good + brk.miss;
     if (total === 0) return null;
 
-    const r = dropRates;
-    const pHighLoss = r ? r.p2500 * brk.p_high : 0;
-    const pLowLoss  = r ? r.p2000 * brk.p_low  : 0;
-    const gHighLoss = r ? r.g1500 * brk.g_high : 0;
-    const gMidLoss  = r ? r.g1250 * brk.g_mid  : 0;
-    const gLowLoss  = r ? r.g1000 * brk.g_low  : 0;
-    const goodLoss  = r && r.good ? r.good * brk.good : 0;
-    const missLoss  = r ? r.miss  * brk.miss   : 0;
+    // Use pre-computed losses from solver (residual-based, always adds up to 101%)
+    const pTotalLoss  = breakLosses?.pLoss ?? 0;
+    const grTotalLoss = breakLosses?.gLoss ?? 0;
+    const goodLoss    = breakLosses?.goodLoss ?? 0;
+    const missLoss    = breakLosses?.missLoss ?? 0;
+    const totalLoss   = breakLosses?.total ?? 0;
 
-    const pTotalLoss  = pHighLoss + pLowLoss;
-    const grTotalLoss = gHighLoss + gMidLoss + gLowLoss;
-    const totalLoss   = pTotalLoss + grTotalLoss + goodLoss + missLoss;
-
-    // Perfect display: Always show full 2-tier breakdown
-    const pLabel = `${brk.p_high}-${brk.p_low}`;
-
-    // Great display: Always show full 3-tier breakdown
-    const grLabel = `${brk.g_high}-${brk.g_mid}-${brk.g_low}`;
+    // Use solver-estimated breakdown for display
+    const bd = breakLosses?.breakdown;
+    const pLabel  = bd ? `${bd.pHigh}-${bd.pLow}` : `${brk.p_high}-${brk.p_low}`;
+    const grLabel = bd ? `${bd.gHigh}-${bd.gMid}-${bd.gLow}` : `${brk.g_high}-${brk.g_mid}-${brk.g_low}`;
 
     return (
       <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
@@ -232,8 +288,17 @@ const NoteRow = memo(function NoteRow({
   }
 
   // ── Standard note row (tap / hold / slide / touch) ─────────────────────────
-  let loss = 0, pLoss = 0, grLoss = 0, goLoss = 0, missLoss = 0;
-  if (dropRates) {
+  // Use pre-computed loss if available, otherwise fall back to rate calculation
+  let loss = 0, grLoss = 0, goLoss = 0, missLoss = 0;
+  if (precomputedLoss !== undefined) {
+    loss = precomputedLoss;
+    // Compute individual judgment losses from rates for display
+    if (dropRates) {
+      if ('gr'   in dropRates) { grLoss   = dropRates.gr   * data.gr;   }
+      if ('go'   in dropRates) { goLoss   = dropRates.go   * data.go;   }
+      if ('miss' in dropRates) { missLoss = dropRates.miss * data.miss; }
+    }
+  } else if (dropRates) {
     if ('gr'   in dropRates) { grLoss   = dropRates.gr   * data.gr;   loss += grLoss;   }
     if ('go'   in dropRates) { goLoss   = dropRates.go   * data.go;   loss += goLoss;   }
     if ('miss' in dropRates) { missLoss = dropRates.miss * data.miss; loss += missLoss; }
@@ -248,7 +313,6 @@ const NoteRow = memo(function NoteRow({
       <td className="py-2 px-1 text-[#facc15] font-bold align-top"><div>{data.cp}</div></td>
       <td className="py-2 px-1 text-[#fb923c] font-bold align-top">
         <div>{data.p}</div>
-        {pLoss > 0 && <div className="text-[10px] text-red-400 font-normal mt-0.5">(-{pLoss.toFixed(4)}%)</div>}
       </td>
       <td className="py-2 px-1 text-[#f472b6] font-bold align-top">
         <div>{data.gr}</div>
@@ -279,9 +343,10 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
   const hasDetails = !!d?.tap;
 
   // Heavy calculations — memoized and only computed once per play instance
-  const { drops, maxDxScore, dxStars } = useMemo(() => {
-    if (!hasDetails) return { drops: null, maxDxScore: 0, dxStars: 0 };
+  const { drops, losses, maxDxScore, dxStars } = useMemo(() => {
+    if (!hasDetails) return { drops: null, losses: null, maxDxScore: 0, dxStars: 0 };
     const drops = computeDrops(d);
+    const losses = computeAllLosses(d, achvNum, drops);
     const maxDxScore = computeMaxDxScore(d);
     let dxStars = 0;
     if (maxDxScore > 0 && play.dxScore) {
@@ -292,7 +357,7 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
       else if (p >= 0.90) dxStars = 2;
       else if (p >= 0.85) dxStars = 1;
     }
-    return { drops, maxDxScore, dxStars };
+    return { drops, losses, maxDxScore, dxStars };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [play.id]); // keyed on play.id — never changes for a given row
 
@@ -425,11 +490,11 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
                   </thead>
                   <tbody className="text-white/80 font-num">
                     {[
-                      { label: 'Tap',   data: d.tap,   dropRates: drops?.tap },
-                      { label: 'Hold',  data: d.hold,  dropRates: drops?.hold },
-                      { label: 'Slide', data: d.slide, dropRates: drops?.slide },
-                      { label: 'Touch', data: d.touch, dropRates: drops?.touch },
-                      { label: 'Break', data: d.break, dropRates: drops?.break },
+                      { label: 'Tap',   data: d.tap,   dropRates: drops?.tap,   precomputedLoss: losses?.tap },
+                      { label: 'Hold',  data: d.hold,  dropRates: drops?.hold,  precomputedLoss: losses?.hold },
+                      { label: 'Slide', data: d.slide, dropRates: drops?.slide, precomputedLoss: losses?.slide },
+                      { label: 'Touch', data: d.touch, dropRates: drops?.touch, precomputedLoss: losses?.touch },
+                      { label: 'Break', data: d.break, dropRates: drops?.break, breakLosses: losses ? { pLoss: losses.breakPLoss, gLoss: losses.breakGLoss, goodLoss: losses.breakGood, missLoss: losses.breakMiss, total: losses.breakTotal, breakdown: losses.breakdown } : undefined },
                     ].map(row => (
                       <NoteRow key={row.label} {...row} />
                     ))}
