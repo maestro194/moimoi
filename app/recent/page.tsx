@@ -6,6 +6,7 @@ import { fetchSongs, buildSongMap } from '@/lib/song-db';
 import { normalizeTitle } from '@/lib/normalize';
 import type { PlayerProfile, Difficulty } from '@/lib/types';
 import { calcSingleRating, getSongInternalLevel } from '@/lib/rating';
+import { solvePlayDetails } from '@/lib/accuracy-solver';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,12 @@ export default async function RecentPage() {
       rating = calcSingleRating(internalLevel, parseFloat(log.achievement as string), log.fc as any).floored;
     }
 
-    return { ...log, song, internalLevel, rating };
+    let details = log.details as any;
+    if (details && details.break && !details.break.solved) {
+      details = solvePlayDetails(details, log.achievement as string);
+    }
+
+    return { ...log, details, song, internalLevel, rating };
   });
 
   return (

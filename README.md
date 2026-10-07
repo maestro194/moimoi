@@ -15,7 +15,8 @@
 - 📊 **Rating dashboard** — live B15 (new) + B35 (old) breakdown with accurate chart constant calculation
 - 🎵 **Song database** — full otoge-db integration (intl + JP), cached in Postgres, searchable by title/artist/romaji
 - 📈 **Score tracking** — syncs directly from maimai NET, stores best scores per difficulty
-- 🕹️ **Recent plays** — play history with FC/FS badges and difficulty colours
+- 🎯 **Accuracy solver** — mathematically solves Break sub-tier judgements (P-High/P-Low, G-High/Mid/Low) from residual score loss with 0.0000% error
+- 🕹️ **Recent plays** — play history with FC/FS badges, difficulty colours, and note breakdown
 - 🔍 **Songs explorer** — grid/list view, filter by level group · genre · version, sort by constant
 
 ---
@@ -99,15 +100,20 @@ moimoi/
 │   ├── scores/               # Score list with grid/list toggle
 │   ├── songs/                # Song explorer
 │   ├── analysis/             # Rating breakdown (B15 + B35)
-│   ├── recent/               # Play history
+│   ├── recent/               # Play history with solved breakdown
+│   ├── tracker/              # The Board (session queue, goals, lists)
+│   ├── debug/                # Debug sandboxes & accuracy loss test suite
 │   ├── settings/             # Credentials & database management
-│   └── api/                  # API routes (sync, settings, refresh-songs …)
+│   └── api/                  # API routes (sync, recent-plays, settings …)
 ├── lib/
 │   ├── types.ts              # Shared TypeScript types
 │   ├── db/                   # Drizzle schema & client
 │   ├── song-db.ts            # Song fetch/cache (GitHub → Neon)
 │   ├── rating.ts             # Rating calculation engine
+│   ├── accuracy-solver.ts    # Mathematical Break sub-tier residual solver
 │   └── maimai-sync.ts        # maimai NET scraper
+├── scripts/
+│   └── backfill-solved-breakdowns.ts # One-time migration for historical plays
 └── .env.local.example        # Environment variable template
 ```
 

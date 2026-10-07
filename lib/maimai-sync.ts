@@ -19,6 +19,7 @@ import { scores, playLog, settings, scoreHistory, scoreTrackers } from './db/sch
 import { eq, desc } from 'drizzle-orm';
 import { CookieJar } from 'tough-cookie';
 import makeFetchCookie from 'fetch-cookie';
+import { solvePlayDetails } from './accuracy-solver';
 
 const MAIMAI_BASE: Record<Region, string> = {
   jp:   'https://maimaidx.jp/maimai-mobile',
@@ -641,7 +642,8 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
         if (rs.idx) {
           try {
             const detailHtml = await maimaiGet(region, `record/playlogDetail/?idx=${rs.idx}`, clal!);
-            details = parsePlaylogDetail(detailHtml);
+            const parsed = parsePlaylogDetail(detailHtml);
+            details = parsed ? solvePlayDetails(parsed, rs.achievement) : null;
             if (onProgress) onProgress(`Fetched details for ${rs.songTitle} (Track ${rs.track})`);
           } catch (e: any) {
             console.warn("Failed to fetch playlog details for idx", rs.idx, e);
@@ -668,7 +670,8 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
           let details = null;
           try {
             const detailHtml = await maimaiGet(region, `record/playlogDetail/?idx=${rs.idx}`, clal!);
-            details = parsePlaylogDetail(detailHtml);
+            const parsed = parsePlaylogDetail(detailHtml);
+            details = parsed ? solvePlayDetails(parsed, rs.achievement) : null;
             if (onProgress) onProgress(`Fetched missing details for ${rs.songTitle} (Track ${rs.track})`);
             
             await db.update(playLog)

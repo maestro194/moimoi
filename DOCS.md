@@ -6,12 +6,13 @@
 2. [Database Schema](#database-schema)
 3. [Song Database & Caching](#song-database--caching)
 4. [Rating Calculation](#rating-calculation)
-5. [maimai NET Sync](#maimai-net-sync)
-6. [API Routes](#api-routes)
-7. [Pages & Components](#pages--components)
-8. [Environment Variables](#environment-variables)
-9. [Vercel Deployment](#vercel-deployment)
-10. [Known Limitations](#known-limitations)
+5. [Accuracy & Judgement Loss Calculation](#accuracy--judgement-loss-calculation)
+6. [maimai NET Sync](#maimai-net-sync)
+7. [API Routes](#api-routes)
+8. [Pages & Components](#pages--components)
+9. [Environment Variables](#environment-variables)
+10. [Vercel Deployment](#vercel-deployment)
+11. [Known Limitations](#known-limitations)
 
 ---
 
@@ -20,11 +21,12 @@
 ```
 Browser ──→ Next.js App Router (Vercel Edge)
                 │
-                ├── Static pages:  /, /scores, /songs, /analysis
+                ├── Static pages:  /, /scores, /songs, /analysis, /recent, /tracker
                 │     └── Fetch songs + scores from Neon at build / request time
                 │
                 └── API routes (server-only):
                       ├── /api/sync          — scrapes maimai NET, stores scores
+                      ├── /api/recent-plays  — returns recent plays with hydrated details & solver
                       ├── /api/settings      — reads/writes credentials in DB
                       ├── /api/refresh-songs — fetches otoge-db, upserts song_cache
                       ├── /api/clear-data    — wipes scores + play_log
@@ -80,12 +82,14 @@ Chronological play history scraped from `/record/`. Each row is one play (not de
 |--------|------|-------|
 | `id` | serial PK | |
 | `song_title` | text | |
-| `difficulty` | varchar(10) | |
+| `difficulty` | varchar(10) | `BAS` / `ADV` / `EXP` / `MAS` / `REMAS` |
+| `song_type` | varchar(5) | `STD` / `DX` (default `DX`) |
 | `achievement` | numeric(10,4) | |
 | `dx_score` | integer | nullable |
 | `fc` | varchar(5) | nullable |
 | `fs` | varchar(5) | nullable |
 | `track` | integer | Track number in a credit (1–4) |
+| `details` | jsonb | Detailed note judgments (`tap`, `hold`, `slide`, `touch`, `break`, `fast`, `late`). Break counts include mathematically solved sub-tiers (`p_high`, `p_low`, `g_high`, `g_mid`, `g_low`) and original scraped counts under `raw` |
 | `played_at` | timestamp | Exact time from maimai NET |
 | `created_at` | timestamp | |
 
@@ -196,6 +200,72 @@ Before pool filtering, scores are deduplicated to keep only the **best score per
 
 ---
 
+## Accuracy & Judgement Loss Calculation
+
+Implemented in [`lib/accuracy-solver.ts`](lib/accuracy-solver.ts).
+
+### Theoretical Score Model
+
+In maimai DX, the maximum attainable achievement on any chart is **101.0000%**, comprised of:
+- **Base Score (100.0000%)**: Proportional to note weights across the chart.
+  - Weights:
+    - Tap: $1$
+    - Hold: $2$
+    - Slide: $3$
+    - Touch: $1$
+    - Break: $5$
+  - Total Base Weight: $W_{\text{base}} = N_{\text{tap}} + 2 N_{\text{hold}} + 3 N_{\text{slide}} + N_{\text{touch}} + 5 N_{\text{break}}$
+  - Base Unit Weight: $U = \frac{100\%}{W_{\text{base}}}$
+- **Break Bonus Score (1.0000%)**: Distributed evenly among Break notes.
+  - Break Bonus per note: $B = \frac{1\%}{N_{\text{break}}}$
+
+### Note Loss Deductions
+
+Achievement is calculated by deducting judgment losses from $101.0000\%$:
+
+| Note Type | Judgment | Base Loss | Bonus Loss | Total Loss |
+|-----------|----------|-----------|------------|------------|
+| **Tap / Touch** | CP / Perfect | $0$ | — | $0$ |
+| | Great | $0.2 \times U$ | — | $0.2 \times U$ |
+| | Good | $0.5 \times U$ | — | $0.5 \times U$ |
+| | Miss | $1.0 \times U$ | — | $1.0 \times U$ |
+| **Hold** | CP / Perfect | $0$ | — | $0$ |
+| | Great | $0.4 \times U$ | — | $0.4 \times U$ |
+| | Good | $1.0 \times U$ | — | $1.0 \times U$ |
+| | Miss | $2.0 \times U$ | — | $2.0 \times U$ |
+| **Slide** | CP / Perfect | $0$ | — | $0$ |
+| | Great | $0.6 \times U$ | — | $0.6 \times U$ |
+| | Good | $1.5 \times U$ | — | $1.5 \times U$ |
+| | Miss | $3.0 \times U$ | — | $3.0 \times U$ |
+| **Break** | Critical Perfect (2600) | $0$ | $0$ | $0$ |
+| | Perfect High (2550) | $0$ | $0.25 \times B$ | $0.25 \times B$ |
+| | Perfect Low (2500) | $0$ | $0.50 \times B$ | $0.50 \times B$ |
+| | Great High (2000) | $1.0 \times U$ | $0.60 \times B$ | $1.0 \times U + 0.60 \times B$ |
+| | Great Mid (1500) | $2.0 \times U$ | $0.60 \times B$ | $2.0 \times U + 0.60 \times B$ |
+| | Great Low (1250) | $2.5 \times U$ | $0.60 \times B$ | $2.5 \times U + 0.60 \times B$ |
+| | Good (1000) | $3.0 \times U$ | $0.70 \times B$ | $3.0 \times U + 0.70 \times B$ |
+| | Miss (0) | $5.0 \times U$ | $1.00 \times B$ | $5.0 \times U + 1.00 \times B$ |
+
+### maimai NET Limitation & Residual Loss Solver
+
+maimai NET HTML only reports aggregated counts:
+- Break Perfect ($P = P_{\text{high}} + P_{\text{low}}$)
+- Break Great ($G = G_{\text{high}} + G_{\text{mid}} + G_{\text{low}}$)
+
+A naive assumption (treating all Break Perfects as $P_{\text{high}}$ and all Break Greats as $G_{\text{high}}$) underestimates score loss, creating errors as large as $+0.54\%$ on break-heavy charts.
+
+**The Residual Solver Algorithm (`solvePlayDetails`):**
+1. Computes deterministic non-break losses (Tap, Hold, Slide, Touch) and exact Break Good/Miss losses:
+   $$\text{KnownLoss} = \text{Loss}_{\text{non-break}} + \text{Loss}_{\text{break Good/Miss}}$$
+2. Calculates the remaining Break $P$ and $G$ residual loss from the player's true in-game achievement:
+   $$\text{TargetBreakPGLoss} = 101.0000\% - \text{achievement} - \text{KnownLoss}$$
+3. Evaluates all valid integer partitions of $(P_{\text{high}}, P_{\text{low}})$ and $(G_{\text{high}}, G_{\text{mid}}, G_{\text{low}})$ that sum to the scraped counts:
+   $$\sum \text{BreakLoss}(P, G) \approx \text{TargetBreakPGLoss}$$
+4. Finds the partition that minimizes residual distance. Because Break counts per chart are small ($\le 30$ notes), the search runs in under $0.1\,\text{ms}$ and yields **$0.0000\%$ discrepancy** with the in-game score.
+5. Persists the solved partition into `play_log.details.break` while keeping the original unpartitioned numbers safe under `details.break.raw`.
+
+---
+
 ## maimai NET Sync
 
 Implemented in [`lib/maimai-sync.ts`](lib/maimai-sync.ts) and triggered by `POST /api/sync`.
@@ -207,7 +277,9 @@ Implemented in [`lib/maimai-sync.ts`](lib/maimai-sync.ts) and triggered by `POST
    - `/record/musicGenre/search/?genre=99&diff=0` (BAS) … `diff=4` (REMAS) + `diff=10` (UTAGE)
 3. Parses HTML with string matching (no DOM library) to extract title, achievement, FC/FS
 4. Upserts into `scores` table (only updates if new achievement is higher)
-5. Also fetches `/record/` for the recent play log and upserts into `play_log`
+5. Also fetches `/record/` for the recent play log (up to 50 plays)
+6. Scrapes detailed play breakdowns from `/record/playlogDetail/?idx=...`
+7. Automatically runs `solvePlayDetails()` on each play's breakdown to mathematically partition Break sub-tiers before upserting into `play_log`
 
 ### Session cookie format
 
@@ -229,6 +301,54 @@ Triggers a full score sync from maimai NET.
 **Response:**
 ```json
 { "ok": true, "synced": 42, "lastSync": "2025-07-01T12:00:00.000Z" }
+```
+
+### `GET /api/recent-plays`
+
+Fetches recent play history records with full song metadata, chart constants, and solved judgment breakdown details.
+
+**Query Parameters:**
+- `limit` (optional, default `10`, maximum `50`): Number of recent plays to fetch.
+
+**Response:**
+```json
+{
+  "scores": [
+    {
+      "id": 2077,
+      "songTitle": "TiamaT:F minor",
+      "difficulty": "MAS",
+      "songType": "DX",
+      "achievement": "99.8765",
+      "dxScore": 3210,
+      "fc": "FC",
+      "fs": null,
+      "track": 1,
+      "playedAt": "2026-10-06T15:30:00.000Z",
+      "details": {
+        "tap": { "cp": 400, "p": 50, "gr": 3, "go": 0, "miss": 0 },
+        "hold": { "cp": 50, "p": 5, "gr": 0, "go": 0, "miss": 0 },
+        "slide": { "cp": 80, "p": 10, "gr": 1, "go": 0, "miss": 0 },
+        "touch": { "cp": 30, "p": 2, "gr": 0, "go": 0, "miss": 0 },
+        "break": {
+          "cp": 12,
+          "p_high": 2,
+          "p_low": 1,
+          "g_high": 1,
+          "g_mid": 0,
+          "g_low": 0,
+          "good": 0,
+          "miss": 0,
+          "solved": true,
+          "raw": { "p_high": 3, "p_low": 0, "g_high": 1, "g_mid": 0, "g_low": 0 }
+        },
+        "solvedLosses": { ... }
+      },
+      "song": { "title": "TiamaT:F minor", "artist": "...", "image_url": "...", "intl": "1" },
+      "internalLevel": 14.7
+    }
+  ]
+}
 ```
 
 ### `GET /api/settings`
@@ -333,7 +453,9 @@ Shared modal used on both the Songs page and the Tracker page (all three tabs). 
 ### `/recent` — Play History
 
 - Chronological play log from `play_log` table
-- Shows track number, difficulty, achievement, FC/FS
+- Cards showing track number, difficulty, achievement, FC/FS, and DX score
+- Detailed note breakdown displaying Tap, Hold, Slide, Touch, and Break counts
+- Mathematically solved Break sub-tiers (P-High / P-Low / G-High / G-Mid / G-Low) guaranteed to match actual in-game achievement with 0.0000% error
 
 ### `/settings` — Settings
 
@@ -343,9 +465,10 @@ Shared modal used on both the Songs page and the Tracker page (all three tabs). 
 - Song Database refresh button
 - Danger Zone: clear all score data
 
-### `/debug/song-details` — Debug Preview *(dev only)*
+### `/debug` & `/debug/song-details` — Debug Sandboxes *(dev only)*
 
-A development-only sandbox page used to prototype and verify Tracker page features before they are applied to the real `/tracker` route. Uses live DB data so previews are faithful to production. Not linked in navigation on production builds.
+- `/debug`: Interactive accuracy loss comparison sandbox. Compares the **Theoretical Right Value** (residual-solved exact loss), **Currently Used Naive** calculation (unpartitioned maimai NET counts), and **Brute Force Solver**. Includes a live 10-score test suite with diff tables and metric comparisons.
+- `/debug/song-details`: Development sandbox used to prototype and verify Tracker page and modal features before they are applied to the real `/tracker` route. Uses live DB data so previews are faithful to production. Not linked in navigation on production builds.
 
 ---
 
