@@ -8,8 +8,18 @@ import { getJacketUrl } from '@/lib/song-db';
 import { FCBadge, FSBadge } from '@/components/badges';
 
 const DIFF_COLOR: Record<string, string> = {
-  BAS: '#3fb950', ADV: '#d4a017', EXP: '#f64861',
-  MAS: '#9f51dc', REMAS: '#c484fc', UTAGE: '#bf1b5e',
+  BAS:   '#3fb950',
+  ADV:   '#d4a017',
+  EXP:   '#f64861',
+  MAS:   '#9f51dc',
+  REMAS: '#f3e8ff',
+  UTAGE: '#bf1b5e',
+  bas:   '#3fb950',
+  adv:   '#d4a017',
+  exp:   '#f64861',
+  mas:   '#9f51dc',
+  remas: '#f3e8ff',
+  utage: '#bf1b5e',
 };
 
 interface Play {

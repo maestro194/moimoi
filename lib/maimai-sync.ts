@@ -144,6 +144,7 @@ const DIFFICULTY_MAP: Record<number, Difficulty> = {
   2: 'EXP',
   3: 'MAS',
   4: 'REMAS',
+  5: 'UTAGE',
 };
 
 function parseAchievement(text: string): number {
@@ -162,6 +163,7 @@ const DIFF_SELECTORS: Record<number, string> = {
   2: '.music_expert_score_back',
   3: '.music_master_score_back',
   4: '.music_remaster_score_back',
+  5: '.music_utage_score_back',
 };
 
 /** Parse FC status from a .h_30 img src (uses specific filename suffixes). */
@@ -296,6 +298,7 @@ async function fetchRatingTargetScores(
       { selector: '.music_expert_score_back',   diffNum: 2, difficulty: 'EXP'   },
       { selector: '.music_master_score_back',   diffNum: 3, difficulty: 'MAS'   },
       { selector: '.music_remaster_score_back', diffNum: 4, difficulty: 'REMAS' },
+      { selector: '.music_utage_score_back',   diffNum: 5, difficulty: 'UTAGE' },
     ];
 
     for (const { selector, difficulty } of diffInfo) {
@@ -457,6 +460,7 @@ export function parseRecentPage(html: string): ParsedRecentScore[] {
     else if (diffImgSrc.includes('expert')) difficulty = 'EXP';
     else if (diffImgSrc.includes('remaster')) difficulty = 'REMAS';
     else if (diffImgSrc.includes('master')) difficulty = 'MAS';
+    else if (diffImgSrc.includes('utage')) difficulty = 'UTAGE';
 
     // Detect STD vs DX from playlog_music_kind_icon
     const iconSrc = record.find('img.playlog_music_kind_icon').attr('src');
@@ -711,7 +715,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
 
   if (doFullSync) {
     // 1. Scrape standard song list
-    for (let diff = 0; diff <= 4; diff++) {
+    for (let diff = 0; diff <= 5; diff++) {
     const difficulty = DIFFICULTY_MAP[diff];
     try {
       if (onProgress) onProgress(`Scraping ${difficulty} scores...`);

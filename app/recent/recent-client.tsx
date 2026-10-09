@@ -42,9 +42,10 @@ function getDifficultyColor(diff: string): string {
   switch (diff.toUpperCase()) {
     case 'BAS': return '#3fb950';
     case 'ADV': return '#d4a017';
-    case 'EXP': return '#da3633';
-    case 'MAS': return '#8957e5';
-    case 'REMAS': return '#d2a8ff';
+    case 'EXP': return '#f64861';
+    case 'MAS': return '#9f51dc';
+    case 'REMAS': return '#f3e8ff';
+    case 'UTAGE': return '#bf1b5e';
     default: return '#9ca3af';
   }
 }
@@ -337,7 +338,13 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
                 <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70 text-[10px] font-bold tracking-wider">
                   Track {play.track || '?'}
                 </span>
-                {play.internalLevel > 0 && (
+                {play.difficulty === 'UTAGE' ? (
+                  play.song?.lev_utage && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider" style={{ backgroundColor: accent + '22', color: accent }}>
+                      {play.song.lev_utage}
+                    </span>
+                  )
+                ) : play.internalLevel > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider" style={{ backgroundColor: accent + '22', color: accent }}>
                     {play.internalLevel.toFixed(1)}
                   </span>

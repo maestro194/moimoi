@@ -27,8 +27,14 @@ const DIFF_COLOR: Record<string, string> = {
   ADV:   '#d4a017',
   EXP:   '#f64861',
   MAS:   '#9f51dc',
-  REMAS: '#c484fc',
+  REMAS: '#f3e8ff',
   UTAGE: '#bf1b5e',
+  bas:   '#3fb950',
+  adv:   '#d4a017',
+  exp:   '#f64861',
+  mas:   '#9f51dc',
+  remas: '#f3e8ff',
+  utage: '#bf1b5e',
 };
 
 function DiffBadge({ diff }: { diff: string }) {
@@ -141,7 +147,7 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
                 <div className="flex-1 min-w-0 py-2">
                   <div className="font-bold text-base truncate text-white">{s.songTitle}</div>
                   <div className="text-xs mt-0.5 truncate flex items-center gap-2" style={{ color: 'var(--foreground-muted)' }}>
-                    <span style={{ color: DIFF_COLOR[s.difficulty] }}>{s.difficulty === 'REMAS' ? 'Re:M' : s.difficulty} {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}</span>
+                    <span style={{ color: DIFF_COLOR[s.difficulty] }}>{s.difficulty === 'REMAS' ? 'Re:M' : s.difficulty} {s.difficulty === 'UTAGE' ? (s.song?.lev_utage || '?') : (s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?')}</span>
                     <span>•</span>
                     <span className="truncate">{s.song?.artist || 'Unknown Artist'}</span>
                   </div>
@@ -301,7 +307,7 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
       ) : (
         <div>
           {view === 'matrix' ? (
-          <MatrixView scores={filtered} minLevel={minLevel} maxLevel={maxLevel} hideUnplayed={hideUnplayed} />
+          <MatrixView scores={filtered} minLevel={minLevel} maxLevel={maxLevel} hideUnplayed={hideUnplayed} onScoreClick={openDrawer} />
         ) : (
           <>
             {renderSection('New B15', newB15, 15, newB15Sum)}
@@ -354,7 +360,7 @@ function B50Card({ score: s, index = 0, animated = false, onSelect }: { score: S
         className="absolute top-0 right-0 z-20 text-[10px] md:text-[11px] font-bold px-1.5 py-1 rounded-bl-lg leading-none tabular-nums shadow-sm"
         style={{ background: diffColor, color: '#fff' }}
       >
-        {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}
+        {s.difficulty === 'UTAGE' ? (s.song?.lev_utage || '?') : (s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?')}
       </div>
 
       <div className="relative h-full flex flex-col p-2 z-10">

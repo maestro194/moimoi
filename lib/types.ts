@@ -1,6 +1,6 @@
 // Shared TypeScript types for the maimai tracker
 
-export type Difficulty = 'BAS' | 'ADV' | 'EXP' | 'MAS' | 'REMAS';
+export type Difficulty = 'BAS' | 'ADV' | 'EXP' | 'MAS' | 'REMAS' | 'UTAGE';
 export type FC = 'FC' | 'FC+' | 'AP' | 'AP+' | null;
 export type FS = 'FS' | 'FS+' | 'FDX' | 'FDX+' | 'SYNC' | null;
 export type Region = 'jp' | 'intl';

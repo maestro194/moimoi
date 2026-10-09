@@ -11,7 +11,24 @@ interface Props {
   minLevel: number;
   maxLevel: number;
   hideUnplayed?: boolean;
+  onScoreClick?: (score: ScoreWithRating) => void;
 }
+
+
+const DIFF_COLOR: Record<string, string> = {
+  BAS:   '#3fb950',
+  ADV:   '#d4a017',
+  EXP:   '#f64861',
+  MAS:   '#9f51dc',
+  REMAS: '#f3e8ff',
+  UTAGE: '#bf1b5e',
+  bas:   '#3fb950',
+  adv:   '#d4a017',
+  exp:   '#f64861',
+  mas:   '#9f51dc',
+  remas: '#f3e8ff',
+  utage: '#bf1b5e',
+};
 
 const TIERS = [
   { name: 'SSS+', min: 100.5 },
@@ -23,7 +40,7 @@ const TIERS = [
   { name: 'Other', min: 0 },
 ];
 
-export default function MatrixView({ scores, minLevel, maxLevel, hideUnplayed }: Props) {
+export default function MatrixView({ scores, minLevel, maxLevel, hideUnplayed, onScoreClick }: Props) {
   const [charts, setCharts] = useState<MinimalChart[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -121,7 +138,12 @@ export default function MatrixView({ scores, minLevel, maxLevel, hideUnplayed }:
                     
                     <div className="flex-1 flex flex-wrap gap-2">
                       {items.map(({ chart, score }, idx) => (
-                        <MatrixCard key={idx} chart={chart} score={score} />
+                        <MatrixCard 
+                          key={idx} 
+                          chart={chart} 
+                          score={score}
+                          onClick={score ? () => onScoreClick?.(score) : undefined} 
+                        />
                       ))}
                     </div>
                   </div>
@@ -135,9 +157,15 @@ export default function MatrixView({ scores, minLevel, maxLevel, hideUnplayed }:
   );
 }
 
-function MatrixCard({ chart, score }: { chart: MinimalChart, score?: ScoreWithRating }) {
+function MatrixCard({ chart, score, onClick }: { chart: MinimalChart, score?: ScoreWithRating, onClick?: () => void }) {
+  const diffColor = DIFF_COLOR[score ? score.difficulty : chart.diff] ?? 'rgba(255,255,255,0.1)';
+  
   return (
-    <div className="w-[72px] h-[72px] relative rounded-md overflow-hidden bg-black/40 group border border-white/10 shadow-sm hover:scale-110 hover:z-10 transition-transform duration-200">
+    <div 
+      onClick={onClick}
+      className={`w-[72px] h-[72px] relative rounded-md overflow-hidden bg-black/40 group shadow-sm hover:scale-110 hover:z-10 transition-transform duration-200 ${onClick ? 'cursor-pointer' : ''}`}
+      style={{ border: `1.5px solid ${diffColor}` }}
+    >
       {chart.image ? (
         <img 
           loading="lazy" 
@@ -150,7 +178,7 @@ function MatrixCard({ chart, score }: { chart: MinimalChart, score?: ScoreWithRa
       )}
 
       {/* Badges */}
-      <div className="absolute top-0 left-0 right-0 flex justify-between p-0.5">
+      <div className="absolute top-0 left-0 right-0 flex justify-between p-0.5 pointer-events-none">
         <div>
           {score?.fc && <FCBadge fc={score.fc} className="!text-[8px] !px-1 py-0 !border-0 bg-black/60 backdrop-blur-md" />}
         </div>
@@ -163,9 +191,9 @@ function MatrixCard({ chart, score }: { chart: MinimalChart, score?: ScoreWithRa
 
       {/* Accuracy overlay */}
       {score ? (
-        <div className="absolute bottom-0 left-0 right-0 bg-black/70 backdrop-blur-sm px-1 py-0.5 text-center">
-          <span className="text-[10px] font-bold font-num text-white leading-none shadow-sm">
-            {score.achievement.toFixed(4)}<span className="text-[7px] text-white/50">%</span>
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-6 pb-0.5 px-1 text-center pointer-events-none">
+          <span className="text-xs font-bold font-num text-white leading-none shadow-md" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.8)' }}>
+            {(Math.floor(score.achievement * 100) / 100).toFixed(2)}<span className="text-[9px] text-white/70 ml-[1px]">%</span>
           </span>
         </div>
       ) : null}

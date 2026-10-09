@@ -21,8 +21,8 @@ async function getDashboardData() {
     const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
 
     const songMap = buildSongMap(songs);
-    const versionStr = getSet('maimai_version');
-    const currentVersion = versionStr ? parseInt(versionStr, 10) : detectCurrentVersion(songs);
+     
+    const currentVersion = detectCurrentVersion(songs);
 
     const typedScores: Score[] = dbScores.map(s => ({
       id: s.id,

@@ -108,6 +108,7 @@ export function getSongInternalLevel(
       EXP:   song.dx_lev_exp_i   ?? song.lev_exp_i,
       MAS:   song.dx_lev_mas_i   ?? song.lev_mas_i,
       REMAS: song.dx_lev_remas_i ?? song.lev_remas_i,
+      UTAGE: song.lev_utage,
     };
     const dxDisplay: Record<Difficulty, string | undefined> = {
       BAS:   song.dx_lev_bas   ?? song.lev_bas,
@@ -115,6 +116,7 @@ export function getSongInternalLevel(
       EXP:   song.dx_lev_exp   ?? song.lev_exp,
       MAS:   song.dx_lev_mas   ?? song.lev_mas,
       REMAS: song.dx_lev_remas ?? song.lev_remas,
+      UTAGE: song.lev_utage,
     };
     return parseInternalLevel(dxMap[difficulty], dxDisplay[difficulty]);
   }
@@ -126,6 +128,7 @@ export function getSongInternalLevel(
     EXP:   song.lev_exp_i,
     MAS:   song.lev_mas_i,
     REMAS: song.lev_remas_i,
+    UTAGE: song.lev_utage,
   };
   const stdDisplay: Record<Difficulty, string | undefined> = {
     BAS:   song.lev_bas,
@@ -133,6 +136,7 @@ export function getSongInternalLevel(
     EXP:   song.lev_exp,
     MAS:   song.lev_mas,
     REMAS: song.lev_remas,
+    UTAGE: song.lev_utage,
   };
   return parseInternalLevel(stdMap[difficulty], stdDisplay[difficulty]);
 }

@@ -90,7 +90,7 @@ const CAT_LABELS: Record<string, string> = {
 
 const DIFF_COLOR: Record<string, string> = {
   bas: '#3fb950', adv: '#d4a017', exp: '#f64861',
-  mas: '#9f51dc', remas: '#c484fc', utage: '#bf1b5e',
+  mas: '#9f51dc', remas: '#f3e8ff', utage: '#bf1b5e',
 };
 
 const ABBR_TO_KEY: Record<string, string> = {
