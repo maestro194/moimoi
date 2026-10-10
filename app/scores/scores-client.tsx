@@ -339,7 +339,7 @@ function B50Card({ score: s, index = 0, animated = false, onSelect }: { score: S
     <div
       className={`relative overflow-hidden rounded-xl h-[160px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 cursor-pointer ${animated ? 'animate-slide-up' : ''}`}
       style={{ 
-        border: `1.5px solid ${diffColor}`,
+        border: `2.5px solid ${diffColor}`,
         animationDelay: animated ? `${index * 0.03}s` : undefined,
         animationFillMode: animated ? 'both' : undefined
       }}

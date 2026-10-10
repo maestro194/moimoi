@@ -164,7 +164,7 @@ function MatrixCard({ chart, score, onClick }: { chart: MinimalChart, score?: Sc
     <div 
       onClick={onClick}
       className={`w-[72px] h-[72px] relative rounded-md overflow-hidden bg-black/40 group shadow-sm hover:scale-110 hover:z-10 transition-transform duration-200 ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ border: `1.5px solid ${diffColor}` }}
+      style={{ border: `2.5px solid ${diffColor}` }}
     >
       {chart.image ? (
         <img 
