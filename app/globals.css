@@ -2,8 +2,8 @@
 @import "tailwindcss";
 
 option {
-  background-color: #F7A1A9;
-  color: #F7A1A9;
+  background-color: #111;
+  color: #f0eeff;
 }
 
 :root {
@@ -31,8 +31,9 @@ option {
   --diff-basic: #66bb6a;
   --diff-advanced: #ffb300;
   --diff-expert: #ef5350;
-  --diff-master: #ab47bc;
-  --diff-remaster: #F7A1A9;
+  --diff-master: #9f51dc;
+  --diff-remaster: #e4b7eb;
+  --diff-utage: #bf1b5e;
 
   /* Rank colors */
   --rank-sssplus: #f9a8d4;
@@ -124,21 +125,22 @@ body {
 }
 
 /* Difficulty badge colors */
-.diff-basic   { background: rgba(102, 187, 106, 0.15); color: #F7A1A9; border-color: rgba(102, 187, 106, 0.3); }
-.diff-advanced { background: rgba(255, 179, 0, 0.15); color: #F7A1A9; border-color: rgba(255, 179, 0, 0.3); }
-.diff-expert  { background: rgba(239, 83, 80, 0.15); color: #F7A1A9; border-color: rgba(239, 83, 80, 0.3); }
-.diff-master  { background: rgba(171, 71, 188, 0.15); color: #F7A1A9; border-color: rgba(171, 71, 188, 0.3); }
-.diff-remaster { background: rgba(224, 242, 254, 0.1); color: #F7A1A9; border-color: rgba(224, 242, 254, 0.25); }
+.diff-basic   { background: rgba(102, 187, 106, 0.15); color: #86efac; border-color: rgba(102, 187, 106, 0.3); }
+.diff-advanced { background: rgba(255, 179, 0, 0.15); color: #fcd34d; border-color: rgba(255, 179, 0, 0.3); }
+.diff-expert  { background: rgba(239, 83, 80, 0.15); color: #fca5a5; border-color: rgba(239, 83, 80, 0.3); }
+.diff-master  { background: rgba(159, 81, 220, 0.15); color: #9f51dc; border-color: rgba(159, 81, 220, 0.3); }
+.diff-remaster { background: rgba(228, 183, 235, 0.1); color: #e4b7eb; border-color: rgba(228, 183, 235, 0.25); }
+.diff-utage { background: rgba(191, 27, 94, 0.1); color: #bf1b5e; border-color: rgba(191, 27, 94, 0.25); }
 
 /* Rank badge styles */
-.rank-sssplus { background: rgba(249, 168, 212, 0.15); color: #F7A1A9; }
-.rank-sss     { background: rgba(244, 114, 182, 0.15); color: #F7A1A9; }
-.rank-ssplus  { background: rgba(192, 132, 252, 0.15); color: #F7A1A9; }
-.rank-ss      { background: rgba(167, 139, 250, 0.15); color: #F7A1A9; }
-.rank-splus   { background: rgba(129, 140, 248, 0.15); color: #F7A1A9; }
-.rank-s       { background: rgba(96, 165, 250, 0.15); color: #F7A1A9; }
-.rank-aaa     { background: rgba(251, 191, 36, 0.15); color: #F7A1A9; }
-.rank-aa      { background: rgba(251, 146, 60, 0.15); color: #F7A1A9; }
+.rank-sssplus { background: rgba(249, 168, 212, 0.15); color: #f9a8d4; }
+.rank-sss     { background: rgba(244, 114, 182, 0.15); color: #f472b6; }
+.rank-ssplus  { background: rgba(192, 132, 252, 0.15); color: #c084fc; }
+.rank-ss      { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
+.rank-splus   { background: rgba(129, 140, 248, 0.15); color: #818cf8; }
+.rank-s       { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+.rank-aaa     { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.rank-aa      { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
 
 /* Smooth transitions */
 .transition-all { transition: all 0.2s ease; }

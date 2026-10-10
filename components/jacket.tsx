@@ -15,9 +15,10 @@ function getDifficultyColor(diff: string): string {
   switch (diff.toUpperCase()) {
     case 'BAS': return '#3fb950';
     case 'ADV': return '#d4a017';
-    case 'EXP': return '#da3633';
-    case 'MAS': return '#8957e5';
-    case 'REMAS': return '#F7A1A9';
+    case 'EXP': return '#f64861';
+    case 'MAS': return '#9f51dc';
+    case 'REMAS': return '#e4b7eb';
+    case 'UTAGE': return '#bf1b5e';
     default: return '#9ca3af';
   }
 }
