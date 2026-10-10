@@ -28,7 +28,7 @@ export function getDb(): DrizzleClient {
 export const db = new Proxy({} as DrizzleClient, {
   get(_target, prop: string | symbol) {
     const instance = getDb();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const value = (instance as unknown as Record<string | symbol, unknown>)[prop];
     return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
   },
