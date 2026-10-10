@@ -8,7 +8,7 @@ import { useBoard } from '@/lib/useBoard';
 
 const DIFF_COLOR: Record<string, string> = {
   bas: '#3fb950', adv: '#d4a017', exp: '#f64861',
-  mas: '#9f51dc', remas: '#c484fc', utage: '#bf1b5e',
+  mas: '#9f51dc', remas: '#e4b7eb', utage: '#bf1b5e',
 };
 
 interface Props {

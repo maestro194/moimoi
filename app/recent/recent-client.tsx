@@ -44,7 +44,7 @@ function getDifficultyColor(diff: string): string {
     case 'ADV': return '#d4a017';
     case 'EXP': return '#f64861';
     case 'MAS': return '#9f51dc';
-    case 'REMAS': return '#F47983';
+    case 'REMAS': return '#e4b7eb';
     case 'UTAGE': return '#bf1b5e';
     default: return '#9ca3af';
   }
