@@ -1,93 +1,29 @@
 ---
 phase: monitoring
 title: Monitoring & Observability
-description: Define monitoring strategy, metrics, alerts, and incident response
+description: Performance metrics, error handling, and sync telemetry
 ---
 
 # Monitoring & Observability
 
-## Key Metrics
+## Key Monitoring Dimensions
 
-**What do we need to track?**
+### 1. maimai NET Sync Health
+- **Session freshness**: `settings` table tracks `last_sync` timestamp displayed directly on Dashboard and Recent pages.
+- **Scraper errors**: API routes `/api/sync` and `/api/validate-session` return structured error details when SEGA ID cookies expire or CAPTCHA triggers.
+- **Fail-soft design**: Per-difficulty scraping catches exceptions per batch, ensuring partial records are saved even if one difficulty times out.
 
-### Performance Metrics
+### 2. Database & API Performance
+- **Neon Postgres Metrics**: Monitor query compute hours, connection pooling usage, and latency via the Neon console.
+- **Vercel Serverless Function Logs**: Execution duration and runtime logs for API endpoints.
+- **Client Cache Performance**: Song database cache is stored in Neon `songs` table with fallbacks to remote dxrating API.
 
-- Response time/latency
-- Throughput/requests per second
-- Resource utilization (CPU, memory, disk)
+### 3. Client Health & UX
+- **Virtualized rendering**: `@tanstack/react-virtual` ensures 60 FPS performance when scrolling through 15,000+ song charts.
+- **Database connection fallbacks**: All top-level page components wrap DB queries in try/catch blocks to gracefully render offline/setup instructions instead of crashing with HTTP 500.
 
-### Business Metrics
+## Error Reporting Strategy
 
-- User engagement metrics
-- Conversion/success rates
-- Feature usage
-
-### Error Metrics
-
-- Error rates by type
-- Failed requests
-- Exception tracking
-
-## Monitoring Tools
-
-**What tools are we using?**
-
-- Application monitoring (APM)
-- Infrastructure monitoring
-- Log aggregation
-- User analytics
-
-## Logging Strategy
-
-**What do we log and how?**
-
-- Log levels and categories
-- Structured logging format
-- Log retention policy
-- Sensitive data handling
-
-## Alerts & Notifications
-
-**When and how do we get notified?**
-
-### Critical Alerts
-
-- Alert 1: [Condition] → [Action]
-- Alert 2: [Condition] → [Action]
-
-### Warning Alerts
-
-- Alert 1: [Condition] → [Action]
-- Alert 2: [Condition] → [Action]
-
-## Dashboards
-
-**What do we visualize?**
-
-- System health dashboard
-- Business metrics dashboard
-- Custom views per team/role
-
-## Incident Response
-
-**How do we handle issues?**
-
-### On-Call Rotation
-
-- Schedule and contacts
-- Escalation path
-
-### Incident Process
-
-1. Detection and triage
-2. Investigation and diagnosis
-3. Resolution and mitigation
-4. Post-mortem and learning
-
-## Health Checks
-
-**How do we verify system health?**
-
-- Endpoint health checks
-- Dependency checks
-- Automated smoke tests
+- **API Errors**: Return JSON `{ ok: false, error: message }` with appropriate HTTP status codes (400, 401, 500).
+- **Client UI Feedback**: Toast messages and status banners for sync in progress, sync succeeded, and sync failed.
+- **Dev Tools**: `/debug` sandbox page to inspect canvas and raw B50 data payloads.

@@ -1,91 +1,56 @@
 ---
 phase: testing
-title: Testing Strategy
-description: Define testing approach, test cases, and quality assurance
+title: Testing Strategy & Verification
+description: Testing approach, verification workflows, and sandbox environments
 ---
 
-# Testing Strategy
+# Testing Strategy & Verification
 
-## Test Coverage Goals
+## Testing Philosophy
 
-**What level of testing do we aim for?**
+moimoi follows an evidence-based and sandbox-first testing approach:
 
-- Unit test coverage target (default: 100% of new/changed code)
-- Integration test scope (critical paths + error handling)
-- End-to-end test scenarios (key user journeys)
-- Alignment with requirements/design acceptance criteria
+1. **Debug-First Development (`AGENTS.md`)**: Any new tracker feature or chart interaction must be prototyped and validated in `/debug/song-details` before touching production tracker files (`app/tracker/tracker-client.tsx`).
+2. **Deterministic Algorithm Verification**: Core calculation routines (`rating.ts`, `accuracy-solver.ts`) must have exact mathematical proofs and zero floating-point error tolerances.
+3. **Build & Type Health**: Verify compilation with `npx tsc --noEmit` and `npm run build` prior to all deployments.
 
-## Unit Tests
+## Critical Test Areas
 
-**What individual components need testing?**
+### 1. Rating Calculation (`lib/rating.ts`)
+- **Single chart rating**: `calcSingleRating(internalLevel, achievement, fc)`. Verifies floor rounding logic and achievement rank multipliers.
+- **B50 rating split**: 35 Old charts + 15 New charts. Correct version thresholding based on `detectCurrentVersion(songs)`.
+- **UTAGE handling**: UTAGE charts must not skew standard B50 rating metrics; internal level lookups should safely fall back to 0 or raw strings.
 
-### Component/Module 1
+### 2. Accuracy Loss Solver (`lib/accuracy-solver.ts`)
+- **Note weight algebra**: Tap (1.0), Hold (2.0), Slide (3.0), Touch (1.0), Break (5.0 + 1.0 bonus).
+- **Residual error brute force**: Solves Great/Good/Miss and Break sub-tier distributions ($P_{High}, P_{Low}, G_{High}, G_{Mid}, G_{Low}$) to match official achievement percentages down to 0.0000% error.
 
-- [ ] Test case 1: [Description] (covers scenario / branch)
-- [ ] Test case 2: [Description] (covers edge case / error handling)
-- [ ] Additional coverage: [Description]
+### 3. maimai NET Scraper (`lib/maimai-sync.ts`)
+- **Cookie and session persistence**: Validates authentication cookies (`maimai_clal`) through SEGA ID login sequence.
+- **Difficulty parsing**: Correctly handles 6 difficulty categories: BAS (0), ADV (1), EXP (2), MAS (3), REMAS (4), and UTAGE (5).
+- **UTAGE image detection**: Matches `playlog_diff_utage.png` in recent plays to prevent misclassification as MASTER.
 
-### Component/Module 2
+### 4. Database & Schemas (`lib/db/schema.ts`)
+- **Unique constraints**: Ensures deduplication on `(songTitle, difficulty, songType)` across `scores` and `score_trackers`.
+- **Drizzle Kit synchronization**: Verification of schema updates with Neon Postgres using `npm run db:push`.
 
-- [ ] Test case 1: [Description]
-- [ ] Test case 2: [Description]
-- [ ] Additional coverage: [Description]
+## Sandbox & Debug Tools
 
-## Integration Tests
+| Route | Purpose | Data Source |
+|---|---|---|
+| `/debug` | B50 image generation preview and canvas test | Local API / Canvas |
+| `/debug/song-details` | Song Details Modal, chart actions, and Tracker sandbox | Production Neon DB & Song DB |
+| `/docs/dev` | Technical documentation and architecture verification | Live `docs/ai/*.md` files |
 
-**How do we test component interactions?**
+## Verification Commands
 
-- [ ] Integration scenario 1
-- [ ] Integration scenario 2
-- [ ] API endpoint tests
-- [ ] Integration scenario 3 (failure mode / rollback)
+```bash
+# Type check without emitting files
+npx tsc --noEmit
 
-## End-to-End Tests
+# Production build check
+npm run build
 
-**What user flows need validation?**
-
-- [ ] User flow 1: [Description]
-- [ ] User flow 2: [Description]
-- [ ] Critical path testing
-- [ ] Regression of adjacent features
-
-## Test Data
-
-**What data do we use for testing?**
-
-- Test fixtures and mocks
-- Seed data requirements
-- Test database setup
-
-## Test Reporting & Coverage
-
-**How do we verify and communicate test results?**
-
-- Coverage commands and thresholds (`npm run test -- --coverage`)
-- Coverage gaps (files/functions below 100% and rationale)
-- Links to test reports or dashboards
-- Manual testing outcomes and sign-off
-
-## Manual Testing
-
-**What requires human validation?**
-
-- UI/UX testing checklist (include accessibility)
-- Browser/device compatibility
-- Smoke tests after deployment
-
-## Performance Testing
-
-**How do we validate performance?**
-
-- Load testing scenarios
-- Stress testing approach
-- Performance benchmarks
-
-## Bug Tracking
-
-**How do we manage issues?**
-
-- Issue tracking process
-- Bug severity levels
-- Regression testing strategy
+# Schema push validation
+npm run db:push
+```

@@ -1,83 +1,55 @@
 ---
 phase: deployment
-title: Deployment Strategy
-description: Define deployment process, infrastructure, and release procedures
+title: Deployment Strategy & Infrastructure
+description: Deployment pipeline, hosting configuration, and release procedures
 ---
 
-# Deployment Strategy
+# Deployment Strategy & Infrastructure
 
-## Infrastructure
+## Production Architecture
 
-**Where will the application run?**
+```mermaid
+flowchart LR
+    Git["GitHub (main)"] -->|Git Push| Vercel["Vercel Build & Edge Network"]
+    Vercel -->|Serverless Functions| Neon[("Neon Postgres Serverless")]
+    Vercel -->|Static Assets & CDN| Browser["User Browser"]
+    EAS["EAS Build (Mobile Planned)"] -->|APK Artifact| Mobile["Android Device"]
+```
 
-- Hosting platform (AWS, GCP, Azure, etc.)
-- Infrastructure components (servers, databases, etc.)
-- Environment separation (dev, staging, production)
+## Web Application Deployment
 
-## Deployment Pipeline
+- **Platform**: Vercel (Next.js App Router).
+- **Branch**: `main` branch pushes automatically trigger production deployments.
+- **Node.js Runtime**: Node 20+.
+- **Build Command**: `next build` (using Turbopack).
+- **Static vs Dynamic**:
+  - Dynamic routes: Pages requiring live DB queries (`/`, `/scores`, `/tracker`, `/recent`, `/analysis`, `/settings`) use `export const dynamic = 'force-dynamic'`.
+  - Static routes: Documentation (`/docs`, `/docs/dev`) and song cache routes are statically rendered or cached via ISR.
 
-**How do we deploy changes?**
+## Configuration & Secrets
 
-### Build Process
+All production secrets are managed in the Vercel project environment variables:
 
-- Build steps and commands
-- Asset compilation/optimization
-- Environment configuration
+| Variable | Scope | Description |
+|---|---|---|
+| `DATABASE_URL` | Production, Preview | Neon Postgres connection string with connection pooling enabled (`-pooler` endpoint) |
 
-### CI/CD Pipeline
-
-- Automated testing gates
-- Build automation
-- Deployment automation
-
-## Environment Configuration
-
-**What settings differ per environment?**
-
-### Development
-
-- Configuration details
-- Local setup
-
-### Staging
-
-- Configuration details
-- Testing environment
-
-### Production
-
-- Configuration details
-- Monitoring setup
-
-## Deployment Steps
-
-**What's the release process?**
-
-1. Pre-deployment checklist
-2. Deployment execution steps
-3. Post-deployment validation
-4. Rollback procedure (if needed)
+> [!NOTE]
+> `next.config.mjs` configures `typescript: { ignoreBuildErrors: true }` to prevent script/utility type warnings from failing production builds.
 
 ## Database Migrations
 
-**How do we handle schema changes?**
+- Database schema is managed via **Drizzle ORM**.
+- Direct schema synchronization command:
+  ```bash
+  npm run db:push
+  ```
+- No downtime or migration lockouts on serverless Neon Postgres.
 
-- Migration strategy
-- Backup procedures
-- Rollback approach
+## Mobile Application Deployment (Planned)
 
-## Secrets Management
-
-**How do we handle sensitive data?**
-
-- Environment variables
-- Secret storage solution
-- Key rotation strategy
-
-## Rollback Plan
-
-**What if something goes wrong?**
-
-- Rollback triggers
-- Rollback steps
-- Communication plan
+- **Framework**: Expo SDK 52 with React Native.
+- **Build System**: Expo Application Services (EAS Build).
+- **Target**: Android APK / AAB.
+- **Distribution**: Direct APK sideloading and GitHub releases (no Play Store review friction for scraper).
+- **Updates**: EAS Update for over-the-air (OTA) JavaScript bundle patches.

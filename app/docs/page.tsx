@@ -1,6 +1,7 @@
 import React from 'react';
+import Link from 'next/link';
 import { PageWrapper } from '@/components/page-wrapper';
-import { BookOpen, Search, Target, Play, List, RefreshCw, Music2, Info, Tag } from 'lucide-react';
+import { BookOpen, Search, Target, Play, List, RefreshCw, Music2, Info, Tag, Code2 } from 'lucide-react';
 
 export default function DocsPage() {
   return (
@@ -17,16 +18,34 @@ export default function DocsPage() {
             <a href="#board"        className="text-sm text-white/70 hover:text-white py-1 transition-colors">The Board (Tracker)</a>
             <a href="#sync"         className="text-sm text-white/70 hover:text-white py-1 transition-colors">Syncing Data</a>
           </nav>
+
+          <div className="mt-8 pt-6 border-t border-white/10">
+            <div className="text-xs font-bold text-white/40 mb-2 uppercase tracking-wider">Architecture</div>
+            <Link 
+              href="/docs/dev"
+              className="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1.5 py-1"
+            >
+              <Code2 size={13} /> Developer &amp; Arch Docs &rarr;
+            </Link>
+          </div>
         </div>
 
         {/* Content Area */}
         <div className="flex-1 min-w-0 pb-32">
           <header className="mb-12 border-b border-white/10 pb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
-                <BookOpen size={24} />
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                  <BookOpen size={24} />
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">Documentation</h1>
               </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">Documentation</h1>
+              <Link 
+                href="/docs/dev"
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-semibold border border-purple-500/20 transition-colors"
+              >
+                <Code2 size={14} /> Dev &amp; Architecture Docs &rarr;
+              </Link>
             </div>
             <p className="text-white/60 text-lg max-w-2xl leading-relaxed">
               Welcome to the official documentation for moimoi. Learn how to navigate the app, track your scores, and push your rating to the next level.
