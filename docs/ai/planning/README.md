@@ -33,7 +33,7 @@ The web app is deployed on Vercel and fully functional. The following features a
 - [x] **M2: Polish** — Matrix view, UTAGE, difficulty colors, settings overhaul
 - [ ] **M3: Monorepo Migration** — Extract shared packages, move web into `apps/web/`
 - [ ] **M4: Mobile Scaffold** — Expo app, SQLite sync, core screens
-- [ ] **M5: Arcade Mode** — Session tracking, geofencing, post-session sync
+- [ ] **M5: Arcade Mode** — Manual session tracking, post-session sync *(geofencing deferred)*
 - [ ] **M6: Mobile Polish** — Animations, offline handling, EAS build
 
 ---
@@ -88,19 +88,17 @@ The web app is deployed on Vercel and fully functional. The following features a
 
 ## Phase 3 — Arcade Mode *(~1.5 weeks)*
 
-**Goal:** The phone-as-arcade-companion experience.
+**Goal:** Manual session tracking during arcade visits with auto-sync on end.
 
-- [ ] `arcade_sessions` table in SQLite (start, end, location, play count, rating delta)
+- [ ] `arcade_sessions` table in SQLite (start, end, location name, play count, rating delta)
 - [ ] Manual "Start Session" / "End Session" flow
-- [ ] Session timer + live play counter UI (user increments manually or auto from sync delta)
-- [ ] Arcade location management: add location by GPS drop or search
-- [ ] Pre-seed known arcade locations (TH + JP)
-- [ ] Geofencing with `expo-location` + `expo-task-manager` (background)
-- [ ] Auto-trigger sync on geofence exit
+- [ ] Session timer + live play counter UI
+- [ ] Post-session auto-sync (fetch latest scores from `/api/sync`)
 - [ ] Session Summary screen: plays, rating delta (before/after), new PBs list
-- [ ] Push notification: "You're at [arcade] — start session?" on geofence enter
 
-**Dependencies:** Phase 2, decision on arcade location sourcing strategy
+> **Deferred:** Geofencing (`expo-location` + `expo-task-manager`), arcade location management, and push notification "You're at [arcade]" trigger are **not in scope** for initial release. Manual start/end is sufficient for now.
+
+**Dependencies:** Phase 2
 
 ---
 
@@ -118,9 +116,9 @@ The web app is deployed on Vercel and fully functional. The following features a
 
 ```
 Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4
-                                 ↑
-                         [Decision: arcade location seeding]
 ```
+
+*(No blocking decisions remain — all open decisions resolved.)*
 
 ## Risks & Mitigation
 
@@ -128,6 +126,5 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4
 |---|---|
 | SEGA changes maimaidx.net HTML | Modular scraper in one file; fix once, deploy |
 | Expo SDK upgrade breaks native modules | Pin SDK version; test upgrades in dev branch |
-| Geofencing battery drain | Low-accuracy mode when idle; high-accuracy only active in session |
 | SQLite ↔ Neon schema drift | Shared `packages/db-schema`; single source of truth |
 | Play Store policy risk from scraping | Distribute as APK only — no store submission |

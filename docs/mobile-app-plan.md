@@ -278,36 +278,26 @@ export const arcadeSessions = sqliteTable('arcade_sessions', {
 
 ---
 
-## 7. Open Decisions to Resolve Before Starting
+## 7. Open Decisions — Resolved
 
-> [!IMPORTANT]
-> These decisions affect the architecture — resolve them before Phase 0.
+> [!NOTE]
+> All decisions below have been resolved. No blockers remain before Phase 0.
 
-### Decision 1: Monorepo migration timing
-**Option A:** Do it now before building mobile (clean, recommended)
-**Option B:** Build mobile app as a separate repo, manually copy shared files
+### ✅ Decision 1: Monorepo migration timing
+**→ Option A selected:** Do it now before building mobile.
 
-*Recommendation: Option A. Copy-pasting shared logic creates drift and bugs.*
+Monorepo will be set up first. All shared logic (`types`, `rating`, `schema`) extracted into workspace packages before the Expo app is scaffolded.
 
-### Decision 2: Web target for mobile app
-**Option A:** Expo Router web output (single codebase, some limitations)
-**Option B:** Keep Next.js for web, Expo for mobile only (two codebases, but each optimal)
+### ✅ Decision 2: Web target for mobile app
+**→ Option B selected:** Keep Next.js for web, Expo for mobile only.
 
-*Recommendation: Option B. Expo's web output isn't ready to replace a production Next.js app. Keep them separate with shared logic packages.*
+Two separate apps share logic via `packages/core` and `packages/db-schema`. No attempt to unify into a single Expo web/native codebase.
 
-### Decision 3: Authentication model
-The SEGA login currently stores the session cookie in Neon (`settings` table). The mobile app needs to either:
-- **A)** Trigger login via the web API (mobile → `/api/settings` → Neon), simple but requires network
-- **B)** Store credentials locally in `expo-secure-store`, log in from the device directly
+### ✅ Decision 3: Authentication model
+**→ Approved:** Mobile triggers sync via the existing web API (`POST /api/sync`). Credentials remain in Neon `settings` table server-side. No local credential storage needed for now.
 
-*Recommendation: Option A for Phase 1, Option B later for true offline login.*
-
-### Decision 4: Arcade location sourcing
-- **A)** User manually adds locations (GPS pin drop)
-- **B)** Pre-seeded database of known arcades (Thailand + JP)
-- **C)** Use Google Places API to search for "maimai arcade"
-
-*Recommendation: Start with A (manual), seed known TH/JP arcades as defaults.*
+### ~~Decision 4: Arcade location sourcing~~
+~~*Deferred — not implementing geofencing or arcade location management yet. The Arcade Mode session tracking will be manual-only (user taps Start/End) for the initial release. Location features can be added in a later phase.*~~
 
 ---
 
