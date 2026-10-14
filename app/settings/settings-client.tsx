@@ -34,8 +34,8 @@ export default function SettingsClient() {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Omit region — don't overwrite whatever region is already stored
         body: JSON.stringify({ 
-          region: 'intl',
           segaId,
           segaPassword: segaPassword.includes('•') ? undefined : segaPassword
         }),
