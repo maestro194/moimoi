@@ -260,13 +260,13 @@ export const arcadeSessions = sqliteTable('arcade_sessions', {
 - [ ] Settings: SEGA login flow (WebView for auth handoff)
 - [ ] Dark theme matching moimoi color palette
 
-### Phase 3 — Arcade Mode *(~1.5 weeks)*
+### Phase 3 — Arcade Mode *(~1 week)*
 - [ ] Session model: start/end, play count, rating delta
 - [ ] Manual "Start/End Session" flow
-- [ ] Geofencing with `expo-location` + `expo-task-manager`
-- [ ] Arcade location management (add by GPS or search)
-- [ ] Post-session auto-sync
 - [ ] Session Summary screen (animated rating change, PB highlights)
+- [ ] Post-session auto-sync
+- ~~[ ] Geofencing with `expo-location` + `expo-task-manager`~~ *(deferred)*
+- ~~[ ] Arcade location management (add by GPS or search)~~ *(deferred)*
 
 ### Phase 4 — Polish & Distribution *(~1 week)*
 - [ ] EAS Build config for Android APK / AAB
@@ -278,26 +278,38 @@ export const arcadeSessions = sqliteTable('arcade_sessions', {
 
 ---
 
-## 7. Open Decisions — Resolved
+## 7. Resolved Architecture Decisions
 
 > [!NOTE]
-> All decisions below have been resolved. No blockers remain before Phase 0.
+> All four decisions have been finalized. No blockers remain before Phase 0.
 
-### ✅ Decision 1: Monorepo migration timing
-**→ Option A selected:** Do it now before building mobile.
+### ✅ Decision 1: Monorepo migration timing → **Do it now**
 
-Monorepo will be set up first. All shared logic (`types`, `rating`, `schema`) extracted into workspace packages before the Expo app is scaffolded.
+Migrate to monorepo before building mobile. Clean foundation, shared packages from the start.
+No copy-pasting shared logic between repos.
 
-### ✅ Decision 2: Web target for mobile app
-**→ Option B selected:** Keep Next.js for web, Expo for mobile only.
+### ✅ Decision 2: Web vs. mobile codebase → **Two separate codebases, synced**
 
-Two separate apps share logic via `packages/core` and `packages/db-schema`. No attempt to unify into a single Expo web/native codebase.
+- `apps/web` — Next.js (existing moimoi, unchanged)
+- `apps/mobile` — Expo app (new)
+- Features are implemented on whichever platform makes sense first, then ported to the other
+- Shared logic lives in `packages/core` and `packages/db-schema` to minimize drift
 
-### ✅ Decision 3: Authentication model
-**→ Approved:** Mobile triggers sync via the existing web API (`POST /api/sync`). Credentials remain in Neon `settings` table server-side. No local credential storage needed for now.
+### ✅ Decision 3: Authentication → **Same credential flow as web (SEGA ID + password → Neon)**
 
-### ~~Decision 4: Arcade location sourcing~~
-~~*Deferred — not implementing geofencing or arcade location management yet. The Arcade Mode session tracking will be manual-only (user taps Start/End) for the initial release. Location features can be added in a later phase.*~~
+The web settings page stores SEGA ID + password in the `settings` table in Neon via `POST /api/settings`.
+The mobile app does the same: a settings screen where the user enters their SEGA ID + password,
+which the app `POST`s to `/api/settings`. Sync (`POST /api/sync`) then uses those stored credentials server-side.
+
+No on-device credential storage in Phase 1. Requires network to authenticate, which is acceptable.
+
+### ✅ Decision 4: Arcade locations / geofencing → **Deferred (not in scope)**
+
+Arcade location management and geofencing are grayed out and will not be implemented in any phase
+until explicitly re-prioritized. The **Arcade Mode tab** will exist as a shell screen but the
+geofencing / auto-session-detection features are excluded.
+
+Manual "Start Session" / "End Session" buttons in the Arcade tab remain in scope (no location needed).
 
 ---
 
@@ -307,7 +319,7 @@ Two separate apps share logic via `packages/core` and `packages/db-schema`. No a
 |---|---|---|
 | SEGA changes maimaidx.net HTML structure | High — sync breaks | Existing risk on web app too; modular scraper means fix once |
 | Expo SDK updates breaking native modules | Medium | Pin SDK version, test upgrades in dev before OTA push |
-| Geofencing battery drain | Medium | Use low-accuracy location mode when idle; only high-accuracy in session |
+| ~~Geofencing battery drain~~ | ~~Medium~~ | *Deferred — geofencing not in scope* |
 | SQLite ↔ Neon schema drift | Medium | Shared `packages/db-schema` prevents this by design |
 | App Store / Play Store policies on scraping | Low (Android sideload) | Distribute as APK directly, no Play Store submission required |
 
@@ -315,6 +327,9 @@ Two separate apps share logic via `packages/core` and `packages/db-schema`. No a
 
 ## Summary
 
-The architecture is straightforward because **the hard parts are already built** — the scraper, the rating calculator, the schema, and the API routes all exist in moimoi today. The mobile app is primarily a **new UI client** that talks to the same backend, with a local SQLite cache for speed and a geofencing layer for session awareness.
+The architecture is straightforward because **the hard parts are already built** — the scraper, the rating calculator, the schema, and the API routes all exist in moimoi today. The mobile app is primarily a **new UI client** that talks to the same backend, with a local SQLite cache for speed.
 
-Total estimated calendar time: **6–8 weeks** building solo, or faster with focused sessions.
+**All 4 architectural decisions are now resolved.** Phase 0 (monorepo setup) can begin immediately.
+
+Total estimated calendar time: **5–7 weeks** (geofencing deferred reduces scope).
+
