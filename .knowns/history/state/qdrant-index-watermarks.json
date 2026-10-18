@@ -1,0 +1,101 @@
+{
+  "task:MO-60074Z": {
+    "entityType": "task",
+    "entityId": "MO-60074Z",
+    "canonicalHash": "3092f5f4a95933abaa90243db8cc8ca3443e68ce08398e0ffdd70d64e14e315d",
+    "revision": 1,
+    "path": "tasks/MO-60074Z.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-9NQPT8": {
+    "entityType": "task",
+    "entityId": "MO-9NQPT8",
+    "canonicalHash": "5a879c35d70f1bcf5dea9e570ef22d69a3bc67682f38147cb7251fa766a2cf7e",
+    "revision": 1,
+    "path": "tasks/MO-9NQPT8.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-B1GT2P": {
+    "entityType": "task",
+    "entityId": "MO-B1GT2P",
+    "canonicalHash": "06b43efb5860f9f0d777ee51509c616ab8057c0deee7310b721f7ff003795533",
+    "revision": 1,
+    "path": "tasks/MO-B1GT2P.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-EDGGC7": {
+    "entityType": "task",
+    "entityId": "MO-EDGGC7",
+    "canonicalHash": "fca49d713d118f5923fd259429e42c70cf0fd662fce8c08c0586a8ee73024454",
+    "revision": 1,
+    "path": "tasks/MO-EDGGC7.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-EKS5AC": {
+    "entityType": "task",
+    "entityId": "MO-EKS5AC",
+    "canonicalHash": "f9167343a008f564500a6810944df77154de9066c254eb384cb8d788f2b39a66",
+    "revision": 1,
+    "path": "tasks/MO-EKS5AC.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-GHMA8W": {
+    "entityType": "task",
+    "entityId": "MO-GHMA8W",
+    "canonicalHash": "9fab5869d46afc2235df805b05ec7ae2239294d196a439095d88c218908389c6",
+    "revision": 1,
+    "path": "tasks/MO-GHMA8W.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-GW3XJW": {
+    "entityType": "task",
+    "entityId": "MO-GW3XJW",
+    "canonicalHash": "2010510535109134ecf6b3c4f576da4d758e9ccbab1a3516740bcd60ab10708e",
+    "revision": 1,
+    "path": "tasks/MO-GW3XJW.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-N681BV": {
+    "entityType": "task",
+    "entityId": "MO-N681BV",
+    "canonicalHash": "cd3496e55414d6e3a99bebf64ab307a7273ae657c3eea888c027fdaac6f8bab0",
+    "revision": 1,
+    "path": "tasks/MO-N681BV.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-RGKN9H": {
+    "entityType": "task",
+    "entityId": "MO-RGKN9H",
+    "canonicalHash": "f4d19c8a83e657c5dc295bd1080faf8df890636048713335c89291828b78a337",
+    "revision": 1,
+    "path": "tasks/MO-RGKN9H.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-YR0RRW": {
+    "entityType": "task",
+    "entityId": "MO-YR0RRW",
+    "canonicalHash": "3fe90acb7a8035e9bb8bbc9704fd823d067452bd9d03714af924cbc43532d3c4",
+    "revision": 1,
+    "path": "tasks/MO-YR0RRW.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-ZKQNGP": {
+    "entityType": "task",
+    "entityId": "MO-ZKQNGP",
+    "canonicalHash": "34728082bb19fad140529e9e24d008cedd544c8084208d4a9808fbbc15e9a0b6",
+    "revision": 1,
+    "path": "tasks/MO-ZKQNGP.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  }
+}
