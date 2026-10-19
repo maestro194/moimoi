@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "lint": "pnpm --filter web lint"
+    "lint": "pnpm --filter web lint",
+    "db:generate": "pnpm --filter web db:generate",
+    "db:push": "pnpm --filter web db:push",
+    "db:studio": "pnpm --filter web db:studio"
   }
 }
