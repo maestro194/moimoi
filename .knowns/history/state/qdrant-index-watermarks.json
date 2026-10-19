@@ -38,8 +38,8 @@
   "task:MO-EKS5AC": {
     "entityType": "task",
     "entityId": "MO-EKS5AC",
-    "canonicalHash": "f9167343a008f564500a6810944df77154de9066c254eb384cb8d788f2b39a66",
-    "revision": 1,
+    "canonicalHash": "2d90ff127a1235e00cbd3d4945476cc22bab19603738d3bc02c721a9e9e6f3ac",
+    "revision": 4,
     "path": "tasks/MO-EKS5AC.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true
@@ -83,8 +83,8 @@
   "task:MO-YR0RRW": {
     "entityType": "task",
     "entityId": "MO-YR0RRW",
-    "canonicalHash": "3fe90acb7a8035e9bb8bbc9704fd823d067452bd9d03714af924cbc43532d3c4",
-    "revision": 1,
+    "canonicalHash": "cd95d0176f6cd283e3f76dc5e3a330351b8f5072790c7bc9bd9bbdea3596ddba",
+    "revision": 3,
     "path": "tasks/MO-YR0RRW.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true

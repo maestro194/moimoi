@@ -1,0 +1,11 @@
+{
+  "active": [
+    {
+      "taskId": "MO-EKS5AC",
+      "taskTitle": "Init pnpm workspace at repo root",
+      "startedAt": "2026-10-18T17:26:06.846Z",
+      "pausedAt": null,
+      "totalPausedMs": 0
+    }
+  ]
+}
