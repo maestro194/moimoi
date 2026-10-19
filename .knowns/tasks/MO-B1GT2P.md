@@ -1,12 +1,13 @@
 ---
 id: MO-B1GT2P
 title: Move web source into apps/web/
-status: todo
+status: done
 priority: high
 labels:
   - infra
 createdAt: '2026-10-18T17:17:35.658Z'
-updatedAt: '2026-10-18T17:17:35.658Z'
+updatedAt: '2026-10-19T04:48:35.244Z'
+completedAt: '2026-10-19T04:48:35.244Z'
 timeSpent: 0
 parent: MO-YR0RRW
 ---

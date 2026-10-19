@@ -1,12 +1,13 @@
 ---
 id: MO-EKS5AC
 title: Init pnpm workspace at repo root
-status: in-progress
+status: done
 priority: high
 labels:
   - infra
 createdAt: '2026-10-18T17:16:23.487Z'
-updatedAt: '2026-10-18T17:37:17.975Z'
+updatedAt: '2026-10-19T04:48:34.395Z'
+completedAt: '2026-10-19T04:48:34.395Z'
 timeSpent: 0
 assignee: '@me'
 parent: MO-YR0RRW

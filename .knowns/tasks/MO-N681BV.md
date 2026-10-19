@@ -1,12 +1,13 @@
 ---
 id: MO-N681BV
 title: Create packages/db-schema shared library
-status: todo
+status: done
 priority: high
 labels:
   - infra
 createdAt: '2026-10-18T17:17:50.838Z'
-updatedAt: '2026-10-18T17:17:50.838Z'
+updatedAt: '2026-10-19T04:48:35.640Z'
+completedAt: '2026-10-19T04:48:35.640Z'
 timeSpent: 0
 parent: MO-YR0RRW
 ---

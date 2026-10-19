@@ -1,12 +1,13 @@
 ---
 id: MO-ZKQNGP
 title: Verify monorepo build end-to-end
-status: todo
+status: done
 priority: high
 labels:
   - infra
 createdAt: '2026-10-18T17:17:58.031Z'
-updatedAt: '2026-10-18T17:17:58.031Z'
+updatedAt: '2026-10-19T04:48:35.848Z'
+completedAt: '2026-10-19T04:48:35.848Z'
 timeSpent: 0
 parent: MO-YR0RRW
 ---

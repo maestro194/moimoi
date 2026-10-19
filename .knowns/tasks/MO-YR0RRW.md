@@ -1,12 +1,13 @@
 ---
 id: MO-YR0RRW
 title: Phase 0 — Monorepo Setup
-status: todo
+status: done
 priority: high
 labels:
   - mobile infra
 createdAt: '2026-10-18T17:13:35.591Z'
-updatedAt: '2026-10-18T17:41:03.620Z'
+updatedAt: '2026-10-19T04:48:36.124Z'
+completedAt: '2026-10-19T04:48:36.124Z'
 timeSpent: 0
 parent: MO-9NQPT8
 ---
