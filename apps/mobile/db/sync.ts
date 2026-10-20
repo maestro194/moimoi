@@ -5,7 +5,7 @@ import { normalizeTitle } from '@maimai-suite/core';
 
 export const API_URL = Constants.expoConfig?.extra?.apiUrl
   ?? process.env.EXPO_PUBLIC_API_URL
-  ?? 'http://10.0.2.2:3000';
+  ?? 'http://192.168.100.243:3000';
 
 /**
  * Trigger a server-side sync (scrapes maimaidx.net → Neon).
