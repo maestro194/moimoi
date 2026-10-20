@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/expo-sqlite';
 import * as schema from './schema';
 
 // Open (or create) the database file on device
-const sqlite = SQLite.openDatabaseSync('moimoi.db');
+export const sqlite = SQLite.openDatabaseSync('moimoi.db');
 
 export const db = drizzle(sqlite, { schema });
 
@@ -14,28 +14,28 @@ export const db = drizzle(sqlite, { schema });
 export async function initDb() {
   sqlite.execSync(`
     CREATE TABLE IF NOT EXISTS songs (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      title       TEXT NOT NULL,
-      title_kana  TEXT,
-      artist      TEXT,
-      catcode     TEXT,
-      version     TEXT,
-      image_url   TEXT,
-      lev_mas     TEXT,
-      lev_mas_i   TEXT,
-      dx_lev_mas  TEXT,
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      title        TEXT NOT NULL UNIQUE,
+      title_kana   TEXT,
+      artist       TEXT,
+      catcode      TEXT,
+      version      TEXT,
+      image_url    TEXT,
+      lev_mas      TEXT,
+      lev_mas_i    TEXT,
+      dx_lev_mas   TEXT,
       dx_lev_mas_i TEXT,
-      lev_exp     TEXT,
-      lev_exp_i   TEXT,
-      dx_lev_exp  TEXT,
+      lev_exp      TEXT,
+      lev_exp_i    TEXT,
+      dx_lev_exp   TEXT,
       dx_lev_exp_i TEXT,
-      lev_adv     TEXT,
-      lev_adv_i   TEXT,
-      lev_bas     TEXT,
-      lev_bas_i   TEXT,
-      lev_remas   TEXT,
-      lev_remas_i TEXT,
-      lev_utage   TEXT
+      lev_adv      TEXT,
+      lev_adv_i    TEXT,
+      lev_bas      TEXT,
+      lev_bas_i    TEXT,
+      lev_remas    TEXT,
+      lev_remas_i  TEXT,
+      lev_utage    TEXT
     );
 
     CREATE TABLE IF NOT EXISTS scores (
@@ -47,6 +47,20 @@ export async function initDb() {
       dx_score     INTEGER,
       fc           TEXT,
       fs           TEXT,
+      played_at    TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS play_log (
+      id           INTEGER PRIMARY KEY,
+      song_title   TEXT NOT NULL,
+      difficulty   TEXT NOT NULL,
+      song_type    TEXT NOT NULL DEFAULT 'DX',
+      achievement  REAL NOT NULL,
+      dx_score     INTEGER,
+      fc           TEXT,
+      fs           TEXT,
+      track        INTEGER,
+      details      TEXT,
       played_at    TEXT NOT NULL
     );
 

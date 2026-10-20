@@ -47,8 +47,8 @@
   "task:MO-GHMA8W": {
     "entityType": "task",
     "entityId": "MO-GHMA8W",
-    "canonicalHash": "9fab5869d46afc2235df805b05ec7ae2239294d196a439095d88c218908389c6",
-    "revision": 1,
+    "canonicalHash": "1bc3a51780c81edd9678c1fcb77c4d43b994d18defb35bc52f0bc675fc6f4286",
+    "revision": 6,
     "path": "tasks/MO-GHMA8W.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true

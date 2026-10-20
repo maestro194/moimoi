@@ -9,15 +9,15 @@ export type RatingPool = 'new' | 'old';
 export type SongType = 'STD' | 'DX';
 
 export interface Song {
-  sort: string;
+  sort?: string;
   title: string;
-  title_kana: string;
+  title_kana?: string;
   artist: string;
   catcode: string;
   version: string;
-  bpm: string;
+  bpm?: string;
   image_url: string;
-  release: string;
+  release?: string;
   // STD (standard/legacy) chart levels — present only on JP-exclusive legacy songs
   lev_bas?: string;
   lev_adv?: string;
