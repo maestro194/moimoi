@@ -56,8 +56,8 @@
   "task:MO-GW3XJW": {
     "entityType": "task",
     "entityId": "MO-GW3XJW",
-    "canonicalHash": "516ac34b78fad4b3835c49eece39fb480ecb801aab045f5f0f743ef3fb116f3d",
-    "revision": 3,
+    "canonicalHash": "dfa21d6f9811bbdc413c44504fc8819f28fcc14654f7fb2f32ae37ea7caa5de7",
+    "revision": 4,
     "path": "tasks/MO-GW3XJW.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true

@@ -1,12 +1,13 @@
 ---
 id: MO-GW3XJW
 title: Phase 1 — Expo Scaffold and Sync Engine
-status: in-progress
+status: done
 priority: high
 labels:
   - mobile expo
 createdAt: '2026-10-18T17:14:13.809Z'
-updatedAt: '2026-10-19T04:55:26.889Z'
+updatedAt: '2026-10-20T12:42:49.209Z'
+completedAt: '2026-10-20T12:42:49.209Z'
 timeSpent: 0
 assignee: '@me'
 parent: MO-9NQPT8
@@ -21,12 +22,12 @@ Bootstrap the Expo app, set up SQLite with Drizzle, implement sync engine, and s
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Expo SDK 52 app created at apps/mobile/
-- [ ] #2 Expo Router v4 with 5 tab shells: Dashboard, Sessions, Scores, Arcade Mode, Settings
-- [ ] #3 expo-sqlite + Drizzle ORM configured with same schema as web (packages/db-schema)
-- [ ] #4 Sync engine: POST /api/sync → delta → merge into SQLite
-- [ ] #5 Settings screen: SEGA ID + password input, POST /api/settings
-- [ ] #6 App builds and runs on Android emulator or device
+- [x] #1 Expo SDK 52 app created at apps/mobile/
+- [x] #2 Expo Router v4 with 5 tab shells: Dashboard, Sessions, Scores, Arcade Mode, Settings
+- [x] #3 expo-sqlite + Drizzle ORM configured with same schema as web (packages/db-schema)
+- [x] #4 Sync engine: POST /api/sync → delta → merge into SQLite
+- [x] #5 Settings screen: SEGA ID + password input, POST /api/settings
+- [x] #6 App builds and runs on Android emulator or device
 <!-- AC:END -->
 
 ## Implementation Plan
