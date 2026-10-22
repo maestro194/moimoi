@@ -33,6 +33,8 @@ export interface SongRow {
   lev_remas: string | null;
   lev_remas_i: string | null;
   lev_utage: string | null;
+  bpm: string | null;
+  sheets: string | null;
 }
 
 export interface PlayLogRow {
@@ -53,4 +55,14 @@ export interface SyncMetaRow {
   key: string;
   value: string | null;
   updated_at: number | null;
+}
+
+export interface ArcadeSessionRow {
+  id: number;
+  started_at: number;
+  ended_at: number | null;
+  location_name: string | null;
+  play_count: number;
+  rating_before: number | null;
+  rating_after: number | null;
 }

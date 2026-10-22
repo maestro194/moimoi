@@ -35,7 +35,9 @@ export async function initDb() {
       lev_bas_i    TEXT,
       lev_remas    TEXT,
       lev_remas_i  TEXT,
-      lev_utage    TEXT
+      lev_utage    TEXT,
+      bpm          TEXT,
+      sheets       TEXT
     );
 
     CREATE TABLE IF NOT EXISTS scores (
@@ -80,4 +82,12 @@ export async function initDb() {
       rating_after   INTEGER
     );
   `);
+
+  // Safe migrations for existing DBs
+  try {
+    sqlite.execSync(`ALTER TABLE songs ADD COLUMN bpm TEXT;`);
+  } catch {}
+  try {
+    sqlite.execSync(`ALTER TABLE songs ADD COLUMN sheets TEXT;`);
+  } catch {}
 }

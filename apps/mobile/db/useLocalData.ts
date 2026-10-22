@@ -1,7 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getCachedScores, getCachedRecentPlays, getLastSyncedAt, fullSync, getSongsCount } from './sync';
+import {
+  getCachedScores,
+  getCachedRecentPlays,
+  getLastSyncedAt,
+  fullSync,
+  getSongsCount,
+  clusterSessionsFromPlayLog,
+  getLastCreditInfo,
+  type ClusteredSession,
+  type LastCreditSummary,
+} from './sync';
 import { sqlite } from './client';
-import type { SongRow } from './schema';
+import type { SongRow, ScoreRow } from './schema';
+import {
+  computeChartSkillProfile,
+  computePlayerSkillProfile,
+  getRecommendations,
+  type PlayerSkillProfile,
+  type RecommendedTarget,
+} from './recommend';
 import {
   computeRating,
   normalizeTitle,
@@ -18,6 +35,12 @@ export interface LocalDataState {
   ratingData: (RatingData & { allScores: ScoreWithRating[] }) | null;
   recentPlays: ReturnType<typeof getCachedRecentPlays>;
   songsCount: number;
+  clusteredSessions: ClusteredSession[];
+  lastCredit: LastCreditSummary | null;
+  playerSkillProfile: PlayerSkillProfile | null;
+  rawSongs: SongRow[];
+  rawScores: ScoreRow[];
+  fetchRecommendations: (mode: 'push_skillset' | 'farm_rating') => RecommendedTarget[];
   triggerSync: () => Promise<void>;
   reload: () => void;
 }
@@ -29,20 +52,38 @@ export function useLocalData(): LocalDataState {
   const [ratingData, setRatingData] = useState<(RatingData & { allScores: ScoreWithRating[] }) | null>(null);
   const [recentPlays, setRecentPlays] = useState<ReturnType<typeof getCachedRecentPlays>>([]);
   const [songsCount, setSongsCount] = useState(0);
+  const [clusteredSessions, setClusteredSessions] = useState<ClusteredSession[]>([]);
+  const [lastCredit, setLastCredit] = useState<LastCreditSummary | null>(null);
+  const [playerSkillProfile, setPlayerSkillProfile] = useState<PlayerSkillProfile | null>(null);
+  const [rawSongs, setRawSongs] = useState<SongRow[]>([]);
+  const [rawScores, setRawScores] = useState<ScoreRow[]>([]);
 
   const loadLocal = useCallback(() => {
     try {
       const lastSync = getLastSyncedAt();
       setLastSyncedAt(lastSync);
 
-      const rawScores = getCachedScores();
-      const rawSongs = sqlite.getAllSync<SongRow>(`SELECT * FROM songs`);
-      setSongsCount(rawSongs.length);
+      const cachedScores = getCachedScores();
+      const allScoreRows = sqlite.getAllSync<ScoreRow>(`SELECT * FROM scores`);
+      setRawScores(allScoreRows);
+
+      const songsList = sqlite.getAllSync<SongRow>(`SELECT * FROM songs`);
+      setRawSongs(songsList);
+      setSongsCount(songsList.length);
+
+      const songRowMap = new Map<string, SongRow>();
+      for (const s of songsList) {
+        songRowMap.set(normalizeTitle(s.title), s);
+      }
+
+      // Compute player 6-axis skill profile
+      const skillProfile = computePlayerSkillProfile(allScoreRows, songRowMap);
+      setPlayerSkillProfile(skillProfile);
 
       const songMap = new Map<string, Song>();
       let maxVersion = 25000;
 
-      for (const s of rawSongs) {
+      for (const s of songsList) {
         const norm = normalizeTitle(s.title);
         const v = parseInt(s.version ?? '0', 10);
         if (!isNaN(v) && v > maxVersion) {
@@ -74,7 +115,7 @@ export function useLocalData(): LocalDataState {
         songMap.set(norm, songObj);
       }
 
-      const formattedScores: Score[] = rawScores.map(s => ({
+      const formattedScores: Score[] = cachedScores.map(s => ({
         id: s.id,
         songTitle: s.song_title,
         difficulty: s.difficulty as any,
@@ -91,6 +132,14 @@ export function useLocalData(): LocalDataState {
 
       const recents = getCachedRecentPlays();
       setRecentPlays(recents);
+
+      // Auto session clustering
+      const sessions = clusterSessionsFromPlayLog(recents);
+      setClusteredSessions(sessions);
+
+      // Last credit delta calculation
+      const lastCred = getLastCreditInfo(recents, allScoreRows);
+      setLastCredit(lastCred);
     } catch (err) {
       console.error('Error loading local data:', err);
     } finally {
@@ -101,6 +150,18 @@ export function useLocalData(): LocalDataState {
   useEffect(() => {
     loadLocal();
   }, [loadLocal]);
+
+  const fetchRecommendations = useCallback(
+    (mode: 'push_skillset' | 'farm_rating') => {
+      if (!playerSkillProfile) return [];
+      const b50Floor =
+        ratingData?.oldCharts && ratingData.oldCharts.length >= 35
+          ? ratingData.oldCharts[ratingData.oldCharts.length - 1].rating
+          : 280;
+      return getRecommendations(mode, playerSkillProfile, rawScores, rawSongs, b50Floor);
+    },
+    [playerSkillProfile, rawScores, rawSongs, ratingData]
+  );
 
   const triggerSync = async () => {
     setSyncing(true);
@@ -122,6 +183,12 @@ export function useLocalData(): LocalDataState {
     ratingData,
     recentPlays,
     songsCount,
+    clusteredSessions,
+    lastCredit,
+    playerSkillProfile,
+    rawSongs,
+    rawScores,
+    fetchRecommendations,
     triggerSync,
     reload: loadLocal,
   };

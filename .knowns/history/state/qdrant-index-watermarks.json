@@ -1,4 +1,13 @@
 {
+  "doc:doc-e420d37392b4af07899e7404984c8ffe": {
+    "entityType": "doc",
+    "entityId": "doc-e420d37392b4af07899e7404984c8ffe",
+    "canonicalHash": "8a84bf614e15b9f6bdfef707e36d068483251c086063ff858fb068de7c6a6b49",
+    "revision": 1,
+    "path": "docs/mobile-app-plan.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
   "task:MO-60074Z": {
     "entityType": "task",
     "entityId": "MO-60074Z",
@@ -74,8 +83,8 @@
   "task:MO-RGKN9H": {
     "entityType": "task",
     "entityId": "MO-RGKN9H",
-    "canonicalHash": "f4d19c8a83e657c5dc295bd1080faf8df890636048713335c89291828b78a337",
-    "revision": 1,
+    "canonicalHash": "06b6dee9905b68603fba537d7cc4b845dcb04c4e5ecda749a3ef91abeb5e1633",
+    "revision": 9,
     "path": "tasks/MO-RGKN9H.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true

@@ -11,11 +11,30 @@ export const API_URL = Constants.expoConfig?.extra?.apiUrl
  * Trigger a server-side sync (scrapes maimaidx.net → Neon).
  * Returns the number of scores updated.
  */
-export async function syncScores(): Promise<{ updated: number }> {
+export async function syncScores(): Promise<{ updated: number; inserted: number }> {
   const res = await fetch(`${API_URL}/api/sync`, { method: 'POST' });
   if (!res.ok) throw new Error(`Sync failed: HTTP ${res.status}`);
-  const data = await res.json();
-  return { updated: data.updated ?? 0 };
+  const text = await res.text();
+  const lines = text.split('\n');
+  let result = { updated: 0, inserted: 0 };
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    try {
+      const data = JSON.parse(line);
+      if (data.type === 'error') {
+        throw new Error(data.message || 'Sync failed on server');
+      }
+      if (data.type === 'done' && data.result) {
+        result = {
+          updated: data.result.updated ?? 0,
+          inserted: data.result.inserted ?? 0,
+        };
+      }
+    } catch (e: any) {
+      if (e.message && e.message.includes('Sync failed')) throw e;
+    }
+  }
+  return result;
 }
 
 /**
@@ -84,8 +103,8 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
           lev_mas, lev_mas_i, dx_lev_mas, dx_lev_mas_i,
           lev_exp, lev_exp_i, dx_lev_exp, dx_lev_exp_i,
           lev_adv, lev_adv_i, lev_bas, lev_bas_i,
-          lev_remas, lev_remas_i, lev_utage
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          lev_remas, lev_remas_i, lev_utage, bpm, sheets
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(title) DO UPDATE SET
           title_kana = excluded.title_kana,
           artist = excluded.artist,
@@ -106,7 +125,9 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
           lev_bas_i = excluded.lev_bas_i,
           lev_remas = excluded.lev_remas,
           lev_remas_i = excluded.lev_remas_i,
-          lev_utage = excluded.lev_utage`,
+          lev_utage = excluded.lev_utage,
+          bpm = excluded.bpm,
+          sheets = excluded.sheets`,
         [
           song.title,
           song.title_kana ?? null,
@@ -129,6 +150,8 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
           song.lev_remas ?? null,
           song.lev_remas_i ?? null,
           song.lev_utage ?? null,
+          song.bpm ? String(song.bpm) : null,
+          song.sheets ? JSON.stringify(song.sheets) : null,
         ],
       );
     }
@@ -142,6 +165,7 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
 
   return { count: songList.length };
 }
+
 
 /**
  * Fetch recent play history and store in local play_log table.
@@ -286,4 +310,141 @@ export function getCachedRecentPlays(): Array<PlayLogRow & { song?: SongRow | nu
     ...log,
     song: songMap.get(normalizeTitle(log.song_title)) ?? null,
   }));
+}
+
+export interface ClusteredSession {
+  id: string;
+  startTime: string; // ISO string
+  endTime: string;   // ISO string
+  durationMinutes: number;
+  tracksCount: number;
+  creditsCount: number;
+  plays: Array<PlayLogRow & { song?: SongRow | null }>;
+  newPBs: number;
+  isActive: boolean;
+}
+
+export interface LastCreditSummary {
+  tracks: Array<PlayLogRow & { song?: SongRow | null; isPB?: boolean }>;
+  ratingDelta: number;
+  pbCount: number;
+  lastPlayedAt: string | null;
+}
+
+/**
+ * Cluster recent plays into sessions by grouping plays where gap <= 45 minutes.
+ * Returns sessions in descending order (most recent first).
+ */
+export function clusterSessionsFromPlayLog(
+  recentPlays: Array<PlayLogRow & { song?: SongRow | null }>
+): ClusteredSession[] {
+  if (!recentPlays.length) return [];
+
+  // Sort chronological (oldest to newest) for grouping
+  const sorted = [...recentPlays].sort(
+    (a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime()
+  );
+
+  const clusters: Array<Array<PlayLogRow & { song?: SongRow | null }>> = [];
+  let currentCluster: Array<PlayLogRow & { song?: SongRow | null }> = [];
+
+  const MAX_GAP_MS = 45 * 60 * 1000; // 45 minutes
+
+  for (const play of sorted) {
+    if (!currentCluster.length) {
+      currentCluster.push(play);
+      continue;
+    }
+
+    const prevPlay = currentCluster[currentCluster.length - 1];
+    const diff = new Date(play.played_at).getTime() - new Date(prevPlay.played_at).getTime();
+
+    if (diff <= MAX_GAP_MS) {
+      currentCluster.push(play);
+    } else {
+      clusters.push(currentCluster);
+      currentCluster = [play];
+    }
+  }
+
+  if (currentCluster.length) {
+    clusters.push(currentCluster);
+  }
+
+  const now = Date.now();
+  return clusters
+    .reverse()
+    .map((cluster, idx) => {
+      const first = cluster[0];
+      const last = cluster[cluster.length - 1];
+      const startMs = new Date(first.played_at).getTime();
+      const endMs = new Date(last.played_at).getTime();
+      const durationMinutes = Math.max(1, Math.round((endMs - startMs) / 60000));
+
+      let track1Count = 0;
+      for (const p of cluster) {
+        if (p.track === 1) track1Count++;
+      }
+      const creditsCount = Math.max(1, track1Count > 0 ? track1Count : Math.ceil(cluster.length / 3));
+      const isActive = idx === 0 && (now - endMs <= MAX_GAP_MS);
+
+      return {
+        id: `session-${endMs}`,
+        startTime: first.played_at,
+        endTime: last.played_at,
+        durationMinutes,
+        tracksCount: cluster.length,
+        creditsCount,
+        plays: [...cluster].reverse(),
+        newPBs: cluster.filter(p => p.achievement >= 100.0).length,
+        isActive,
+      };
+    });
+}
+
+/**
+ * Identify the most recent credit (group of 3-4 tracks) and check PB status.
+ */
+export function getLastCreditInfo(
+  recentPlays: Array<PlayLogRow & { song?: SongRow | null }>,
+  allScores?: ScoreRow[]
+): LastCreditSummary | null {
+  if (!recentPlays.length) return null;
+
+  const creditPlays: Array<PlayLogRow & { song?: SongRow | null; isPB?: boolean }> = [];
+  const firstPlayTime = new Date(recentPlays[0].played_at).getTime();
+  const CREDIT_GAP_MS = 20 * 60 * 1000; // 20 min gap between tracks inside 1 credit
+
+  for (let i = 0; i < recentPlays.length && i < 4; i++) {
+    const play = recentPlays[i];
+    const playTime = new Date(play.played_at).getTime();
+    if (firstPlayTime - playTime > CREDIT_GAP_MS) break;
+
+    let isPB = false;
+    if (allScores) {
+      const existing = allScores.find(
+        s => normalizeTitle(s.song_title) === normalizeTitle(play.song_title) &&
+             s.difficulty === play.difficulty &&
+             (s.song_type ?? 'DX') === (play.song_type ?? 'DX')
+      );
+      if (existing && play.achievement >= existing.achievement) {
+        isPB = true;
+      }
+    }
+
+    creditPlays.push({ ...play, isPB });
+
+    if (play.track === 1) break;
+  }
+
+  if (!creditPlays.length) return null;
+
+  const pbCount = creditPlays.filter(p => p.isPB).length;
+
+  return {
+    tracks: creditPlays,
+    ratingDelta: pbCount > 0 ? pbCount * 2 : 0,
+    pbCount,
+    lastPlayedAt: creditPlays[0].played_at,
+  };
 }
