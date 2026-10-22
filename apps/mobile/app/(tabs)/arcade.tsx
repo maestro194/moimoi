@@ -21,8 +21,10 @@ export default function ArcadeScreen() {
     clusteredSessions,
     lastCredit,
     playerSkillProfile,
+    segaOffline,
     fetchRecommendations,
     triggerSync,
+    triggerWebDbSync,
   } = useLocalData();
 
   const [recMode, setRecMode] = useState<'push_skillset' | 'farm_rating'>('push_skillset');
@@ -88,22 +90,46 @@ export default function ArcadeScreen() {
         )}
       </View>
 
-      {/* Quick Sync Button */}
-      <TouchableOpacity
-        style={[styles.syncButton, syncing && styles.syncButtonDisabled]}
-        onPress={triggerSync}
-        disabled={syncing}
-        activeOpacity={0.8}
-      >
-        {syncing ? (
-          <View style={styles.syncContent}>
-            <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 8 }} />
-            <Text style={styles.syncButtonText}>Syncing from maimai NET...</Text>
+      {/* SEGA Offline Alert Banner */}
+      {segaOffline && (
+        <View style={styles.segaOfflineBanner}>
+          <Text style={styles.segaOfflineIcon}>⚠️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.segaOfflineTitle}>SEGA maimai NET is currently down / in maintenance</Text>
+            <Text style={styles.segaOfflineSub}>
+              Data successfully synced from your Web App Database cache.
+            </Text>
           </View>
-        ) : (
-          <Text style={styles.syncButtonText}>⚡ Quick Sync Last Credit</Text>
-        )}
-      </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Sync Buttons Group */}
+      <View style={styles.syncButtonGroup}>
+        <TouchableOpacity
+          style={[styles.syncButton, syncing && styles.syncButtonDisabled]}
+          onPress={triggerSync}
+          disabled={syncing}
+          activeOpacity={0.8}
+        >
+          {syncing ? (
+            <View style={styles.syncContent}>
+              <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 8 }} />
+              <Text style={styles.syncButtonText}>Syncing...</Text>
+            </View>
+          ) : (
+            <Text style={styles.syncButtonText}>⚡ Quick Sync (SEGA)</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.webDbSyncButton, syncing && styles.syncButtonDisabled]}
+          onPress={triggerWebDbSync}
+          disabled={syncing}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.webDbSyncButtonText}>☁️ Sync Web DB</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* 1. Last Credit Result Card */}
       {lastCredit && lastCredit.tracks.length > 0 && (
@@ -414,19 +440,52 @@ const styles = StyleSheet.create({
   ratingValue: { fontSize: 16, fontWeight: 'bold', color: COLORS.purpleLight },
   ratingLabel: { fontSize: 9, color: COLORS.textSubtle, fontWeight: '600', marginTop: 1 },
 
+  syncButtonGroup: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
   syncButton: {
+    flex: 1.4,
     backgroundColor: COLORS.purple,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
     shadowColor: COLORS.purple,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
   },
+  webDbSyncButton: {
+    flex: 1,
+    backgroundColor: COLORS.surfaceLight,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.4)',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webDbSyncButtonText: {
+    color: COLORS.blue,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  segaOfflineBanner: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  segaOfflineIcon: { fontSize: 16, marginRight: 8 },
+  segaOfflineTitle: { fontSize: 12, fontWeight: 'bold', color: COLORS.amber },
+  segaOfflineSub: { fontSize: 11, color: COLORS.textMuted, marginTop: 1 },
   syncButtonDisabled: { opacity: 0.6 },
   syncContent: { flexDirection: 'row', alignItems: 'center' },
   syncButtonText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold' },

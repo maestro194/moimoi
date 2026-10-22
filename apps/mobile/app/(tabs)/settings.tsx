@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { API_URL, fullSync, getCacheStats, clearLocalData } from '../../db/sync';
+import { API_URL, fullSync, syncFromWebDb, getCacheStats, clearLocalData } from '../../db/sync';
 import { COLORS } from '../../constants/Theme';
 import { Globe, Database, Trash2, RefreshCw, Key, ShieldCheck } from 'lucide-react-native';
 
@@ -64,9 +64,32 @@ export default function SettingsScreen() {
   async function handleFullSync() {
     setSyncing(true);
     try {
-      const { updated } = await fullSync();
+      const { updated, segaDown } = await fullSync();
       refreshStats();
-      Alert.alert('Sync Complete', `Successfully synced ${updated} scores and refreshed database.`);
+      if (segaDown) {
+        Alert.alert(
+          'SEGA Offline — Synced from Cloud DB',
+          `SEGA maimai NET is currently down or in maintenance. Successfully loaded data from Web App DB (Neon).`
+        );
+      } else {
+        Alert.alert('Sync Complete', `Successfully synced ${updated} scores and refreshed database.`);
+      }
+    } catch (e: any) {
+      Alert.alert('Sync Failed', `${e?.message || String(e)}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleWebDbSync() {
+    setSyncing(true);
+    try {
+      const res = await syncFromWebDb();
+      refreshStats();
+      Alert.alert(
+        'Web DB Sync Complete',
+        `Loaded ${res.scoresCount} scores, ${res.recentCount} recent plays, and ${res.songsCount} songs from your Neon database.`
+      );
     } catch (e: any) {
       Alert.alert('Sync Failed', `${e?.message || String(e)}`);
     } finally {
@@ -198,7 +221,22 @@ export default function SettingsScreen() {
           ) : (
             <>
               <RefreshCw size={15} color={COLORS.purpleLight} />
-              <Text style={styles.buttonSecondaryText}>Sync All Records Now</Text>
+              <Text style={styles.buttonSecondaryText}>Sync All Records (SEGA + DB)</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.buttonSecondary, syncing && styles.buttonDisabled, { borderColor: COLORS.blue }]}
+          onPress={handleWebDbSync}
+          disabled={syncing}
+        >
+          {syncing ? (
+            <ActivityIndicator color={COLORS.blue} />
+          ) : (
+            <>
+              <Database size={15} color={COLORS.blue} />
+              <Text style={[styles.buttonSecondaryText, { color: COLORS.blue }]}>Sync with Web App DB (Neon)</Text>
             </>
           )}
         </TouchableOpacity>

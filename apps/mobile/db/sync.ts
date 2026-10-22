@@ -38,18 +38,14 @@ export async function syncScores(): Promise<{ updated: number; inserted: number 
 }
 
 /**
- * Fetch the user's B50 board and upsert into local SQLite scores table.
+ * Fetch all user scores from /api/scores and upsert into local SQLite scores table.
  */
-export async function fetchAndCacheBoard(): Promise<void> {
-  const res = await fetch(`${API_URL}/api/board`);
-  if (!res.ok) throw new Error(`Board fetch failed: HTTP ${res.status}`);
-  const { newCharts, oldCharts } = await res.json() as {
-    newCharts: any[];
-    oldCharts: any[];
-  };
-
-  const allScores = [...(newCharts ?? []), ...(oldCharts ?? [])];
-  if (!allScores.length) return;
+export async function fetchAndCacheScores(): Promise<{ count: number }> {
+  const res = await fetch(`${API_URL}/api/scores`);
+  if (!res.ok) throw new Error(`Scores fetch failed: HTTP ${res.status}`);
+  const data = await res.json();
+  const allScores = data.scores ?? [];
+  if (!allScores.length) return { count: 0 };
 
   sqlite.withTransactionSync(() => {
     for (const s of allScores) {
@@ -67,7 +63,7 @@ export async function fetchAndCacheBoard(): Promise<void> {
           s.songTitle,
           s.difficulty,
           s.songType ?? 'DX',
-          s.achievement,
+          typeof s.achievement === 'number' ? s.achievement : parseFloat(s.achievement),
           s.dxScore ?? null,
           s.fc ?? null,
           s.fs ?? null,
@@ -78,11 +74,16 @@ export async function fetchAndCacheBoard(): Promise<void> {
   });
 
   sqlite.runSync(
-    `INSERT INTO sync_meta (key, value, updated_at) VALUES ('last_synced_at', ?, ?)
+    `INSERT INTO sync_meta (key, value, updated_at) VALUES ('scores_cached_at', ?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     [new Date().toISOString(), Date.now()],
   );
+
+  return { count: allScores.length };
 }
+
+// Backward-compat alias
+export const fetchAndCacheBoard = fetchAndCacheScores;
 
 /**
  * Fetch full song database from /api/songs and cache into local SQLite songs table.
@@ -210,19 +211,59 @@ export async function fetchAndCacheRecent(limit: number = 50): Promise<void> {
 }
 
 /**
- * Full sync sequence: Scrape -> Cache Board -> Cache Recent -> Cache Songs if empty.
+ * Direct sync between Web App Cloud DB (Neon) and local SQLite.
+ * Pulls scores, recent plays, and song database without connecting to SEGA.
  */
-export async function fullSync(): Promise<{ updated: number }> {
-  const { updated } = await syncScores();
-  await Promise.all([fetchAndCacheBoard(), fetchAndCacheRecent(50)]);
+export async function syncFromWebDb(): Promise<{
+  scoresCount: number;
+  recentCount: number;
+  songsCount: number;
+}> {
+  const [scoresRes] = await Promise.all([
+    fetchAndCacheScores(),
+    fetchAndCacheRecent(50),
+  ]);
 
-  // If songs table is empty, seed it
-  const songCount = getSongsCount();
+  let songCount = getSongsCount();
   if (songCount === 0) {
-    await fetchAndCacheSongs();
+    const res = await fetchAndCacheSongs();
+    songCount = res.count;
   }
 
-  return { updated };
+  sqlite.runSync(
+    `INSERT INTO sync_meta (key, value, updated_at) VALUES ('last_synced_at', ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    [new Date().toISOString(), Date.now()],
+  );
+
+  return {
+    scoresCount: scoresRes.count,
+    recentCount: getRecentPlaysCount(),
+    songsCount: songCount,
+  };
+}
+
+/**
+ * Full sync sequence:
+ * 1. Attempt SEGA scrape via /api/sync.
+ * 2. If SEGA is offline/down, catch gracefully and notify.
+ * 3. Pull latest state from Web App Cloud DB (Neon) into local SQLite.
+ */
+export async function fullSync(): Promise<{ updated: number; segaDown: boolean }> {
+  let segaUpdated = 0;
+  let segaDown = false;
+
+  try {
+    const res = await syncScores();
+    segaUpdated = res.updated;
+  } catch (err) {
+    console.warn('[Sync] SEGA maimai NET is currently unreachable. Pulling from Web App DB cache instead.', err);
+    segaDown = true;
+  }
+
+  await syncFromWebDb();
+
+  return { updated: segaUpdated, segaDown };
 }
 
 /**
@@ -230,6 +271,14 @@ export async function fullSync(): Promise<{ updated: number }> {
  */
 export function getSongsCount(): number {
   const row = sqlite.getFirstSync<{ count: number }>(`SELECT COUNT(*) as count FROM songs`);
+  return row?.count ?? 0;
+}
+
+/**
+ * Get count of cached recent plays.
+ */
+export function getRecentPlaysCount(): number {
+  const row = sqlite.getFirstSync<{ count: number }>(`SELECT COUNT(*) as count FROM play_log`);
   return row?.count ?? 0;
 }
 

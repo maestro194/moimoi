@@ -1,9 +1,9 @@
 ---
 id: doc-e420d37392b4af07899e7404984c8ffe
 title: Mobile App Plan
-description: Architecture and implementation plan for the Expo mobile app (SDK 57, zero-friction arcade mode)
+description: Architecture and implementation plan for the Expo mobile app (SDK 57, zero-friction arcade mode, dual-track sync)
 createdAt: '2026-10-16T03:25:14.750Z'
-updatedAt: '2026-10-21T05:42:43.064Z'
+updatedAt: '2026-10-22T02:31:52.800Z'
 tags:
   - mobile
   - planning

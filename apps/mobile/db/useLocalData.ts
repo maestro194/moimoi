@@ -4,6 +4,7 @@ import {
   getCachedRecentPlays,
   getLastSyncedAt,
   fullSync,
+  syncFromWebDb,
   getSongsCount,
   clusterSessionsFromPlayLog,
   getLastCreditInfo,
@@ -31,6 +32,7 @@ import {
 export interface LocalDataState {
   loading: boolean;
   syncing: boolean;
+  segaOffline: boolean;
   lastSyncedAt: string | null;
   ratingData: (RatingData & { allScores: ScoreWithRating[] }) | null;
   recentPlays: ReturnType<typeof getCachedRecentPlays>;
@@ -41,13 +43,15 @@ export interface LocalDataState {
   rawSongs: SongRow[];
   rawScores: ScoreRow[];
   fetchRecommendations: (mode: 'push_skillset' | 'farm_rating') => RecommendedTarget[];
-  triggerSync: () => Promise<void>;
+  triggerSync: () => Promise<{ segaDown: boolean }>;
+  triggerWebDbSync: () => Promise<void>;
   reload: () => void;
 }
 
 export function useLocalData(): LocalDataState {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [segaOffline, setSegaOffline] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [ratingData, setRatingData] = useState<(RatingData & { allScores: ScoreWithRating[] }) | null>(null);
   const [recentPlays, setRecentPlays] = useState<ReturnType<typeof getCachedRecentPlays>>([]);
@@ -163,13 +167,28 @@ export function useLocalData(): LocalDataState {
     [playerSkillProfile, rawScores, rawSongs, ratingData]
   );
 
-  const triggerSync = async () => {
+  const triggerSync = async (): Promise<{ segaDown: boolean }> => {
     setSyncing(true);
     try {
-      await fullSync();
+      const res = await fullSync();
+      setSegaOffline(!!res.segaDown);
       loadLocal();
+      return { segaDown: !!res.segaDown };
     } catch (err) {
       console.error('Sync error:', err);
+      throw err;
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const triggerWebDbSync = async (): Promise<void> => {
+    setSyncing(true);
+    try {
+      await syncFromWebDb();
+      loadLocal();
+    } catch (err) {
+      console.error('Web DB sync error:', err);
       throw err;
     } finally {
       setSyncing(false);
@@ -179,6 +198,7 @@ export function useLocalData(): LocalDataState {
   return {
     loading,
     syncing,
+    segaOffline,
     lastSyncedAt,
     ratingData,
     recentPlays,
@@ -190,6 +210,7 @@ export function useLocalData(): LocalDataState {
     rawScores,
     fetchRecommendations,
     triggerSync,
+    triggerWebDbSync,
     reload: loadLocal,
   };
 }
