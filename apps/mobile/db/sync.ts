@@ -3,9 +3,26 @@ import { sqlite } from './client';
 import type { ScoreRow, SongRow, PlayLogRow } from './schema';
 import { normalizeTitle } from '@maimai-suite/core';
 
-export const API_URL = Constants.expoConfig?.extra?.apiUrl
-  ?? process.env.EXPO_PUBLIC_API_URL
-  ?? 'http://192.168.100.243:3000';
+function resolveApiUrl(): string {
+  if (Constants.expoConfig?.extra?.apiUrl) {
+    return Constants.expoConfig.extra.apiUrl as string;
+  }
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl && envUrl.startsWith('https://')) {
+    return envUrl;
+  }
+  // Dynamically derive host from Expo Metro bundler connection (Expo Go / Dev Client)
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:3000`;
+    }
+  }
+  return envUrl ?? 'http://10.10.24.229:3000';
+}
+
+export const API_URL = resolveApiUrl();
 
 /**
  * Trigger a server-side sync (scrapes maimaidx.net → Neon).
