@@ -1,12 +1,13 @@
 ---
 id: MO-9NQPT8
 title: Mobile App — Full Implementation
-status: todo
+status: done
 priority: high
 labels:
   - mobile
 createdAt: '2026-10-18T17:12:17.704Z'
-updatedAt: '2026-10-18T17:12:17.704Z'
+updatedAt: '2026-10-23T07:55:39.172Z'
+completedAt: '2026-10-23T07:55:39.172Z'
 timeSpent: 0
 ---
 # Mobile App — Full Implementation
@@ -20,4 +21,10 @@ End-to-end implementation of the Expo mobile app for maimai DX. See @doc/mobile-
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Achieved full web app parity on mobile: 1. Exposed /api/profile on web and synchronized player profile (name, avatar, title, rating plate, stars, plays) to mobile SQLite. 2. Overhauled Scores tab with B15/B35 section grouping, Grid view, List view, and Level Matrix view. 3. Upgraded Sessions tab with solvePlayDetails() 8-tier Break sub-tiers, computeDrops() exact percentage losses, and DX stars. 4. Added Rating Improvement Targets (getTargetSuggestions) on Dashboard. 5. Upgraded modal.tsx with play history, score milestones calculator, and dxrating link.
+<!-- SECTION:NOTES:END -->
 
