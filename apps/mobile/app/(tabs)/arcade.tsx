@@ -70,7 +70,7 @@ export default function ArcadeScreen() {
       refreshControl={
         <RefreshControl
           refreshing={syncing}
-          onRefresh={triggerSync}
+          onRefresh={() => { void triggerSync(); }}
           tintColor={COLORS.purpleLight}
           colors={[COLORS.purpleLight]}
         />
