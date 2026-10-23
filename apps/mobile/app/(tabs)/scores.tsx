@@ -84,24 +84,49 @@ export default function ScoresScreen() {
     return list;
   }, [allScores, poolFilter, diffFilter, search, sortBy]);
 
-  // Group into New B15, Old B35, New Remaining, Old Remaining (parity with web)
+  // Index the player's true B15 (top 15 new) and B35 (top 35 old) charts by composite key
+  const { b15Set, b35Set, b15RankMap, b35RankMap } = useMemo(() => {
+    const b15 = ratingData?.newCharts ?? [];
+    const b35 = ratingData?.oldCharts ?? [];
+
+    const b15S = new Set<string>();
+    const b35S = new Set<string>();
+    const b15R = new Map<string, number>();
+    const b35R = new Map<string, number>();
+
+    const getKey = (s: { songTitle: string; difficulty: string; songType?: string }) =>
+      `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
+
+    b15.forEach((s, idx) => {
+      const key = getKey(s);
+      b15S.add(key);
+      b15R.set(key, idx + 1);
+    });
+
+    b35.forEach((s, idx) => {
+      const key = getKey(s);
+      b35S.add(key);
+      b35R.set(key, idx + 1);
+    });
+
+    return { b15Set: b15S, b35Set: b35S, b15RankMap: b15R, b35RankMap: b35R };
+  }, [ratingData]);
+
+  // Group filtered scores into New B15, Old B35, New Remaining, Old Remaining
   const { newB15, oldB35, newRemaining, oldRemaining } = useMemo(() => {
+    const getKey = (s: { songTitle: string; difficulty: string; songType?: string }) =>
+      `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
+
     const newSongs = filteredScores.filter(s => s.pool === 'new' && (s.difficulty as string) !== 'UTAGE');
     const oldSongs = filteredScores.filter(s => s.pool === 'old' && (s.difficulty as string) !== 'UTAGE');
 
-    const newByRating = [...newSongs].sort((a, b) => b.rating - a.rating);
-    const oldByRating = [...oldSongs].sort((a, b) => b.rating - a.rating);
-
-    const b15Set = new Set(newByRating.slice(0, 15).map(s => s.id));
-    const b35Set = new Set(oldByRating.slice(0, 35).map(s => s.id));
-
     return {
-      newB15: newSongs.filter(s => b15Set.has(s.id)),
-      oldB35: oldSongs.filter(s => b35Set.has(s.id)),
-      newRemaining: newSongs.filter(s => !b15Set.has(s.id)),
-      oldRemaining: oldSongs.filter(s => !b35Set.has(s.id)),
+      newB15: newSongs.filter(s => b15Set.has(getKey(s))),
+      oldB35: oldSongs.filter(s => b35Set.has(getKey(s))),
+      newRemaining: newSongs.filter(s => !b15Set.has(getKey(s))),
+      oldRemaining: oldSongs.filter(s => !b35Set.has(getKey(s))),
     };
-  }, [filteredScores]);
+  }, [filteredScores, b15Set, b35Set]);
 
   const newB15Sum = newB15.reduce((acc, s) => acc + s.rating, 0);
   const oldB35Sum = oldB35.reduce((acc, s) => acc + s.rating, 0);
@@ -213,6 +238,9 @@ export default function ScoresScreen() {
     const diffColor = getDifficultyColor(item.difficulty);
     const achNum = typeof item.achievement === 'string' ? parseFloat(item.achievement) : item.achievement;
     const rankInfo = getRankBadge(achNum);
+    const chartKey = `${item.songTitle}::${item.difficulty}::${item.songType ?? 'DX'}`;
+    const b15Rank = b15RankMap.get(chartKey);
+    const b35Rank = b35RankMap.get(chartKey);
 
     if (viewMode === 'grid') {
       return (
@@ -237,6 +265,15 @@ export default function ScoresScreen() {
                 {item.difficulty} {item.internalLevel > 0 ? item.internalLevel.toFixed(1) : '?'}
               </Text>
             </View>
+            {b15Rank !== undefined ? (
+              <View style={[styles.poolRankBadge, styles.b15RankBadge]}>
+                <Text style={styles.b15RankBadgeText}>B15 #{b15Rank}</Text>
+              </View>
+            ) : b35Rank !== undefined ? (
+              <View style={[styles.poolRankBadge, styles.b35RankBadge]}>
+                <Text style={styles.b35RankBadgeText}>B35 #{b35Rank}</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.gridSongTitle} numberOfLines={1}>
@@ -257,6 +294,11 @@ export default function ScoresScreen() {
                 <Text style={styles.fcText}>{item.fc}</Text>
               </View>
             )}
+            {item.songType === 'STD' && (
+              <View style={styles.stdBadge}>
+                <Text style={styles.stdText}>STD</Text>
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       );
@@ -271,6 +313,15 @@ export default function ScoresScreen() {
       >
         <View style={styles.rankIndex}>
           <Text style={styles.rankIndexText}>#{index + 1}</Text>
+          {b15Rank !== undefined ? (
+            <View style={[styles.poolRankBadgeSmall, styles.b15RankBadge]}>
+              <Text style={styles.b15RankBadgeTextSmall}>B15</Text>
+            </View>
+          ) : b35Rank !== undefined ? (
+            <View style={[styles.poolRankBadgeSmall, styles.b35RankBadge]}>
+              <Text style={styles.b35RankBadgeTextSmall}>B35</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={[styles.jacketWrapper, { borderColor: diffColor }]}>
@@ -302,6 +353,11 @@ export default function ScoresScreen() {
             {item.fc && (
               <View style={styles.fcBadge}>
                 <Text style={styles.fcText}>{item.fc}</Text>
+              </View>
+            )}
+            {item.songType === 'STD' && (
+              <View style={styles.stdBadge}>
+                <Text style={styles.stdText}>STD</Text>
               </View>
             )}
           </View>
@@ -1057,4 +1113,64 @@ const styles = StyleSheet.create({
     padding: 3,
     textAlign: 'center',
   },
+  poolRankBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  poolRankBadgeSmall: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    marginTop: 2,
+  },
+  b15RankBadge: {
+    backgroundColor: 'rgba(244, 63, 94, 0.25)',
+    borderColor: '#f43f5e',
+  },
+  b15RankBadgeText: {
+    color: '#fda4af',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  b15RankBadgeTextSmall: {
+    color: '#fda4af',
+    fontSize: 7.5,
+    fontWeight: '800',
+  },
+  b35RankBadge: {
+    backgroundColor: 'rgba(6, 182, 212, 0.25)',
+    borderColor: '#06b6d4',
+  },
+  b35RankBadgeText: {
+    color: '#67e8f9',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  b35RankBadgeTextSmall: {
+    color: '#67e8f9',
+    fontSize: 7.5,
+    fontWeight: '800',
+  },
+  stdBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  stdText: {
+    color: '#9ca3af',
+    fontSize: 8.5,
+    fontWeight: '800',
+  },
 });
+

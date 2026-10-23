@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { LayoutDashboard, History, Star, Gamepad2, Settings } from 'lucide-react-native';
+import { LayoutDashboard, History, Star, Gamepad2, Settings, Music2 } from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
@@ -21,21 +21,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => <LayoutDashboard size={22} color={color} />,
+          tabBarIcon: ({ color }) => <LayoutDashboard size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="scores"
         options={{
           title: 'Scores',
-          tabBarIcon: ({ color }) => <Star size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Star size={20} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="songs"
+        options={{
+          title: 'Songs',
+          tabBarIcon: ({ color }) => <Music2 size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="sessions"
         options={{
           title: 'Sessions',
-          tabBarIcon: ({ color }) => <History size={22} color={color} />,
+          tabBarIcon: ({ color }) => <History size={20} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -123,7 +123,7 @@ export default function ArcadeScreen() {
 
         <TouchableOpacity
           style={[styles.webDbSyncButton, syncing && styles.syncButtonDisabled]}
-          onPress={triggerWebDbSync}
+          onPress={() => triggerWebDbSync()}
           disabled={syncing}
           activeOpacity={0.8}
         >

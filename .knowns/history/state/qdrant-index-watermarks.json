@@ -29,8 +29,8 @@
   "task:MO-9NQPT8": {
     "entityType": "task",
     "entityId": "MO-9NQPT8",
-    "canonicalHash": "38670bc9c1890de36a0f8d92e0e68e04c62717399f758ab410958115ba824a2b",
-    "revision": 2,
+    "canonicalHash": "701bdbe9aff61299c9b0cc4b4e427d18ad73d2e5f8baa6c512bea06ebb2c99b9",
+    "revision": 3,
     "path": "tasks/MO-9NQPT8.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true

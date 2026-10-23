@@ -70,6 +70,9 @@ export async function fetchAndCacheScores(): Promise<{ count: number }> {
         `INSERT INTO scores (id, song_title, difficulty, song_type, achievement, dx_score, fc, fs, played_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
+           song_title = excluded.song_title,
+           difficulty = excluded.difficulty,
+           song_type = excluded.song_type,
            achievement = excluded.achievement,
            dx_score = excluded.dx_score,
            fc = excluded.fc,
@@ -181,6 +184,22 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
     [new Date().toISOString(), Date.now()],
   );
 
+  if (data.currentVersion) {
+    sqlite.runSync(
+      `INSERT INTO sync_meta (key, value, updated_at) VALUES ('current_version', ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [String(data.currentVersion), Date.now()],
+    );
+  }
+
+  if (data.categories) {
+    sqlite.runSync(
+      `INSERT INTO sync_meta (key, value, updated_at) VALUES ('song_categories', ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [JSON.stringify(data.categories), Date.now()],
+    );
+  }
+
   return { count: songList.length };
 }
 
@@ -283,7 +302,7 @@ export function getCachedProfile(): PlayerProfileData | null {
  * Direct sync between Web App Cloud DB (Neon) and local SQLite.
  * Pulls scores, recent plays, player profile, and song database without connecting to SEGA.
  */
-export async function syncFromWebDb(): Promise<{
+export async function syncFromWebDb(forceSongs: boolean = false): Promise<{
   scoresCount: number;
   recentCount: number;
   songsCount: number;
@@ -296,7 +315,7 @@ export async function syncFromWebDb(): Promise<{
   ]);
 
   let songCount = getSongsCount();
-  if (songCount === 0) {
+  if (songCount < 1500 || forceSongs) {
     const res = await fetchAndCacheSongs();
     songCount = res.count;
   }

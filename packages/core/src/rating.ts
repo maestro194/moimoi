@@ -177,6 +177,24 @@ export function getNewPoolThreshold(songDb: Map<string, Song>, currentVersion: n
   return Math.floor(currentVersion / 1000) * 1000;
 }
 
+/**
+ * Auto-detect the current game version from the song DB.
+ * Requires at least 20 songs at a version to count as a real release.
+ */
+export function detectCurrentVersion(songs: Array<{ version?: string | null }>): number {
+  const counts = new Map<number, number>();
+  let max = 0;
+  for (const song of songs) {
+    if (!song.version) continue;
+    const v = parseInt(song.version, 10);
+    if (!isNaN(v)) counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  for (const [v, count] of counts.entries()) {
+    if (count >= 20 && v > max) max = v;
+  }
+  return max || 26000;
+}
+
 // ─── Full DX Rating computation ──────────────────────────────────────────────
 
 /**

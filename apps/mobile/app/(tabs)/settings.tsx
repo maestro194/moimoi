@@ -84,7 +84,7 @@ export default function SettingsScreen() {
   async function handleWebDbSync() {
     setSyncing(true);
     try {
-      const res = await syncFromWebDb();
+      const res = await syncFromWebDb(true);
       refreshStats();
       Alert.alert(
         'Web DB Sync Complete',

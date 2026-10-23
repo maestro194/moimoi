@@ -25,6 +25,7 @@ import {
 import {
   computeRating,
   normalizeTitle,
+  detectCurrentVersion,
   getTargetSuggestions,
   type Song,
   type Score,
@@ -38,6 +39,7 @@ export interface LocalDataState {
   syncing: boolean;
   segaOffline: boolean;
   lastSyncedAt: string | null;
+  currentVersion: number;
   profile: PlayerProfileData | null;
   ratingData: (RatingData & { allScores: ScoreWithRating[] }) | null;
   targetSuggestions: TargetSuggestion[];
@@ -50,7 +52,7 @@ export interface LocalDataState {
   rawScores: ScoreRow[];
   fetchRecommendations: (mode: 'push_skillset' | 'farm_rating') => RecommendedTarget[];
   triggerSync: () => Promise<{ segaDown: boolean }>;
-  triggerWebDbSync: () => Promise<void>;
+  triggerWebDbSync: (forceSongs?: boolean) => Promise<void>;
   reload: () => void;
 }
 
@@ -59,6 +61,7 @@ export function useLocalData(): LocalDataState {
   const [syncing, setSyncing] = useState(false);
   const [segaOffline, setSegaOffline] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [currentVersion, setCurrentVersion] = useState<number>(26500);
   const [profile, setProfile] = useState<PlayerProfileData | null>(null);
   const [ratingData, setRatingData] = useState<(RatingData & { allScores: ScoreWithRating[] }) | null>(null);
   const [targetSuggestions, setTargetSuggestions] = useState<TargetSuggestion[]>([]);
@@ -92,16 +95,19 @@ export function useLocalData(): LocalDataState {
       const skillProfile = computePlayerSkillProfile(allScoreRows, songRowMap);
       setPlayerSkillProfile(skillProfile);
 
+      // Detect game version: check sync_meta first, or detect from song DB with >= 20 count rule
+      const versionMeta = sqlite.getFirstSync<{ value: string }>(
+        `SELECT value FROM sync_meta WHERE key = 'current_version'`
+      );
+      const activeVersion = versionMeta?.value
+        ? parseInt(versionMeta.value, 10)
+        : detectCurrentVersion(songsList);
+      setCurrentVersion(activeVersion);
+
       const songMap = new Map<string, Song>();
-      let maxVersion = 25000;
 
       for (const s of songsList) {
         const norm = normalizeTitle(s.title);
-        const v = parseInt(s.version ?? '0', 10);
-        if (!isNaN(v) && v > maxVersion) {
-          maxVersion = v;
-        }
-
         const songObj: Song = {
           title: s.title,
           artist: s.artist ?? '',
@@ -124,7 +130,10 @@ export function useLocalData(): LocalDataState {
           lev_remas_i: s.lev_remas_i ?? undefined,
           lev_utage: s.lev_utage ?? undefined,
         };
-        songMap.set(norm, songObj);
+        const existing = songMap.get(norm);
+        if (!existing || ((s.lev_mas_i || s.dx_lev_mas_i || s.lev_exp_i || s.dx_lev_exp_i) && !existing.lev_mas_i && !existing.dx_lev_mas_i)) {
+          songMap.set(norm, songObj);
+        }
       }
 
       const formattedScores: Score[] = cachedScores.map(s => ({
@@ -139,7 +148,7 @@ export function useLocalData(): LocalDataState {
         playedAt: new Date(s.played_at),
       }));
 
-      const computed = computeRating(formattedScores, songMap, maxVersion);
+      const computed = computeRating(formattedScores, songMap, activeVersion);
       setRatingData(computed);
 
       const cachedProfile = getCachedProfile();
@@ -200,10 +209,10 @@ export function useLocalData(): LocalDataState {
     }
   };
 
-  const triggerWebDbSync = async (): Promise<void> => {
+  const triggerWebDbSync = async (forceSongs: boolean = false): Promise<void> => {
     setSyncing(true);
     try {
-      await syncFromWebDb();
+      await syncFromWebDb(forceSongs);
       loadLocal();
     } catch (err) {
       console.error('Web DB sync error:', err);
@@ -218,6 +227,7 @@ export function useLocalData(): LocalDataState {
     syncing,
     segaOffline,
     lastSyncedAt,
+    currentVersion,
     profile,
     ratingData,
     targetSuggestions,

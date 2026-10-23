@@ -23,8 +23,8 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 import { sqlite } from '../db/client';
-import type { PlayLogRow } from '../db/schema';
-import { calcSingleRating } from '@maimai-suite/core';
+import type { PlayLogRow, SongRow, ScoreRow } from '../db/schema';
+import { calcSingleRating, versionLabel, normalizeTitle } from '@maimai-suite/core';
 
 export default function SongDetailModal() {
   const router = useRouter();
@@ -45,11 +45,73 @@ export default function SongDetailModal() {
   const difficulty = params.difficulty ?? 'MAS';
   const songType = params.songType ?? 'DX';
   const diffColor = getDifficultyColor(difficulty);
-  const internalLevel = parseFloat(params.internalLevel ?? '0');
-  const achNum = parseFloat(params.achievement ?? '0');
+
+  // Load song record from SQLite for note counts, designer, bpm, and version
+  const songData = useMemo(() => {
+    try {
+      const songRow = sqlite.getFirstSync<SongRow>(
+        `SELECT * FROM songs WHERE title = ? OR title_kana = ? LIMIT 1`,
+        [title, title]
+      );
+      if (!songRow) return null;
+
+      let sheetObj: any = null;
+      if (songRow.sheets) {
+        try {
+          const sheets = JSON.parse(songRow.sheets);
+          const diffKey = difficulty.toLowerCase();
+          const targetType = songType.toLowerCase();
+          sheetObj = sheets.find(
+            (sh: any) =>
+              (sh.difficulty === diffKey || (diffKey === 'remas' && sh.difficulty === 'remaster')) &&
+              (!sh.type || sh.type.toLowerCase() === targetType)
+          ) || sheets.find((sh: any) => sh.difficulty === diffKey || (diffKey === 'remas' && sh.difficulty === 'remaster'));
+        } catch {}
+      }
+
+      return {
+        song: songRow,
+        sheet: sheetObj,
+        bpm: songRow.bpm,
+        version: songRow.version,
+        noteCounts: sheetObj?.noteCounts,
+        noteDesigner: sheetObj?.noteDesigner,
+      };
+    } catch {
+      return null;
+    }
+  }, [title, difficulty, songType]);
+
+  // Load best score from SQLite if param achievement is 0
+  const bestScore = useMemo(() => {
+    try {
+      return sqlite.getFirstSync<ScoreRow>(
+        `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? ORDER BY achievement DESC LIMIT 1`,
+        [title, difficulty]
+      );
+    } catch {
+      return null;
+    }
+  }, [title, difficulty]);
+
+  const paramAch = parseFloat(params.achievement ?? '0');
+  const achNum = paramAch > 0 ? paramAch : (bestScore?.achievement ?? 0);
   const rankInfo = getRankBadge(achNum);
-  const ratingPoints = parseInt(params.rating ?? '0', 10);
-  const imageUrl = params.imageUrl;
+
+  const parsedInternal = parseFloat(params.internalLevel ?? '0');
+  const internalLevel = parsedInternal > 0
+    ? parsedInternal
+    : (parseFloat(songData?.sheet?.internalLevelValue ?? '0') || 0);
+
+  const paramRating = parseInt(params.rating ?? '0', 10);
+  const ratingPoints = paramRating > 0
+    ? paramRating
+    : (internalLevel > 0 && achNum > 0 ? calcSingleRating(internalLevel, achNum).floored : 0);
+
+  const imageUrl = params.imageUrl || songData?.song.image_url;
+  const artistName = params.artist || songData?.song.artist || 'Unknown Artist';
+  const effectiveFC = params.fc || bestScore?.fc || '';
+  const effectiveFS = params.fs || bestScore?.fs || '';
 
   // Query local play_log for history on this specific chart
   const playHistory = useMemo(() => {
@@ -131,7 +193,7 @@ export default function SongDetailModal() {
 
         {/* Title & Artist */}
         <Text style={styles.songTitle}>{title}</Text>
-        <Text style={styles.songArtist}>{params.artist || 'Unknown Artist'}</Text>
+        <Text style={styles.songArtist}>{artistName}</Text>
 
         {/* Badges */}
         <View style={styles.badgeRow}>
@@ -150,17 +212,23 @@ export default function SongDetailModal() {
               {difficulty} {difficulty === 'UTAGE' ? 'UTAGE' : internalLevel.toFixed(1)}
             </Text>
           </View>
-          <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-            <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
-          </View>
-          {params.fc ? (
+          {achNum > 0 ? (
+            <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
+              <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+            </View>
+          ) : (
+            <View style={[styles.rankBadge, { backgroundColor: COLORS.surfaceLight }]}>
+              <Text style={[styles.rankBadgeText, { color: COLORS.textSubtle }]}>UNPLAYED</Text>
+            </View>
+          )}
+          {effectiveFC ? (
             <View style={styles.fcBadge}>
-              <Text style={styles.fcText}>{params.fc}</Text>
+              <Text style={styles.fcText}>{effectiveFC}</Text>
             </View>
           ) : null}
-          {params.fs ? (
+          {effectiveFS ? (
             <View style={styles.fsBadge}>
-              <Text style={styles.fsText}>{params.fs}</Text>
+              <Text style={styles.fsText}>{effectiveFS}</Text>
             </View>
           ) : null}
         </View>
@@ -169,13 +237,83 @@ export default function SongDetailModal() {
         <View style={styles.statsCard}>
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>PERSONAL BEST</Text>
-            <Text style={styles.statValue}>{formatAchievement(achNum)}</Text>
+            <Text style={styles.statValue}>
+              {achNum > 0 ? formatAchievement(achNum) : '--'}
+            </Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>DX RATING</Text>
-            <Text style={[styles.statValue, { color: COLORS.cyan }]}>+{ratingPoints}</Text>
+            <Text style={[styles.statValue, { color: COLORS.cyan }]}>
+              {ratingPoints > 0 ? `+${ratingPoints}` : '--'}
+            </Text>
           </View>
+        </View>
+
+        {/* Chart Details Card: BPM, Version, Designer, Note Breakdown */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Disc size={16} color={COLORS.cyan} />
+            <Text style={styles.sectionCardTitle}>Chart Information</Text>
+          </View>
+
+          <View style={styles.chartDetailsGrid}>
+            <View style={styles.detailRowItem}>
+              <Text style={styles.detailLabel}>Game Version</Text>
+              <Text style={styles.detailValue}>{versionLabel(songData?.version)}</Text>
+            </View>
+            {songData?.bpm ? (
+              <View style={styles.detailRowItem}>
+                <Text style={styles.detailLabel}>BPM</Text>
+                <Text style={styles.detailValue}>{songData.bpm}</Text>
+              </View>
+            ) : null}
+            {songData?.noteDesigner ? (
+              <View style={styles.detailRowItem}>
+                <Text style={styles.detailLabel}>Chart Designer</Text>
+                <Text style={styles.detailValue}>{songData.noteDesigner}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Note Counts breakdown */}
+          {songData?.noteCounts ? (
+            <View style={styles.notesBreakdownWrapper}>
+              <Text style={styles.notesSubtitle}>NOTE BREAKDOWN</Text>
+              <View style={styles.notesGrid}>
+                <View style={styles.noteStatBox}>
+                  <Text style={styles.noteStatLabel}>TAP</Text>
+                  <Text style={styles.noteStatValue}>{songData.noteCounts.tap ?? 0}</Text>
+                </View>
+                <View style={styles.noteStatBox}>
+                  <Text style={styles.noteStatLabel}>HOLD</Text>
+                  <Text style={styles.noteStatValue}>{songData.noteCounts.hold ?? 0}</Text>
+                </View>
+                <View style={styles.noteStatBox}>
+                  <Text style={styles.noteStatLabel}>SLIDE</Text>
+                  <Text style={styles.noteStatValue}>{songData.noteCounts.slide ?? 0}</Text>
+                </View>
+                {songData.noteCounts.touch !== null && songData.noteCounts.touch !== undefined ? (
+                  <View style={styles.noteStatBox}>
+                    <Text style={styles.noteStatLabel}>TOUCH</Text>
+                    <Text style={styles.noteStatValue}>{songData.noteCounts.touch}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.noteStatBox}>
+                  <Text style={styles.noteStatLabel}>BREAK</Text>
+                  <Text style={[styles.noteStatValue, { color: COLORS.amber }]}>
+                    {songData.noteCounts.break ?? 0}
+                  </Text>
+                </View>
+                <View style={styles.noteStatBox}>
+                  <Text style={styles.noteStatLabel}>TOTAL</Text>
+                  <Text style={[styles.noteStatValue, { color: COLORS.purpleLight }]}>
+                    {songData.noteCounts.total ?? 0}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Rating Milestones Card */}
@@ -567,6 +705,62 @@ const styles = StyleSheet.create({
   infoVal: {
     fontSize: 12,
     fontWeight: '600',
+    color: COLORS.text,
+  },
+  chartDetailsGrid: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  detailRowItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  detailValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  notesBreakdownWrapper: {
+    marginTop: 4,
+  },
+  notesSubtitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.textSubtle,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  notesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  noteStatBox: {
+    flex: 1,
+    minWidth: 50,
+    backgroundColor: COLORS.surfaceLight,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  noteStatLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: COLORS.textSubtle,
+    marginBottom: 2,
+  },
+  noteStatValue: {
+    fontSize: 12,
+    fontWeight: '800',
     color: COLORS.text,
   },
 });
