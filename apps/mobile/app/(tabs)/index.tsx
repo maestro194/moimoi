@@ -13,11 +13,21 @@ import {
 import { useRouter } from 'expo-router';
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, DIFF_COLOR, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
-import { RefreshCw, Sparkles, TrendingUp, Trophy, ArrowRight, Music2 } from 'lucide-react-native';
+import { RefreshCw, Sparkles, TrendingUp, Trophy, ArrowRight, Music2, User, Target } from 'lucide-react-native';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { loading, syncing, lastSyncedAt, ratingData, songsCount, triggerSync, reload } = useLocalData();
+  const {
+    loading,
+    syncing,
+    lastSyncedAt,
+    profile,
+    ratingData,
+    targetSuggestions,
+    songsCount,
+    triggerSync,
+    reload,
+  } = useLocalData();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -95,6 +105,52 @@ export default function DashboardScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Player Profile Card */}
+      {profile?.name ? (
+        <View style={styles.profileCard}>
+          <View style={styles.profileRow}>
+            {profile.avatar ? (
+              <Image source={{ uri: profile.avatar }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <User size={24} color="#fff" />
+              </View>
+            )}
+            <View style={styles.profileInfo}>
+              {profile.title && (
+                <View style={styles.titleBadge}>
+                  <Text style={styles.titleBadgeText} numberOfLines={1}>{profile.title}</Text>
+                </View>
+              )}
+              <Text style={styles.playerName}>{profile.name}</Text>
+              <View style={styles.playerMetaRow}>
+                {profile.ratingBase && (
+                  <Image source={{ uri: profile.ratingBase }} style={styles.ratingBaseImg} resizeMode="contain" />
+                )}
+                <Text style={styles.profileRatingText}>{profile.rating || totalRating}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.profileStatsRow}>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatLabel}>STARS</Text>
+              <Text style={styles.profileStatVal}>★ {profile.stars || '0'}</Text>
+            </View>
+            <View style={styles.profileStatDivider} />
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatLabel}>VER. PLAYS</Text>
+              <Text style={styles.profileStatVal}>{profile.versionPlays || '0'}</Text>
+            </View>
+            <View style={styles.profileStatDivider} />
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatLabel}>TOTAL PLAYS</Text>
+              <Text style={styles.profileStatVal}>{profile.totalPlays || '0'}</Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       {/* Main Rating Hero Card */}
       <View style={styles.heroCard}>
@@ -238,6 +294,81 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           );
         })
+      )}
+
+      {/* Rating Improvement Targets */}
+      {targetSuggestions.length > 0 && (
+        <View style={styles.targetSection}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Target size={18} color={COLORS.amber} />
+              <Text style={styles.sectionTitle}>Rating Improvement Targets</Text>
+            </View>
+            <View style={styles.targetCountBadge}>
+              <Text style={styles.targetCountText}>{targetSuggestions.length} Available</Text>
+            </View>
+          </View>
+
+          {targetSuggestions.slice(0, 5).map((s, index) => {
+            const diffColor = getDifficultyColor(s.difficulty);
+            return (
+              <TouchableOpacity
+                key={`target-${s.songTitle}-${s.difficulty}-${index}`}
+                style={styles.targetRow}
+                onPress={() => {
+                  router.push({
+                    pathname: '/modal',
+                    params: {
+                      title: s.songTitle,
+                      difficulty: s.difficulty,
+                      achievement: String(s.currentAchievement),
+                      internalLevel: String(s.internalLevel),
+                      rating: String(s.currentRating),
+                      songType: 'DX',
+                      fc: s.fc ?? '',
+                      fs: s.fs ?? '',
+                      artist: s.song?.artist ?? '',
+                      imageUrl: s.song?.image_url ?? '',
+                    },
+                  });
+                }}
+              >
+                <View style={[styles.jacketContainer, { borderColor: diffColor }]}>
+                  {s.song?.image_url ? (
+                    <Image
+                      source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${s.song.image_url}` }}
+                      style={styles.jacketImage}
+                    />
+                  ) : (
+                    <View style={[styles.jacketPlaceholder, { backgroundColor: diffColor + '20' }]}>
+                      <Music2 size={16} color={diffColor} />
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.targetInfo}>
+                  <Text style={styles.songTitle} numberOfLines={1}>{s.songTitle}</Text>
+                  <View style={styles.targetPathRow}>
+                    <View style={[styles.diffBadge, { backgroundColor: diffColor }]}>
+                      <Text style={styles.diffBadgeText}>{s.difficulty} {s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?'}</Text>
+                    </View>
+                    <Text style={styles.targetPathText}>
+                      {s.currentRank} {s.currentAchievement.toFixed(2)}% →{' '}
+                      <Text style={{ color: COLORS.amber, fontWeight: '800' }}>
+                        {s.targetRank} {s.targetAchievement.toFixed(1)}%
+                      </Text>
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.targetDeltaCol}>
+                  <Text style={styles.targetDeltaLabel}>Total Δ</Text>
+                  <Text style={styles.targetDeltaVal}>+{s.totalRatingGain.toFixed(0)}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       )}
     </ScrollView>
   );
@@ -542,5 +673,161 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.cyan,
     marginTop: 2,
+  },
+  // Profile Card Styles
+  profileCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+    marginBottom: 16,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  avatarImg: {
+    width: 60,
+    height: 60,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.amber,
+  },
+  avatarFallback: {
+    width: 60,
+    height: 60,
+    borderRadius: 14,
+    backgroundColor: COLORS.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  titleBadge: {
+    backgroundColor: '#3b3839',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#555',
+    marginBottom: 4,
+  },
+  titleBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  playerName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
+    letterSpacing: 1,
+  },
+  playerMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  ratingBaseImg: {
+    width: 44,
+    height: 18,
+  },
+  profileRatingText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.purpleLight,
+  },
+  profileStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderSubtle,
+  },
+  profileStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  profileStatDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: COLORS.borderSubtle,
+  },
+  profileStatLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: COLORS.textSubtle,
+    letterSpacing: 0.5,
+  },
+  profileStatVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginTop: 2,
+  },
+  // Target Section Styles
+  targetSection: {
+    marginTop: 20,
+  },
+  targetCountBadge: {
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  targetCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.amber,
+  },
+  targetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+  },
+  targetInfo: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  targetPathRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 3,
+  },
+  targetPathText: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+  },
+  targetDeltaCol: {
+    alignItems: 'flex-end',
+  },
+  targetDeltaLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: COLORS.textSubtle,
+  },
+  targetDeltaVal: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#4ade80',
   },
 });

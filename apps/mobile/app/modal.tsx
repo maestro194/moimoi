@@ -1,9 +1,30 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  Linking,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { COLORS, getDifficultyColor, getRankBadge, formatAchievement } from '../constants/Theme';
-import { Music2, Trophy, Disc, Calendar, X } from 'lucide-react-native';
+import {
+  Music2,
+  Trophy,
+  Disc,
+  Calendar,
+  X,
+  TrendingUp,
+  ExternalLink,
+  Target,
+  CheckCircle2,
+} from 'lucide-react-native';
+import { sqlite } from '../db/client';
+import type { PlayLogRow } from '../db/schema';
+import { calcSingleRating } from '@maimai-suite/core';
 
 export default function SongDetailModal() {
   const router = useRouter();
@@ -30,20 +51,69 @@ export default function SongDetailModal() {
   const ratingPoints = parseInt(params.rating ?? '0', 10);
   const imageUrl = params.imageUrl;
 
+  // Query local play_log for history on this specific chart
+  const playHistory = useMemo(() => {
+    try {
+      return sqlite.getAllSync<PlayLogRow>(
+        `SELECT * FROM play_log WHERE song_title = ? AND difficulty = ? ORDER BY played_at DESC LIMIT 20`,
+        [title, difficulty]
+      );
+    } catch {
+      return [];
+    }
+  }, [title, difficulty]);
+
+  // Target rating milestones
+  const milestones = useMemo(() => {
+    if (internalLevel <= 0) return [];
+    const thresholds = [
+      { name: 'S', min: 97.0 },
+      { name: 'S+', min: 98.0 },
+      { name: 'SS', min: 99.0 },
+      { name: 'SS+', min: 99.5 },
+      { name: 'SSS', min: 100.0 },
+      { name: 'SSS+', min: 100.5 },
+    ];
+
+    return thresholds.map(t => {
+      const calc = calcSingleRating(internalLevel, t.min);
+      const isAchieved = achNum >= t.min;
+      const ptsDiff = isAchieved ? 0 : calc.floored - ratingPoints;
+      return {
+        ...t,
+        targetRating: calc.floored,
+        isAchieved,
+        ptsDiff,
+      };
+    });
+  }, [internalLevel, achNum, ratingPoints]);
+
+  const openDxRating = () => {
+    const url = `https://dxrating.net/songs/${encodeURIComponent(title)}`;
+    Linking.openURL(url).catch(() => {});
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Header with Close Button */}
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Chart Details</Text>
-        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
-          <X size={20} color={COLORS.text} />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.iconBtn} onPress={openDxRating}>
+            <ExternalLink size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+            <X size={18} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Jacket Art */}
+        {/* Jacket Art with 2.5px difficulty border */}
         <View style={styles.jacketWrapper}>
           <View style={[styles.jacketBorder, { borderColor: diffColor }]}>
             {imageUrl ? (
@@ -63,10 +133,17 @@ export default function SongDetailModal() {
         <Text style={styles.songTitle}>{title}</Text>
         <Text style={styles.songArtist}>{params.artist || 'Unknown Artist'}</Text>
 
-        {/* Chart Badges */}
+        {/* Badges */}
         <View style={styles.badgeRow}>
-          <View style={[styles.typeBadge, { backgroundColor: songType === 'DX' ? COLORS.cyan + '20' : COLORS.blue + '20' }]}>
-            <Text style={[styles.typeBadgeText, { color: songType === 'DX' ? COLORS.cyan : COLORS.blue }]}>{songType}</Text>
+          <View
+            style={[
+              styles.typeBadge,
+              { backgroundColor: songType === 'DX' ? COLORS.cyan + '20' : COLORS.blue + '20' },
+            ]}
+          >
+            <Text style={[styles.typeBadgeText, { color: songType === 'DX' ? COLORS.cyan : COLORS.blue }]}>
+              {songType}
+            </Text>
           </View>
           <View style={[styles.diffBadge, { backgroundColor: diffColor }]}>
             <Text style={styles.diffBadgeText}>
@@ -76,22 +153,22 @@ export default function SongDetailModal() {
           <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
             <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
           </View>
-          {params.fc && (
+          {params.fc ? (
             <View style={styles.fcBadge}>
               <Text style={styles.fcText}>{params.fc}</Text>
             </View>
-          )}
-          {params.fs && (
+          ) : null}
+          {params.fs ? (
             <View style={styles.fsBadge}>
               <Text style={styles.fsText}>{params.fs}</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* Score & Rating Stats Card */}
         <View style={styles.statsCard}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>ACHIEVEMENT</Text>
+            <Text style={styles.statLabel}>PERSONAL BEST</Text>
             <Text style={styles.statValue}>{formatAchievement(achNum)}</Text>
           </View>
           <View style={styles.statDivider} />
@@ -101,11 +178,89 @@ export default function SongDetailModal() {
           </View>
         </View>
 
-        {/* Additional Chart Information */}
+        {/* Rating Milestones Card */}
+        {milestones.length > 0 && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Target size={16} color={COLORS.amber} />
+              <Text style={styles.sectionCardTitle}>Rating Milestones</Text>
+            </View>
+
+            <View style={styles.milestoneGrid}>
+              {milestones.map(m => (
+                <View
+                  key={m.name}
+                  style={[
+                    styles.milestoneItem,
+                    m.isAchieved && styles.milestoneItemAchieved,
+                  ]}
+                >
+                  <View style={styles.milestoneTop}>
+                    <Text
+                      style={[
+                        styles.milestoneRank,
+                        { color: m.isAchieved ? '#4ade80' : COLORS.textMuted },
+                      ]}
+                    >
+                      {m.name} ({m.min}%)
+                    </Text>
+                    {m.isAchieved ? (
+                      <CheckCircle2 size={13} color="#4ade80" />
+                    ) : (
+                      <Text style={styles.milestoneGain}>+{m.ptsDiff} pts</Text>
+                    )}
+                  </View>
+                  <Text style={styles.milestoneRating}>{m.targetRating}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Score Progression History Card */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <TrendingUp size={16} color={COLORS.purpleLight} />
+            <Text style={styles.sectionCardTitle}>
+              Play History ({playHistory.length} recorded)
+            </Text>
+          </View>
+
+          {playHistory.length === 0 ? (
+            <Text style={styles.emptyHistoryText}>No recorded plays for this chart in local cache.</Text>
+          ) : (
+            playHistory.slice(0, 10).map((p, idx) => {
+              const r = getRankBadge(p.achievement);
+              return (
+                <View key={p.id || idx} style={styles.historyRow}>
+                  <View style={styles.historyLeft}>
+                    <Text style={styles.historyDate}>
+                      {new Date(p.played_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
+                      {new Date(p.played_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                    <View style={styles.historyBadges}>
+                      <View style={[styles.rankBadge, { backgroundColor: r.bg }]}>
+                        <Text style={[styles.rankBadgeText, { color: r.color, fontSize: 8 }]}>{r.label}</Text>
+                      </View>
+                      {p.fc && (
+                        <View style={styles.fcBadge}>
+                          <Text style={[styles.fcText, { fontSize: 8 }]}>{p.fc}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  <Text style={styles.historyAch}>{p.achievement.toFixed(4)}%</Text>
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        {/* Chart Details Card */}
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
             <View style={styles.infoIconCol}>
-              <Disc size={16} color={COLORS.purpleLight} />
+              <Disc size={15} color={COLORS.purpleLight} />
             </View>
             <Text style={styles.infoKey}>Chart Type</Text>
             <Text style={styles.infoVal}>{songType === 'DX' ? 'DX Chart' : 'Standard Chart'}</Text>
@@ -113,15 +268,17 @@ export default function SongDetailModal() {
 
           <View style={styles.infoRow}>
             <View style={styles.infoIconCol}>
-              <Trophy size={16} color={COLORS.amber} />
+              <Trophy size={15} color={COLORS.amber} />
             </View>
-            <Text style={styles.infoKey}>Internal Level</Text>
-            <Text style={styles.infoVal}>{difficulty === 'UTAGE' ? 'Special' : internalLevel.toFixed(1)}</Text>
+            <Text style={styles.infoKey}>Internal Constant</Text>
+            <Text style={styles.infoVal}>
+              {difficulty === 'UTAGE' ? 'Special' : internalLevel.toFixed(1)}
+            </Text>
           </View>
 
           <View style={styles.infoRow}>
             <View style={styles.infoIconCol}>
-              <Calendar size={16} color={COLORS.cyan} />
+              <Calendar size={15} color={COLORS.cyan} />
             </View>
             <Text style={styles.infoKey}>Difficulty Tier</Text>
             <Text style={[styles.infoVal, { color: diffColor, fontWeight: '700' }]}>{difficulty}</Text>
@@ -151,8 +308,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
+    flex: 1,
+    marginRight: 10,
   },
-  closeBtn: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -161,17 +325,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
-    padding: 20,
+    padding: 18,
     alignItems: 'center',
   },
   jacketWrapper: {
-    marginVertical: 16,
+    marginVertical: 14,
   },
   jacketBorder: {
     width: 140,
     height: 140,
     borderRadius: 20,
-    borderWidth: 2.5, // Standardized 2.5px border
+    borderWidth: 2.5,
     overflow: 'hidden',
     backgroundColor: '#000',
   },
@@ -186,23 +350,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   songTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '800',
     color: COLORS.text,
     textAlign: 'center',
     marginBottom: 4,
   },
   songArtist: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 24,
+    gap: 6,
+    marginBottom: 20,
     flexWrap: 'wrap',
     justifyContent: 'center',
   },
@@ -260,11 +424,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: COLORS.surface,
     borderRadius: 18,
-    padding: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: COLORS.borderSubtle,
     width: '100%',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   statBox: {
     flex: 1,
@@ -275,16 +439,105 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderSubtle,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     color: COLORS.textSubtle,
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: COLORS.text,
+  },
+  sectionCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+    width: '100%',
+    marginBottom: 14,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+    letterSpacing: 0.5,
+  },
+  milestoneGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  milestoneItem: {
+    width: '48%',
+    backgroundColor: COLORS.surfaceLight,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+  },
+  milestoneItemAchieved: {
+    borderColor: 'rgba(74, 222, 128, 0.3)',
+    backgroundColor: 'rgba(74, 222, 128, 0.05)',
+  },
+  milestoneTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  milestoneRank: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  milestoneGain: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: COLORS.cyan,
+  },
+  milestoneRating: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  historyLeft: {
+    flex: 1,
+  },
+  historyDate: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginBottom: 2,
+  },
+  historyBadges: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  historyAch: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  emptyHistoryText: {
+    fontSize: 12,
+    color: COLORS.textSubtle,
+    textAlign: 'center',
+    paddingVertical: 10,
   },
   infoCard: {
     backgroundColor: COLORS.surface,
@@ -297,12 +550,12 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   infoIconCol: {
-    width: 24,
+    width: 22,
     alignItems: 'center',
     marginRight: 8,
   },

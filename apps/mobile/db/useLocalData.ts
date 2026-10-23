@@ -8,8 +8,10 @@ import {
   getSongsCount,
   clusterSessionsFromPlayLog,
   getLastCreditInfo,
+  getCachedProfile,
   type ClusteredSession,
   type LastCreditSummary,
+  type PlayerProfileData,
 } from './sync';
 import { sqlite } from './client';
 import type { SongRow, ScoreRow } from './schema';
@@ -23,10 +25,12 @@ import {
 import {
   computeRating,
   normalizeTitle,
+  getTargetSuggestions,
   type Song,
   type Score,
   type RatingData,
   type ScoreWithRating,
+  type TargetSuggestion,
 } from '@maimai-suite/core';
 
 export interface LocalDataState {
@@ -34,7 +38,9 @@ export interface LocalDataState {
   syncing: boolean;
   segaOffline: boolean;
   lastSyncedAt: string | null;
+  profile: PlayerProfileData | null;
   ratingData: (RatingData & { allScores: ScoreWithRating[] }) | null;
+  targetSuggestions: TargetSuggestion[];
   recentPlays: ReturnType<typeof getCachedRecentPlays>;
   songsCount: number;
   clusteredSessions: ClusteredSession[];
@@ -53,7 +59,9 @@ export function useLocalData(): LocalDataState {
   const [syncing, setSyncing] = useState(false);
   const [segaOffline, setSegaOffline] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [profile, setProfile] = useState<PlayerProfileData | null>(null);
   const [ratingData, setRatingData] = useState<(RatingData & { allScores: ScoreWithRating[] }) | null>(null);
+  const [targetSuggestions, setTargetSuggestions] = useState<TargetSuggestion[]>([]);
   const [recentPlays, setRecentPlays] = useState<ReturnType<typeof getCachedRecentPlays>>([]);
   const [songsCount, setSongsCount] = useState(0);
   const [clusteredSessions, setClusteredSessions] = useState<ClusteredSession[]>([]);
@@ -134,6 +142,16 @@ export function useLocalData(): LocalDataState {
       const computed = computeRating(formattedScores, songMap, maxVersion);
       setRatingData(computed);
 
+      const cachedProfile = getCachedProfile();
+      setProfile(cachedProfile);
+
+      if (computed?.allScores?.length) {
+        const suggestions = getTargetSuggestions(computed, computed.allScores, 10);
+        setTargetSuggestions(suggestions);
+      } else {
+        setTargetSuggestions([]);
+      }
+
       const recents = getCachedRecentPlays();
       setRecentPlays(recents);
 
@@ -200,7 +218,9 @@ export function useLocalData(): LocalDataState {
     syncing,
     segaOffline,
     lastSyncedAt,
+    profile,
     ratingData,
+    targetSuggestions,
     recentPlays,
     songsCount,
     clusteredSessions,

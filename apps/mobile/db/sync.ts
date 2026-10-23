@@ -227,18 +227,72 @@ export async function fetchAndCacheRecent(limit: number = 50): Promise<void> {
   });
 }
 
+export interface PlayerProfileData {
+  name: string | null;
+  avatar: string | null;
+  courseRank: string | null;
+  classRank: string | null;
+  ratingBase: string | null;
+  rating: string | null;
+  title: string | null;
+  stars: string | null;
+  versionPlays: string | null;
+  totalPlays: string | null;
+  lastSync: string | null;
+}
+
+/**
+ * Fetch player profile from /api/profile and cache in sync_meta.
+ */
+export async function fetchAndCacheProfile(): Promise<PlayerProfileData | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/profile`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const profile: PlayerProfileData = data.profile;
+    if (profile) {
+      sqlite.runSync(
+        `INSERT INTO sync_meta (key, value, updated_at) VALUES ('player_profile', ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [JSON.stringify(profile), Date.now()]
+      );
+      return profile;
+    }
+  } catch (e) {
+    console.warn('Could not fetch player profile:', e);
+  }
+  return null;
+}
+
+/**
+ * Retrieve cached player profile from SQLite sync_meta.
+ */
+export function getCachedProfile(): PlayerProfileData | null {
+  try {
+    const row = sqlite.getFirstSync<{ value: string }>(
+      `SELECT value FROM sync_meta WHERE key = 'player_profile'`
+    );
+    if (row?.value) {
+      return JSON.parse(row.value) as PlayerProfileData;
+    }
+  } catch {}
+  return null;
+}
+
 /**
  * Direct sync between Web App Cloud DB (Neon) and local SQLite.
- * Pulls scores, recent plays, and song database without connecting to SEGA.
+ * Pulls scores, recent plays, player profile, and song database without connecting to SEGA.
  */
 export async function syncFromWebDb(): Promise<{
   scoresCount: number;
   recentCount: number;
   songsCount: number;
+  profile: PlayerProfileData | null;
 }> {
-  const [scoresRes] = await Promise.all([
+  const [scoresRes, _, profile] = await Promise.all([
     fetchAndCacheScores(),
     fetchAndCacheRecent(50),
+    fetchAndCacheProfile(),
   ]);
 
   let songCount = getSongsCount();
@@ -257,6 +311,7 @@ export async function syncFromWebDb(): Promise<{
     scoresCount: scoresRes.count,
     recentCount: getRecentPlaysCount(),
     songsCount: songCount,
+    profile,
   };
 }
 

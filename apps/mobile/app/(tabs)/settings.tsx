@@ -88,7 +88,7 @@ export default function SettingsScreen() {
       refreshStats();
       Alert.alert(
         'Web DB Sync Complete',
-        `Loaded ${res.scoresCount} scores, ${res.recentCount} recent plays, and ${res.songsCount} songs from your Neon database.`
+        `Loaded ${res.scoresCount} scores, ${res.recentCount} recent plays, ${res.songsCount} songs${res.profile?.name ? `, and profile (${res.profile.name})` : ''} from your Neon database.`
       );
     } catch (e: any) {
       Alert.alert('Sync Failed', `${e?.message || String(e)}`);
