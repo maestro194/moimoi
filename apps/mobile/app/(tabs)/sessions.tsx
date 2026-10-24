@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
-import { Clock, ChevronDown, ChevronUp, Music2, Star } from 'lucide-react-native';
+import { Clock, ChevronDown, ChevronUp, Music2, Star, Pencil, Trash2, Plus } from 'lucide-react-native';
 import { solvePlayDetails } from '@maimai-suite/core';
+import ManualCreditModal from '../../components/ManualCreditModal';
+import { deleteManualPlay } from '../../db/sync';
 
 interface PlayItem {
   id: number;
@@ -24,6 +27,7 @@ interface PlayItem {
   fs: string | null;
   track: number | null;
   details: string | null;
+  is_manual?: boolean | number | null;
   played_at: string;
   song?: any;
 }
@@ -130,12 +134,32 @@ function computeMaxDxScore(d: any): number {
 }
 
 export default function SessionsScreen() {
-  const { loading, recentPlays } = useLocalData();
+  const { loading, recentPlays, rawSongs, reload } = useLocalData();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [editingPlay, setEditingPlay] = useState<any | null>(null);
 
   const sessions = useMemo(() => {
     return groupPlaysIntoSessions(recentPlays as any[]);
   }, [recentPlays]);
+
+  const handleDeletePlay = (play: PlayItem) => {
+    Alert.alert(
+      'Delete Manual Play',
+      `Are you sure you want to delete this manual play for "${play.song_title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteManualPlay(play.id);
+            reload();
+          },
+        },
+      ]
+    );
+  };
 
   if (loading) {
     return (
@@ -152,6 +176,24 @@ export default function SessionsScreen() {
         data={sessions}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View style={styles.screenHeaderRow}>
+            <View>
+              <Text style={styles.screenTitle}>Arcade Sessions</Text>
+              <Text style={styles.screenSubtitle}>Clustered plays & breakdown analysis</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.logCreditBtn}
+              onPress={() => {
+                setEditingPlay(null);
+                setShowManualModal(true);
+              }}
+            >
+              <Plus size={14} color="#ffffff" style={{ marginRight: 4 }} />
+              <Text style={styles.logCreditBtnText}>Log Credit</Text>
+            </TouchableOpacity>
+          </View>
+        }
         renderItem={({ item: session }) => {
           return (
             <View style={styles.sessionCard}>
@@ -243,12 +285,44 @@ export default function SessionsScreen() {
                               <Text style={styles.fsText}>{play.fs}</Text>
                             </View>
                           )}
+                          {Boolean(play.is_manual) && (
+                            <View style={styles.manualPlayBadge}>
+                              <Text style={styles.manualPlayBadgeText}>MANUAL</Text>
+                            </View>
+                          )}
                         </View>
                       </View>
 
                       {/* Score & Expand Icon */}
                       <View style={styles.playScoreCol}>
-                        <Text style={styles.achText}>{formatAchievement(play.achievement)}</Text>
+                        <View style={styles.scoreRowInner}>
+                          <Text style={styles.achText}>{formatAchievement(play.achievement)}</Text>
+                          {Boolean(play.is_manual) && (
+                            <View style={styles.manualIconsRow}>
+                              <TouchableOpacity
+                                hitSlop={8}
+                                style={styles.actionPencilBtn}
+                                onPress={(e: any) => {
+                                  e?.stopPropagation?.();
+                                  setEditingPlay(play);
+                                  setShowManualModal(true);
+                                }}
+                              >
+                                <Pencil size={11} color={COLORS.purpleLight} />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                hitSlop={8}
+                                style={styles.actionTrashBtn}
+                                onPress={(e: any) => {
+                                  e?.stopPropagation?.();
+                                  handleDeletePlay(play);
+                                }}
+                              >
+                                <Trash2 size={11} color={COLORS.red} />
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
                         {dxStars > 0 && (
                           <View style={styles.starsRow}>
                             {Array.from({ length: dxStars }).map((_, i) => (
@@ -402,6 +476,18 @@ export default function SessionsScreen() {
             <Text style={styles.emptySubtext}>Perform a sync from the Dashboard to load your play log.</Text>
           </View>
         }
+      />
+
+      {/* Manual Credit Modal */}
+      <ManualCreditModal
+        visible={showManualModal}
+        onClose={() => {
+          setShowManualModal(false);
+          setEditingPlay(null);
+        }}
+        onSuccess={() => reload()}
+        songs={rawSongs}
+        initialPlay={editingPlay}
       />
     </View>
   );
@@ -675,5 +761,67 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: 6,
+  },
+  screenHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  screenTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  screenSubtitle: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  logCreditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.purple,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  logCreditBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  manualPlayBadge: {
+    backgroundColor: 'rgba(192, 132, 252, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(192, 132, 252, 0.4)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  manualPlayBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: COLORS.purpleLight,
+  },
+  scoreRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  manualIconsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  actionPencilBtn: {
+    padding: 3,
+    backgroundColor: 'rgba(192, 132, 252, 0.12)',
+    borderRadius: 4,
+  },
+  actionTrashBtn: {
+    padding: 3,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderRadius: 4,
   },
 });

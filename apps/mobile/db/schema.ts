@@ -48,6 +48,7 @@ export interface PlayLogRow {
   fs: string | null;
   track: number | null;
   details: string | null; // JSON stringified note breakdown
+  is_manual?: boolean | number | null;
   played_at: string;
 }
 

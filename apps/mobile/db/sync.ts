@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { sqlite } from './client';
 import type { ScoreRow, SongRow, PlayLogRow } from './schema';
-import { normalizeTitle } from '@maimai-suite/core';
+import { normalizeTitle, solvePlayDetails } from '@maimai-suite/core';
 
 function resolveApiUrl(): string {
   if (Constants.expoConfig?.extra?.apiUrl) {
@@ -218,8 +218,8 @@ export async function fetchAndCacheRecent(limit: number = 50): Promise<void> {
   sqlite.withTransactionSync(() => {
     for (const r of recentList) {
       sqlite.runSync(
-        `INSERT INTO play_log (id, song_title, difficulty, song_type, achievement, dx_score, fc, fs, track, details, played_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO play_log (id, song_title, difficulty, song_type, achievement, dx_score, fc, fs, track, details, is_manual, played_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            achievement = excluded.achievement,
            dx_score = excluded.dx_score,
@@ -227,6 +227,7 @@ export async function fetchAndCacheRecent(limit: number = 50): Promise<void> {
            fs = excluded.fs,
            track = excluded.track,
            details = excluded.details,
+           is_manual = excluded.is_manual,
            played_at = excluded.played_at`,
         [
           r.id,
@@ -239,6 +240,7 @@ export async function fetchAndCacheRecent(limit: number = 50): Promise<void> {
           r.fs ?? null,
           r.track ?? null,
           r.details ? JSON.stringify(r.details) : null,
+          r.isManual ? 1 : 0,
           r.playedAt ?? new Date().toISOString(),
         ],
       );
@@ -588,3 +590,319 @@ export function getLastCreditInfo(
     lastPlayedAt: creditPlays[0].played_at,
   };
 }
+
+// ── Manual Play & Credit Logging ─────────────────────────────────────────────
+
+export interface ManualTrackInput {
+  songTitle: string;
+  difficulty: string; // BAS, ADV, EXP, MAS, REMAS
+  songType?: string;  // DX, STD
+  achievement: number | string;
+  dxScore?: number | null;
+  fc?: string | null;
+  fs?: string | null;
+  track?: number | null;
+  playedAt?: string | null;
+  details?: any | null;
+}
+
+export interface ManualCreditPayload {
+  playedAt?: string;
+  tracks: ManualTrackInput[];
+}
+
+export function calculateDxScoreFromDetails(details: any): number | null {
+  if (!details) return null;
+  const d = details;
+  const cp = (d.tap?.cp || 0) + (d.hold?.cp || 0) + (d.slide?.cp || 0) + (d.touch?.cp || 0) + (d.break?.cp || 0);
+  const p = (d.tap?.p || 0) + (d.hold?.p || 0) + (d.slide?.p || 0) + (d.touch?.p || 0) +
+            ((d.break?.p_high || 0) + (d.break?.p_low || 0) || (d.break?.p || 0));
+  const gr = (d.tap?.gr || 0) + (d.hold?.gr || 0) + (d.slide?.gr || 0) + (d.touch?.gr || 0) +
+             ((d.break?.g_high || 0) + (d.break?.g_mid || 0) + (d.break?.g_low || 0) || (d.break?.gr || 0));
+  if (cp + p + gr > 0) {
+    return cp * 3 + p * 2 + gr * 1;
+  }
+  return null;
+}
+
+/**
+ * Save a full manual credit (1 to 4 tracks) offline-first into SQLite
+ * and sync to Web App / Neon Postgres.
+ */
+export async function saveManualCredit(payload: ManualCreditPayload): Promise<{
+  success: boolean;
+  count: number;
+  offline: boolean;
+}> {
+  if (!payload.tracks || payload.tracks.length === 0) {
+    return { success: false, count: 0, offline: false };
+  }
+
+  // Attempt backend sync
+  let backendInserted: any[] | null = null;
+  let offline = false;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`${API_URL}/api/manual-credit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.insertedPlays && Array.isArray(data.insertedPlays)) {
+        backendInserted = data.insertedPlays;
+      }
+    } else {
+      offline = true;
+    }
+  } catch (e) {
+    console.warn('[saveManualCredit] Server unreachable, writing to SQLite offline:', e);
+    offline = true;
+  }
+
+  // Local SQLite persistence
+  const baseTime = payload.playedAt ? new Date(payload.playedAt) : new Date();
+
+  sqlite.withTransactionSync(() => {
+    for (let i = 0; i < payload.tracks.length; i++) {
+      const t = payload.tracks[i];
+      if (!t.songTitle || !t.difficulty || t.achievement === undefined) continue;
+
+      const songType = t.songType ?? 'DX';
+      const achNum = typeof t.achievement === 'number' ? t.achievement : parseFloat(String(t.achievement));
+      const trackNum = t.track ?? (i + 1);
+      const trackTime = t.playedAt || new Date(baseTime.getTime() + i * 2 * 60 * 1000).toISOString();
+
+      let finalDetails = t.details ? { ...t.details } : { isManual: true };
+      let finalDxScore = t.dxScore ?? null;
+
+      if (t.details && (t.details.tap || t.details.break)) {
+        finalDetails = solvePlayDetails(t.details, achNum);
+        finalDetails.isManual = true;
+        if (finalDxScore === null) {
+          finalDxScore = calculateDxScoreFromDetails(finalDetails);
+        }
+      } else {
+        finalDetails.isManual = true;
+      }
+
+      const backendPlay = backendInserted ? backendInserted[i] : null;
+      const playId = backendPlay?.id ?? (Date.now() + i);
+
+      sqlite.runSync(
+        `INSERT INTO play_log (id, song_title, difficulty, song_type, achievement, dx_score, fc, fs, track, details, is_manual, played_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           song_title = excluded.song_title,
+           difficulty = excluded.difficulty,
+           song_type = excluded.song_type,
+           achievement = excluded.achievement,
+           dx_score = excluded.dx_score,
+           fc = excluded.fc,
+           fs = excluded.fs,
+           track = excluded.track,
+           details = excluded.details,
+           is_manual = excluded.is_manual,
+           played_at = excluded.played_at`,
+        [
+          playId,
+          t.songTitle,
+          t.difficulty,
+          songType,
+          achNum,
+          finalDxScore,
+          t.fc ?? null,
+          t.fs ?? null,
+          trackNum,
+          JSON.stringify(finalDetails),
+          1,
+          trackTime,
+        ]
+      );
+
+      // Check PB in scores table
+      const existing = sqlite.getFirstSync<ScoreRow>(
+        `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? AND song_type = ?`,
+        [t.songTitle, t.difficulty, songType]
+      );
+
+      if (existing) {
+        if (achNum > existing.achievement) {
+          sqlite.runSync(
+            `UPDATE scores SET achievement = ?, dx_score = ?, fc = ?, fs = ?, played_at = ? WHERE id = ?`,
+            [achNum, finalDxScore ?? existing.dx_score, t.fc ?? existing.fc, t.fs ?? existing.fs, trackTime, existing.id]
+          );
+        }
+      } else {
+        sqlite.runSync(
+          `INSERT INTO scores (song_title, difficulty, song_type, achievement, dx_score, fc, fs, played_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [t.songTitle, t.difficulty, songType, achNum, finalDxScore, t.fc ?? null, t.fs ?? null, trackTime]
+        );
+      }
+    }
+  });
+
+  return { success: true, count: payload.tracks.length, offline };
+}
+
+/**
+ * Update an existing manual play in SQLite and Neon DB.
+ */
+export async function updateManualPlay(
+  playId: number,
+  updatedData: {
+    songTitle?: string;
+    difficulty?: string;
+    songType?: string;
+    achievement?: number | string;
+    dxScore?: number | null;
+    fc?: string | null;
+    fs?: string | null;
+    track?: number | null;
+    details?: any | null;
+    playedAt?: string | null;
+  }
+): Promise<{ success: boolean }> {
+  const row = sqlite.getFirstSync<PlayLogRow>(`SELECT * FROM play_log WHERE id = ?`, [playId]);
+  if (!row) {
+    throw new Error('Play not found');
+  }
+
+  const songTitle = updatedData.songTitle ?? row.song_title;
+  const difficulty = updatedData.difficulty ?? row.difficulty;
+  const songType = updatedData.songType ?? row.song_type ?? 'DX';
+  const achNum = updatedData.achievement !== undefined
+    ? (typeof updatedData.achievement === 'number' ? updatedData.achievement : parseFloat(String(updatedData.achievement)))
+    : row.achievement;
+
+  let detailsObj = updatedData.details !== undefined ? updatedData.details : (row.details ? JSON.parse(row.details) : { isManual: true });
+  let dxScore = updatedData.dxScore !== undefined ? updatedData.dxScore : row.dx_score;
+
+  if (detailsObj && (detailsObj.tap || detailsObj.break)) {
+    detailsObj = solvePlayDetails(detailsObj, achNum);
+    detailsObj.isManual = true;
+    if (dxScore === null || dxScore === undefined) {
+      dxScore = calculateDxScoreFromDetails(detailsObj);
+    }
+  } else if (detailsObj) {
+    detailsObj.isManual = true;
+  }
+
+  sqlite.runSync(
+    `UPDATE play_log SET
+       song_title = ?,
+       difficulty = ?,
+       song_type = ?,
+       achievement = ?,
+       dx_score = ?,
+       fc = ?,
+       fs = ?,
+       track = ?,
+       details = ?
+     WHERE id = ?`,
+    [
+      songTitle,
+      difficulty,
+      songType,
+      achNum,
+      dxScore ?? null,
+      updatedData.fc !== undefined ? updatedData.fc : row.fc,
+      updatedData.fs !== undefined ? updatedData.fs : row.fs,
+      updatedData.track !== undefined ? updatedData.track : row.track,
+      JSON.stringify(detailsObj),
+      playId,
+    ]
+  );
+
+  // Re-evaluate PB in local scores table
+  const bestPlay = sqlite.getFirstSync<PlayLogRow>(
+    `SELECT * FROM play_log WHERE song_title = ? AND difficulty = ? AND song_type = ? ORDER BY achievement DESC LIMIT 1`,
+    [songTitle, difficulty, songType]
+  );
+  if (bestPlay) {
+    const existingScore = sqlite.getFirstSync<ScoreRow>(
+      `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? AND song_type = ?`,
+      [songTitle, difficulty, songType]
+    );
+    if (existingScore) {
+      sqlite.runSync(
+        `UPDATE scores SET achievement = ?, dx_score = ?, fc = ?, fs = ?, played_at = ? WHERE id = ?`,
+        [bestPlay.achievement, bestPlay.dx_score, bestPlay.fc, bestPlay.fs, bestPlay.played_at, existingScore.id]
+      );
+    }
+  }
+
+  // Attempt backend update
+  try {
+    await fetch(`${API_URL}/api/manual-credit`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: playId,
+        songTitle,
+        difficulty,
+        songType,
+        achievement: achNum,
+        dxScore,
+        fc: updatedData.fc !== undefined ? updatedData.fc : row.fc,
+        fs: updatedData.fs !== undefined ? updatedData.fs : row.fs,
+        track: updatedData.track !== undefined ? updatedData.track : row.track,
+        details: detailsObj,
+      }),
+    });
+  } catch (e) {
+    console.warn('[updateManualPlay] Server update failed, persisted locally in SQLite:', e);
+  }
+
+  return { success: true };
+}
+
+/**
+ * Delete a manual play from SQLite and Neon DB.
+ */
+export async function deleteManualPlay(playId: number): Promise<{ success: boolean }> {
+  const row = sqlite.getFirstSync<PlayLogRow>(`SELECT * FROM play_log WHERE id = ?`, [playId]);
+  if (!row) {
+    return { success: false };
+  }
+
+  sqlite.runSync(`DELETE FROM play_log WHERE id = ?`, [playId]);
+
+  // Re-evaluate local scores table
+  const remainingBest = sqlite.getFirstSync<PlayLogRow>(
+    `SELECT * FROM play_log WHERE song_title = ? AND difficulty = ? AND song_type = ? ORDER BY achievement DESC LIMIT 1`,
+    [row.song_title, row.difficulty, row.song_type]
+  );
+
+  const existingScore = sqlite.getFirstSync<ScoreRow>(
+    `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? AND song_type = ?`,
+    [row.song_title, row.difficulty, row.song_type]
+  );
+
+  if (existingScore) {
+    if (remainingBest) {
+      sqlite.runSync(
+        `UPDATE scores SET achievement = ?, dx_score = ?, fc = ?, fs = ?, played_at = ? WHERE id = ?`,
+        [remainingBest.achievement, remainingBest.dx_score, remainingBest.fc, remainingBest.fs, remainingBest.played_at, existingScore.id]
+      );
+    }
+  }
+
+  // Attempt backend delete
+  try {
+    await fetch(`${API_URL}/api/manual-credit?id=${playId}`, {
+      method: 'DELETE',
+    });
+  } catch (e) {
+    console.warn('[deleteManualPlay] Server delete failed, persisted locally in SQLite:', e);
+  }
+
+  return { success: true };
+}
+

@@ -30,6 +30,7 @@ export const playLog = pgTable('play_log', {
   fs: varchar('fs', { length: 5 }), // FS/FS+/FDX/FDX+/SYNC
   track: integer('track'), // e.g. 1, 2, 3, 4
   details: jsonb('details'), // Stores raw tap/hold/slide/fast/late counts if available
+  isManual: boolean('is_manual').default(false), // Flag indicating manual entry vs maimaidx.net scraped
   playedAt: timestamp('played_at').notNull(), // Exact time from maimai NET
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

@@ -63,6 +63,7 @@ export async function initDb() {
       fs           TEXT,
       track        INTEGER,
       details      TEXT,
+      is_manual    INTEGER DEFAULT 0,
       played_at    TEXT NOT NULL
     );
 
@@ -89,5 +90,8 @@ export async function initDb() {
   } catch {}
   try {
     sqlite.execSync(`ALTER TABLE songs ADD COLUMN sheets TEXT;`);
+  } catch {}
+  try {
+    sqlite.execSync(`ALTER TABLE play_log ADD COLUMN is_manual INTEGER DEFAULT 0;`);
   } catch {}
 }

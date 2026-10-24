@@ -89,6 +89,15 @@
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true
   },
+  "task:MO-HSAT56": {
+    "entityType": "task",
+    "entityId": "MO-HSAT56",
+    "canonicalHash": "ac1aeafa12eae6c775d50ce850ef303fd044ebe14b79552d82c3ef84fddbe47b",
+    "revision": 7,
+    "path": "tasks/MO-HSAT56.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
   "task:MO-N681BV": {
     "entityType": "task",
     "entityId": "MO-N681BV",

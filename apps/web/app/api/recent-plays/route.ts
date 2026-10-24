@@ -18,7 +18,6 @@ export async function GET(request: Request) {
       db
         .select()
         .from(playLog)
-        .where(isNotNull(playLog.details))
         .orderBy(desc(playLog.playedAt))
         .limit(limit),
       fetchSongs(),
@@ -49,6 +48,7 @@ export async function GET(request: Request) {
         track: r.track,
         playedAt: r.playedAt ? r.playedAt.toISOString() : new Date().toISOString(),
         details: r.details,
+        isManual: r.isManual ?? (r.details as any)?.isManual ?? false,
         song: song ? {
           title: song.title,
           artist: song.artist,

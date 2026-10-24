@@ -12,6 +12,7 @@ import {
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, getDifficultyColor, formatAchievement, getRankBadge } from '../../constants/Theme';
 import type { SkillAxis, SkillTier } from '../../db/recommend';
+import ManualCreditModal from '../../components/ManualCreditModal';
 
 export default function ArcadeScreen() {
   const {
@@ -22,13 +23,16 @@ export default function ArcadeScreen() {
     lastCredit,
     playerSkillProfile,
     segaOffline,
+    rawSongs,
     fetchRecommendations,
     triggerSync,
     triggerWebDbSync,
+    reload,
   } = useLocalData();
 
   const [recMode, setRecMode] = useState<'push_skillset' | 'farm_rating'>('push_skillset');
   const [showPastSessions, setShowPastSessions] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
 
   const recommendations = useMemo(() => {
     return fetchRecommendations(recMode);
@@ -130,6 +134,24 @@ export default function ArcadeScreen() {
           <Text style={styles.webDbSyncButtonText}>☁️ Sync Web DB</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Manual Credit Action Button */}
+      <TouchableOpacity
+        style={styles.manualCreditBtn}
+        onPress={() => setShowManualModal(true)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.manualCreditContent}>
+          <Text style={styles.manualCreditIcon}>✍️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.manualCreditTitle}>Log Credit (Manual Entry)</Text>
+            <Text style={styles.manualCreditSub}>Record 1–4 tracks with note solver when SEGA is offline</Text>
+          </View>
+          <View style={styles.manualBadge}>
+            <Text style={styles.manualBadgeText}>MANUAL</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
 
       {/* 1. Last Credit Result Card */}
       {lastCredit && lastCredit.tracks.length > 0 && (
@@ -413,6 +435,14 @@ export default function ArcadeScreen() {
           Location-based automatic check-in is deferred for a future release per architectural decision #4. All session tracking functions seamlessly through zero-friction data sync.
         </Text>
       </View>
+
+      {/* Manual Credit Modal */}
+      <ManualCreditModal
+        visible={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        onSuccess={() => reload()}
+        songs={rawSongs}
+      />
     </ScrollView>
   );
 }
@@ -702,4 +732,41 @@ const styles = StyleSheet.create({
   },
   deferredBadgeText: { fontSize: 10, color: COLORS.textSubtle },
   deferredSubtext: { fontSize: 11, color: COLORS.textSubtle, marginTop: 6, lineHeight: 16 },
+  manualCreditBtn: {
+    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(192, 132, 252, 0.3)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  manualCreditContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  manualCreditIcon: {
+    fontSize: 22,
+  },
+  manualCreditTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.purpleLight,
+  },
+  manualCreditSub: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  manualBadge: {
+    backgroundColor: COLORS.purple,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  manualBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
 });
