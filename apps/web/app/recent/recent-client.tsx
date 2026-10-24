@@ -2,11 +2,13 @@
 
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import type { FC, FS, Difficulty, PlayerProfile } from '@/lib/types';
-import { Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { FCBadge, FSBadge } from '@/components/badges';
 import { PageWrapper } from '@/components/page-wrapper';
 import { Jacket } from '@/components/jacket';
 import { SyncBar } from '@/components/sync-bar';
+import { useRouter } from 'next/navigation';
+import { ManualCreditModalWeb } from '@/components/manual-credit-modal';
 
 interface HydratedLog {
   id: number;
@@ -22,6 +24,7 @@ interface HydratedLog {
   internalLevel: number;
   rating: number;
   details?: any;
+  isManual?: boolean;
 }
 
 interface RecentClientProps {
@@ -271,7 +274,15 @@ const NoteRow = memo(function NoteRow({
 });
 
 // ── PlayRow — memoized so sibling expansions don't re-render this ─────────────
-const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
+const PlayRow = memo(function PlayRow({
+  play,
+  onEdit,
+  onDelete,
+}: {
+  play: HydratedLog;
+  onEdit?: (play: HydratedLog) => void;
+  onDelete?: (play: HydratedLog) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   const accent = getDifficultyColor(play.difficulty);
@@ -334,10 +345,15 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
               <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-0.5" suppressHydrationWarning>
                 {new Date(play.playedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
-              <div className="flex justify-end gap-1">
+              <div className="flex justify-end items-center gap-1">
                 <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70 text-[10px] font-bold tracking-wider">
                   Track {play.track || '?'}
                 </span>
+                {play.isManual && (
+                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-extrabold tracking-wider">
+                    MANUAL
+                  </span>
+                )}
                 {play.difficulty === 'UTAGE' ? (
                   play.song?.lev_utage && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider" style={{ backgroundColor: accent + '22', color: accent }}>
@@ -358,7 +374,7 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
                 {achvNum.toFixed(4)}<span className="text-sm ml-0.5">%</span>
               </span>
             </div>
-            <div className="flex justify-end items-center gap-1">
+            <div className="flex justify-end items-center gap-1.5 flex-wrap">
               {play.rating > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold font-num tabular-nums">
                   ★ {play.rating}
@@ -366,6 +382,32 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
               )}
               <FCBadge fc={play.fc as FC} className="bg-white/5" />
               <FSBadge fs={play.fs as FS} className="bg-white/5" />
+              {play.isManual && onEdit && (
+                <button
+                  type="button"
+                  title="Edit manual play"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(play);
+                  }}
+                  className="p-1 rounded-md bg-white/5 hover:bg-purple-500/20 text-purple-300 hover:text-white transition-colors"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+              {play.isManual && onDelete && (
+                <button
+                  type="button"
+                  title="Delete manual play"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(play);
+                  }}
+                  className="p-1 rounded-md bg-white/5 hover:bg-red-500/20 text-red-400 hover:text-white transition-colors"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -472,9 +514,13 @@ const PlayRow = memo(function PlayRow({ play }: { play: HydratedLog }) {
 const CreditSection = memo(function CreditSection({
   credit,
   creditNumber,
+  onEdit,
+  onDelete,
 }: {
   credit: CreditGroup;
   creditNumber: number;
+  onEdit?: (play: HydratedLog) => void;
+  onDelete?: (play: HydratedLog) => void;
 }) {
   // Reverse is done once here, not on every render
   const orderedPlays = useMemo(() => [...credit.plays].reverse(), [credit.plays]);
@@ -498,7 +544,12 @@ const CreditSection = memo(function CreditSection({
       </div>
       <div className="flex flex-col">
         {orderedPlays.map(play => (
-          <PlayRow key={play.id} play={play} />
+          <PlayRow
+            key={play.id}
+            play={play}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         ))}
       </div>
     </div>
@@ -510,7 +561,30 @@ const CreditSection = memo(function CreditSection({
 const PAGE_SIZE = 20; // credits per page
 
 export default function RecentClient({ logs, lastSync, profile }: RecentClientProps) {
+  const router = useRouter();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingPlay, setEditingPlay] = useState<HydratedLog | null>(null);
+
+  const handleEdit = useCallback((play: HydratedLog) => {
+    setEditingPlay(play);
+    setModalOpen(true);
+  }, []);
+
+  const handleDelete = useCallback(async (play: HydratedLog) => {
+    if (!confirm(`Are you sure you want to delete manual play for "${play.songTitle}"?`)) return;
+    try {
+      const res = await fetch(`/api/manual-credit?id=${play.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Failed to delete play');
+        return;
+      }
+      router.refresh();
+    } catch {
+      alert('Failed to delete play');
+    }
+  }, [router]);
 
   // Memoized — only recomputed when logs reference changes (i.e. on page load)
   const credits = useMemo(() => groupLogsIntoCredits(logs), [logs]);
@@ -521,27 +595,50 @@ export default function RecentClient({ logs, lastSync, profile }: RecentClientPr
     setVisibleCount(v => Math.min(v + PAGE_SIZE, credits.length));
   }, [credits.length]);
 
-  if (!logs || logs.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 bg-black/20 rounded-xl border border-white/5">
-        <p className="text-white/50 text-sm">No recent plays found. Sync with maimai NET to see your history!</p>
-      </div>
-    );
-  }
-
   return (
     <PageWrapper className="space-y-8 max-w-4xl mx-auto p-4 md:p-6">
       <SyncBar profile={profile} lastSync={lastSync} />
 
-      <div className="space-y-10">
-        {visibleCredits.map((credit, i) => (
-          <CreditSection
-            key={credit.id}
-            credit={credit}
-            creditNumber={credits.length - i + 8}
-          />
-        ))}
+      {/* Manual Credit Action Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#111116] border border-white/10 rounded-2xl p-4 shadow-xl">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">✍️</span>
+          <div>
+            <h2 className="text-sm font-bold text-white">Manual Credit & Score Entry</h2>
+            <p className="text-xs text-white/50">
+              Record 1–4 tracks with automatic 8-tier Break breakdown solver when SEGA is offline.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingPlay(null);
+            setModalOpen(true);
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-900/30 transition-all shrink-0"
+        >
+          <span>+ Log Credit</span>
+        </button>
       </div>
+
+      {(!logs || logs.length === 0) ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-black/20 rounded-xl border border-white/5">
+          <p className="text-white/50 text-sm">No recent plays found. Sync with maimai NET or log a manual credit!</p>
+        </div>
+      ) : (
+        <div className="space-y-10">
+          {visibleCredits.map((credit, i) => (
+            <CreditSection
+              key={credit.id}
+              credit={credit}
+              creditNumber={credits.length - i + 8}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
 
       {hasMore && (
         <div className="flex justify-center pb-8">
@@ -553,6 +650,17 @@ export default function RecentClient({ logs, lastSync, profile }: RecentClientPr
           </button>
         </div>
       )}
+
+      {/* Manual Credit Modal */}
+      <ManualCreditModalWeb
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingPlay(null);
+        }}
+        onSuccess={() => router.refresh()}
+        initialPlay={editingPlay}
+      />
     </PageWrapper>
   );
 }

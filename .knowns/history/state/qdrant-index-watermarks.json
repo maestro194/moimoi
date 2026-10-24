@@ -62,6 +62,15 @@
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true
   },
+  "task:MO-FMHE2Y": {
+    "entityType": "task",
+    "entityId": "MO-FMHE2Y",
+    "canonicalHash": "821e342aa8d41a9790149f95ec83858ee8ede853c941c632cdca2a8ba874176a",
+    "revision": 5,
+    "path": "tasks/MO-FMHE2Y.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
   "task:MO-GHMA8W": {
     "entityType": "task",
     "entityId": "MO-GHMA8W",

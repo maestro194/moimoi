@@ -46,7 +46,14 @@ export default async function RecentPage() {
       details = solvePlayDetails(details, log.achievement as string);
     }
 
-    return { ...log, details, song, internalLevel, rating };
+    return {
+      ...log,
+      isManual: log.isManual ?? (details as any)?.isManual ?? false,
+      details,
+      song,
+      internalLevel,
+      rating,
+    };
   });
 
   return (
