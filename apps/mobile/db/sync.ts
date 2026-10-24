@@ -820,22 +820,16 @@ export async function updateManualPlay(
     ]
   );
 
-  // Re-evaluate PB in local scores table
-  const bestPlay = sqlite.getFirstSync<PlayLogRow>(
-    `SELECT * FROM play_log WHERE song_title = ? AND difficulty = ? AND song_type = ? ORDER BY achievement DESC LIMIT 1`,
-    [songTitle, difficulty, songType]
-  );
-  if (bestPlay) {
-    const existingScore = sqlite.getFirstSync<ScoreRow>(
-      `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? AND song_type = ?`,
-      [songTitle, difficulty, songType]
-    );
-    if (existingScore) {
-      sqlite.runSync(
-        `UPDATE scores SET achievement = ?, dx_score = ?, fc = ?, fs = ?, played_at = ? WHERE id = ?`,
-        [bestPlay.achievement, bestPlay.dx_score, bestPlay.fc, bestPlay.fs, bestPlay.played_at, existingScore.id]
-      );
-    }
+  const oldTitle = row.song_title;
+  const oldDifficulty = row.difficulty;
+  const oldType = row.song_type ?? 'DX';
+
+  // Re-evaluate PB in local scores table for current chart
+  reevaluateLocalPb(songTitle, difficulty, songType);
+
+  // If the chart identity changed, also re-evaluate previous chart
+  if (oldTitle !== songTitle || oldDifficulty !== difficulty || oldType !== songType) {
+    reevaluateLocalPb(oldTitle, oldDifficulty, oldType);
   }
 
   // Attempt backend update
@@ -863,6 +857,34 @@ export async function updateManualPlay(
   return { success: true };
 }
 
+function reevaluateLocalPb(songTitle: string, difficulty: string, songType: string) {
+  const remainingBest = sqlite.getFirstSync<PlayLogRow>(
+    `SELECT * FROM play_log WHERE song_title = ? AND difficulty = ? AND song_type = ? ORDER BY achievement DESC LIMIT 1`,
+    [songTitle, difficulty, songType]
+  );
+  const existingScore = sqlite.getFirstSync<ScoreRow>(
+    `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? AND song_type = ?`,
+    [songTitle, difficulty, songType]
+  );
+
+  if (existingScore) {
+    if (remainingBest) {
+      sqlite.runSync(
+        `UPDATE scores SET achievement = ?, dx_score = ?, fc = ?, fs = ?, played_at = ? WHERE id = ?`,
+        [remainingBest.achievement, remainingBest.dx_score, remainingBest.fc, remainingBest.fs, remainingBest.played_at, existingScore.id]
+      );
+    } else {
+      sqlite.runSync(`DELETE FROM scores WHERE id = ?`, [existingScore.id]);
+    }
+  } else if (remainingBest) {
+    sqlite.runSync(
+      `INSERT INTO scores (song_title, difficulty, song_type, achievement, dx_score, fc, fs, played_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [songTitle, difficulty, songType, remainingBest.achievement, remainingBest.dx_score, remainingBest.fc, remainingBest.fs, remainingBest.played_at]
+    );
+  }
+}
+
 /**
  * Delete a manual play from SQLite and Neon DB.
  */
@@ -875,24 +897,7 @@ export async function deleteManualPlay(playId: number): Promise<{ success: boole
   sqlite.runSync(`DELETE FROM play_log WHERE id = ?`, [playId]);
 
   // Re-evaluate local scores table
-  const remainingBest = sqlite.getFirstSync<PlayLogRow>(
-    `SELECT * FROM play_log WHERE song_title = ? AND difficulty = ? AND song_type = ? ORDER BY achievement DESC LIMIT 1`,
-    [row.song_title, row.difficulty, row.song_type]
-  );
-
-  const existingScore = sqlite.getFirstSync<ScoreRow>(
-    `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? AND song_type = ?`,
-    [row.song_title, row.difficulty, row.song_type]
-  );
-
-  if (existingScore) {
-    if (remainingBest) {
-      sqlite.runSync(
-        `UPDATE scores SET achievement = ?, dx_score = ?, fc = ?, fs = ?, played_at = ? WHERE id = ?`,
-        [remainingBest.achievement, remainingBest.dx_score, remainingBest.fc, remainingBest.fs, remainingBest.played_at, existingScore.id]
-      );
-    }
-  }
+  reevaluateLocalPb(row.song_title, row.difficulty, row.song_type ?? 'DX');
 
   // Attempt backend delete
   try {

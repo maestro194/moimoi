@@ -33,6 +33,129 @@ function calculateDxScoreFromDetails(details: any): number | null {
   return null;
 }
 
+/**
+ * Re-evaluates and synchronizes the personal best in the `scores` table
+ * for a specific chart by combining plays from `play_log` and progression
+ * snapshots from `scoreHistory`.
+ *
+ * Sorts numerically descending (so 100.5% > 97.7%) and handles chart removals.
+ */
+async function reevaluateChartPb(songTitle: string, difficulty: string, songType: string) {
+  // 1. Fetch all plays for this chart from playLog
+  const plays = await db
+    .select()
+    .from(playLog)
+    .where(
+      and(
+        eq(playLog.songTitle, songTitle),
+        eq(playLog.difficulty, difficulty),
+        eq(playLog.songType, songType)
+      )
+    );
+
+  // 2. Fetch history snapshots for this chart from scoreHistory
+  const history = await db
+    .select()
+    .from(scoreHistory)
+    .where(
+      and(
+        eq(scoreHistory.songTitle, songTitle),
+        eq(scoreHistory.difficulty, difficulty),
+        eq(scoreHistory.songType, songType)
+      )
+    );
+
+  // 3. Build candidate list with parsed numerical achievements
+  const candidates: Array<{
+    achievement: string;
+    achvNum: number;
+    dxScore: number | null;
+    fc: string | null;
+    fs: string | null;
+    playedAt: Date;
+  }> = [];
+
+  for (const p of plays) {
+    const num = parseFloat(p.achievement);
+    if (!isNaN(num) && num > 0) {
+      candidates.push({
+        achievement: p.achievement,
+        achvNum: num,
+        dxScore: p.dxScore,
+        fc: p.fc,
+        fs: p.fs,
+        playedAt: p.playedAt,
+      });
+    }
+  }
+
+  for (const h of history) {
+    const num = parseFloat(h.achievement);
+    if (!isNaN(num) && num > 0) {
+      candidates.push({
+        achievement: h.achievement,
+        achvNum: num,
+        dxScore: h.dxScore,
+        fc: h.fc,
+        fs: h.fs,
+        playedAt: h.recordedAt,
+      });
+    }
+  }
+
+  // Sort candidates numerically descending by achievement, breaking ties with dxScore
+  candidates.sort((a, b) => {
+    if (b.achvNum !== a.achvNum) return b.achvNum - a.achvNum;
+    return (b.dxScore ?? 0) - (a.dxScore ?? 0);
+  });
+
+  const existingScoreRows = await db
+    .select()
+    .from(scores)
+    .where(
+      and(
+        eq(scores.songTitle, songTitle),
+        eq(scores.difficulty, difficulty),
+        eq(scores.songType, songType)
+      )
+    )
+    .limit(1);
+
+  if (candidates.length > 0) {
+    const best = candidates[0];
+    if (existingScoreRows.length > 0) {
+      await db
+        .update(scores)
+        .set({
+          achievement: best.achievement,
+          dxScore: best.dxScore,
+          fc: best.fc,
+          fs: best.fs,
+          playedAt: best.playedAt,
+        })
+        .where(eq(scores.id, existingScoreRows[0].id));
+    } else {
+      await db.insert(scores).values({
+        songTitle,
+        difficulty,
+        songType,
+        achievement: best.achievement,
+        dxScore: best.dxScore,
+        fc: best.fc,
+        fs: best.fs,
+        playedAt: best.playedAt,
+      });
+    }
+    return best;
+  } else if (existingScoreRows.length > 0) {
+    // If no plays or history remain for this chart, clean up scores row
+    await db.delete(scores).where(eq(scores.id, existingScoreRows[0].id));
+    return null;
+  }
+
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -230,48 +353,19 @@ export async function PUT(request: Request) {
       .where(eq(playLog.id, id))
       .returning();
 
-    // Re-evaluate PB in scores table for this chart
-    const chartPlays = await db
-      .select()
-      .from(playLog)
-      .where(
-        and(
-          eq(playLog.songTitle, songTitle),
-          eq(playLog.difficulty, difficulty),
-          eq(playLog.songType, songType)
-        )
-      )
-      .orderBy(desc(playLog.achievement));
+    // Re-evaluate PB in scores table for the target chart
+    const reevaluatedScore = await reevaluateChartPb(songTitle, difficulty, songType);
 
-    if (chartPlays.length > 0) {
-      const best = chartPlays[0];
-      const existingScoreRow = await db
-        .select()
-        .from(scores)
-        .where(
-          and(
-            eq(scores.songTitle, songTitle),
-            eq(scores.difficulty, difficulty),
-            eq(scores.songType, songType)
-          )
-        )
-        .limit(1);
-
-      if (existingScoreRow.length > 0) {
-        await db
-          .update(scores)
-          .set({
-            achievement: best.achievement,
-            dxScore: best.dxScore,
-            fc: best.fc,
-            fs: best.fs,
-            playedAt: best.playedAt,
-          })
-          .where(eq(scores.id, existingScoreRow[0].id));
-      }
+    // If the play's chart identity changed (songTitle, difficulty, or songType),
+    // also re-evaluate the previous chart so it does not leave a phantom PB behind.
+    const oldTitle = existing.songTitle;
+    const oldDifficulty = existing.difficulty;
+    const oldType = existing.songType ?? 'DX';
+    if (oldTitle !== songTitle || oldDifficulty !== difficulty || oldType !== songType) {
+      await reevaluateChartPb(oldTitle, oldDifficulty, oldType);
     }
 
-    return NextResponse.json({ success: true, updatedPlay });
+    return NextResponse.json({ success: true, updatedPlay, reevaluatedScore });
   } catch (error: any) {
     console.error('Error updating manual play:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
@@ -305,46 +399,8 @@ export async function DELETE(request: Request) {
 
     await db.delete(playLog).where(eq(playLog.id, id));
 
-    // Re-evaluate PB in scores table
-    const remainingPlays = await db
-      .select()
-      .from(playLog)
-      .where(
-        and(
-          eq(playLog.songTitle, existing.songTitle),
-          eq(playLog.difficulty, existing.difficulty),
-          eq(playLog.songType, existing.songType ?? 'DX')
-        )
-      )
-      .orderBy(desc(playLog.achievement));
-
-    const existingScoreRow = await db
-      .select()
-      .from(scores)
-      .where(
-        and(
-          eq(scores.songTitle, existing.songTitle),
-          eq(scores.difficulty, existing.difficulty),
-          eq(scores.songType, existing.songType ?? 'DX')
-        )
-      )
-      .limit(1);
-
-    if (existingScoreRow.length > 0) {
-      if (remainingPlays.length > 0) {
-        const best = remainingPlays[0];
-        await db
-          .update(scores)
-          .set({
-            achievement: best.achievement,
-            dxScore: best.dxScore,
-            fc: best.fc,
-            fs: best.fs,
-            playedAt: best.playedAt,
-          })
-          .where(eq(scores.id, existingScoreRow[0].id));
-      }
-    }
+    // Re-evaluate PB in scores table using numerical comparison across remaining plays & history
+    await reevaluateChartPb(existing.songTitle, existing.difficulty, existing.songType ?? 'DX');
 
     return NextResponse.json({ success: true, deletedId: id });
   } catch (error: any) {
