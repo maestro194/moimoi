@@ -204,6 +204,9 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
 }
 
 
+/** Ids at or above this are local offline entries (Date.now()-based), not server play_log ids. */
+const OFFLINE_PLAY_ID_FLOOR = 1_000_000_000_000;
+
 /**
  * Fetch recent play history and store in local play_log table.
  */
@@ -243,6 +246,22 @@ export async function fetchAndCacheRecent(limit: number = 50): Promise<void> {
           r.isManual ? 1 : 0,
           r.playedAt ?? new Date().toISOString(),
         ],
+      );
+    }
+
+    // Drop server plays the server no longer returns within the fetched window (e.g. a manual
+    // duplicate merged into its official play). Offline-only entries use Date.now()-based ids and
+    // were never on the server, so they are kept.
+    const fetchedIds = recentList.map((r: { id: number }) => r.id);
+    const oldestPlayedAt = recentList
+      .map((r: { playedAt?: string }) => r.playedAt)
+      .filter(Boolean)
+      .sort()[0];
+    if (oldestPlayedAt) {
+      sqlite.runSync(
+        `DELETE FROM play_log
+         WHERE played_at >= ? AND id < ? AND id NOT IN (${fetchedIds.map(() => '?').join(', ')})`,
+        [oldestPlayedAt, OFFLINE_PLAY_ID_FLOOR, ...fetchedIds],
       );
     }
   });

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   ScrollView,
   TouchableOpacity,
   Linking,
@@ -25,6 +24,8 @@ import {
 import { sqlite } from '../db/client';
 import type { PlayLogRow, SongRow, ScoreRow } from '../db/schema';
 import { calcSingleRating, versionLabel, normalizeTitle } from '@maimai-suite/core';
+import { JacketImage } from '@/components/JacketImage';
+import { formatShortDate, formatTime } from '@/constants/time';
 
 export default function SongDetailModal() {
   const router = useRouter();
@@ -179,10 +180,7 @@ export default function SongDetailModal() {
         <View style={styles.jacketWrapper}>
           <View style={[styles.jacketBorder, { borderColor: diffColor }]}>
             {imageUrl ? (
-              <Image
-                source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${imageUrl}` }}
-                style={styles.jacketImg}
-              />
+              <JacketImage imageName={imageUrl} style={styles.jacketImg} />
             ) : (
               <View style={[styles.jacketFallback, { backgroundColor: diffColor + '20' }]}>
                 <Music2 size={48} color={diffColor} />
@@ -373,8 +371,8 @@ export default function SongDetailModal() {
                 <View key={p.id || idx} style={styles.historyRow}>
                   <View style={styles.historyLeft}>
                     <Text style={styles.historyDate}>
-                      {new Date(p.played_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
-                      {new Date(p.played_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatShortDate(p.played_at)}{' '}
+                      {formatTime(p.played_at)}
                     </Text>
                     <View style={styles.historyBadges}>
                       <View style={[styles.rankBadge, { backgroundColor: r.bg }]}>

@@ -7,7 +7,7 @@ import {
   Loader2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Song } from '@/lib/types';
-import { getJacketUrl } from '@/lib/song-db';
+import { JacketImg } from '@/components/jacket-img';
 import { versionLabel } from '@/lib/version-label';
 import { useTags } from '@/lib/useTags';
 import type { UnifiedTag, PersonalTagGroup } from '@/lib/types';
@@ -298,7 +298,6 @@ export function SongDetailsModal({ row, onClose }: SongDetailsModalProps) {
   if (!row) return null;
 
   const { song, type, difficulty, abbr } = row;
-  const jacketUrl = getJacketUrl(song.image_url ?? null, song.intl);
   const color = DIFF_COLORS[abbr] ?? '#6b7280';
   const diffLabel = DIFF_LABELS[abbr] ?? abbr;
 
@@ -371,9 +370,13 @@ export function SongDetailsModal({ row, onClose }: SongDetailsModalProps) {
           >
             {/* Jacket */}
             <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-black/30 shadow-lg ring-1 ring-white/10">
-              {jacketUrl
-                ? <img src={jacketUrl} alt={song.title} className="w-full h-full object-cover" />
-                : <div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={20} /></div>}
+              <JacketImg
+                imageName={song.image_url}
+                intl={song.intl}
+                alt={song.title}
+                className="w-full h-full object-cover"
+                fallback={<div className="w-full h-full flex items-center justify-center text-white/20"><Music2 size={20} /></div>}
+              />
             </div>
 
             {/* Title + badges */}

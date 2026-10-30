@@ -16,10 +16,11 @@ import * as cheerio from 'cheerio';
 import type { Difficulty, FC, FS, Region, SongType } from './types';
 import { db } from './db';
 import { scores, playLog, settings, scoreHistory, scoreTrackers } from './db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { CookieJar } from 'tough-cookie';
 import makeFetchCookie from 'fetch-cookie';
 import { solvePlayDetails } from './accuracy-solver';
+import { MANUAL_MATCH_WINDOW_MS, findManualDuplicate, isManualPlay, isSamePlay, stripManualFlag, type PlayKey } from './play-dedupe';
 
 const MAIMAI_BASE: Record<Region, string> = {
   jp:   'https://maimaidx.jp/maimai-mobile',
@@ -634,33 +635,83 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
     recentScores.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
     
     if (onProgress) onProgress(`Saving up to ${recentScores.length} recent plays to play log...`);
+    const fetchDetails = async (rs: ParsedRecentScore, label: string) => {
+      if (!rs.idx) {
+        if (onProgress) onProgress(`Warning: Missing idx for ${rs.songTitle}, cannot fetch details.`);
+        return null;
+      }
+      try {
+        const detailHtml = await maimaiGet(region, `record/playlogDetail/?idx=${rs.idx}`, clal!);
+        const parsed = parsePlaylogDetail(detailHtml);
+        if (onProgress) onProgress(`${label} ${rs.songTitle} (Track ${rs.track})`);
+        return parsed ? solvePlayDetails(parsed, rs.achievement) : null;
+      } catch (e: any) {
+        console.warn("Failed to fetch playlog details for idx", rs.idx, e);
+        if (onProgress) onProgress(`Failed to fetch details for ${rs.songTitle}: ${e.message}`);
+        return null;
+      }
+    };
+
     for (const rs of recentScores) {
+      const songType = rs.songType ?? 'DX';
+      const key: PlayKey = {
+        songTitle: rs.songTitle, difficulty: rs.difficulty, songType,
+        track: rs.track, achievement: rs.achievement, playedAt: rs.playedAt,
+      };
+
+      // Same minute AND same chart — another play (e.g. a manual entry) can share the minute
       const existing = await db
         .select()
         .from(playLog)
-        .where(eq(playLog.playedAt, rs.playedAt))
+        .where(and(
+          eq(playLog.playedAt, rs.playedAt),
+          eq(playLog.songTitle, rs.songTitle),
+          eq(playLog.difficulty, rs.difficulty),
+          eq(playLog.songType, songType),
+        ))
         .limit(1);
-        
-      if (existing.length === 0) {
-        let details = null;
-        if (rs.idx) {
-          try {
-            const detailHtml = await maimaiGet(region, `record/playlogDetail/?idx=${rs.idx}`, clal!);
-            const parsed = parsePlaylogDetail(detailHtml);
-            details = parsed ? solvePlayDetails(parsed, rs.achievement) : null;
-            if (onProgress) onProgress(`Fetched details for ${rs.songTitle} (Track ${rs.track})`);
-          } catch (e: any) {
-            console.warn("Failed to fetch playlog details for idx", rs.idx, e);
-            if (onProgress) onProgress(`Failed to fetch details for ${rs.songTitle}: ${e.message}`);
-          }
-        } else {
-          if (onProgress) onProgress(`Warning: Missing idx for ${rs.songTitle}, cannot fetch details.`);
-        }
 
+      // A play the user entered manually (e.g. during a maimai NET outage) has an approximate time,
+      // so look for it by chart + track + achievement near this play instead of by exact time.
+      let manualMatch = existing.length > 0 && isManualPlay(existing[0]) && isSamePlay(key, existing[0])
+        ? existing[0]
+        : null;
+      if (!manualMatch && existing.length === 0) {
+        const nearby = await db
+          .select()
+          .from(playLog)
+          .where(and(
+            eq(playLog.songTitle, rs.songTitle),
+            eq(playLog.difficulty, rs.difficulty),
+            eq(playLog.songType, songType),
+            gte(playLog.playedAt, new Date(rs.playedAt.getTime() - MANUAL_MATCH_WINDOW_MS)),
+            lte(playLog.playedAt, new Date(rs.playedAt.getTime() + MANUAL_MATCH_WINDOW_MS)),
+          ));
+        manualMatch = findManualDuplicate(key, nearby);
+      }
+
+      if (manualMatch) {
+        // Promote the manual row to the official play rather than inserting a duplicate
+        const details = await fetchDetails(rs, 'Fetched details (replacing manual entry) for');
+        await db.update(playLog)
+          .set({
+            achievement: String(rs.achievement),
+            dxScore: rs.dxScore,
+            fc: rs.fc,
+            fs: rs.fs,
+            track: rs.track,
+            details: details ?? stripManualFlag(manualMatch.details),
+            isManual: false,
+            playedAt: rs.playedAt,
+          })
+          .where(eq(playLog.id, manualMatch.id));
+        if (onProgress) onProgress(`Merged manual entry for ${rs.songTitle} (Track ${rs.track}) with the official play`);
+      } else if (existing.length === 0) {
+        const details = await fetchDetails(rs, 'Fetched details for');
         await db.insert(playLog).values({
           songTitle: rs.songTitle,
           difficulty: rs.difficulty,
-          songType: rs.songType ?? 'DX',
+          songType,
           achievement: String(rs.achievement),
           dxScore: rs.dxScore,
           fc: rs.fc,
@@ -670,23 +721,11 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
           playedAt: rs.playedAt,
         });
       } else if (!existing[0].details) {
-        if (rs.idx) {
-          let details = null;
-          try {
-            const detailHtml = await maimaiGet(region, `record/playlogDetail/?idx=${rs.idx}`, clal!);
-            const parsed = parsePlaylogDetail(detailHtml);
-            details = parsed ? solvePlayDetails(parsed, rs.achievement) : null;
-            if (onProgress) onProgress(`Fetched missing details for ${rs.songTitle} (Track ${rs.track})`);
-            
-            await db.update(playLog)
-              .set({ details })
-              .where(eq(playLog.id, existing[0].id));
-          } catch (e: any) {
-            console.warn("Failed to fetch missing playlog details for idx", rs.idx, e);
-            if (onProgress) onProgress(`Failed to fetch details for ${rs.songTitle}: ${e.message}`);
-          }
-        } else {
-          if (onProgress) onProgress(`Warning: Cannot backfill details for ${rs.songTitle} because idx is missing.`);
+        const details = await fetchDetails(rs, 'Fetched missing details for');
+        if (details) {
+          await db.update(playLog)
+            .set({ details })
+            .where(eq(playLog.id, existing[0].id));
         }
       }
     }

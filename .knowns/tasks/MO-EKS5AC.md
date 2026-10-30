@@ -6,9 +6,9 @@ priority: high
 labels:
   - infra
 createdAt: '2026-10-18T17:16:23.487Z'
-updatedAt: '2026-10-19T04:48:34.395Z'
+updatedAt: '2026-10-29T17:23:18.221Z'
 completedAt: '2026-10-19T04:48:34.395Z'
-timeSpent: 0
+timeSpent: 950231
 assignee: '@me'
 parent: MO-YR0RRW
 ---

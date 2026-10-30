@@ -14,6 +14,8 @@ import { useRouter } from 'expo-router';
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, DIFF_COLOR, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
 import { RefreshCw, Sparkles, TrendingUp, Trophy, ArrowRight, Music2, User, Target } from 'lucide-react-native';
+import { JacketImage } from '@/components/JacketImage';
+import { formatTime } from '@/constants/time';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -86,7 +88,7 @@ export default function DashboardScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.syncLabel}>DATABASE STATUS</Text>
           <Text style={styles.syncTime}>
-            {lastSyncedAt ? `Synced ${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Not synced yet'}
+            {lastSyncedAt ? `Synced ${formatTime(lastSyncedAt)}` : 'Not synced yet'}
             {songsCount > 0 ? ` • ${songsCount.toLocaleString()} songs` : ''}
           </Text>
         </View>
@@ -251,10 +253,7 @@ export default function DashboardScreen() {
               {/* Jacket art thumbnail with difficulty border */}
               <View style={[styles.jacketContainer, { borderColor: diffColor }]}>
                 {item.song?.image_url ? (
-                  <Image
-                    source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${item.song.image_url}` }}
-                    style={styles.jacketImage}
-                  />
+                  <JacketImage imageName={item.song.image_url} style={styles.jacketImage} />
                 ) : (
                   <View style={[styles.jacketPlaceholder, { backgroundColor: diffColor + '20' }]}>
                     <Music2 size={16} color={diffColor} />
@@ -335,10 +334,7 @@ export default function DashboardScreen() {
               >
                 <View style={[styles.jacketContainer, { borderColor: diffColor }]}>
                   {s.song?.image_url ? (
-                    <Image
-                      source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${s.song.image_url}` }}
-                      style={styles.jacketImage}
-                    />
+                    <JacketImage imageName={s.song.image_url} style={styles.jacketImage} />
                   ) : (
                     <View style={[styles.jacketPlaceholder, { backgroundColor: diffColor + '20' }]}>
                       <Music2 size={16} color={diffColor} />

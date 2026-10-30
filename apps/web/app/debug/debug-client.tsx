@@ -4,6 +4,9 @@ import React, { useState, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
 import { ManualCreditModalWeb } from '@/components/manual-credit-modal';
+import { JacketImg } from '@/components/jacket-img';
+import { getJacketUrls } from '@/lib/jacket';
+import type { Song } from '@/lib/types';
 
 export default function SongDetailsDebugClient() {
   return (
@@ -20,9 +23,91 @@ export default function SongDetailsDebugClient() {
         </p>
       </div>
 
+      <JacketFallbackSandbox />
       <B50ImagePreview />
       <ManualCreditSandbox />
     </PageWrapper>
+  );
+}
+
+// ── Jacket Fallback Sandbox ───────────────────────────────────────────────────
+type SourceStatus = 'loading' | 'ok' | 'fail';
+
+/** Probes one URL with a timeout — Sega hangs rather than 404s when it's down. */
+function useImageStatus(url: string, timeoutMs = 8000): SourceStatus {
+  const [result, setResult] = useState<{ url: string; status: SourceStatus } | null>(null);
+  React.useEffect(() => {
+    const img = new Image();
+    const done = (status: SourceStatus) => { clearTimeout(timer); setResult({ url, status }); };
+    const timer = setTimeout(() => { img.src = ''; done('fail'); }, timeoutMs);
+    img.onload = () => done('ok');
+    img.onerror = () => done('fail');
+    img.src = url;
+    return () => { clearTimeout(timer); img.onload = img.onerror = null; };
+  }, [url, timeoutMs]);
+  return result?.url === url ? result.status : 'loading';
+}
+
+function SourceRow({ url, rank }: { url: string; rank: number }) {
+  const status = useImageStatus(url);
+  const color = status === 'ok' ? 'text-green-400' : status === 'fail' ? 'text-red-400' : 'text-white/40';
+  return (
+    <div className="flex items-center gap-2 text-[11px] font-mono min-w-0">
+      <span className="text-white/40">#{rank}</span>
+      <span className={`${color} w-12 shrink-0`}>{status}</span>
+      <span className="truncate text-white/50" title={url}>{new URL(url).hostname}</span>
+    </div>
+  );
+}
+
+function JacketFallbackSandbox() {
+  const [samples, setSamples] = useState<{ label: string; song: Pick<Song, 'title' | 'image_url' | 'intl'> }[]>([]);
+
+  React.useEffect(() => {
+    fetch('/api/songs').then(r => r.json()).then((data: { songs: Song[] }) => {
+      const songs = data.songs.filter(s => s.image_url);
+      const intl = songs.filter(s => s.intl !== false);
+      const jpOnly = songs.filter(s => s.intl === false);
+      const picks = [
+        { label: 'INTL (oldest)', song: intl[0] },
+        { label: 'INTL (newest)', song: intl[intl.length - 1] },
+        { label: 'JP-only', song: jpOnly[0] },
+        // Mirror 404s → should fall through to Sega, then placeholder
+        { label: 'Bogus image_url', song: { title: 'Bogus', image_url: '0000000000000000.png', intl: true } },
+      ].filter(p => p.song);
+      setSamples(picks as typeof samples);
+    }).catch(err => console.error('Failed to load songs:', err));
+  }, []);
+
+  return (
+    <div className="glass rounded-2xl p-5 space-y-4">
+      <div>
+        <h2 className="text-xl font-bold text-white">Jacket fallback</h2>
+        <p className="text-sm text-white/50">
+          Each jacket tries its sources in order (otoge-db mirror → Sega) and shows the placeholder if all fail.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {samples.map(({ label, song }) => (
+          <div key={label} className="flex gap-3 p-3 rounded-xl bg-white/5 min-w-0">
+            <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-black/40">
+              <JacketImg
+                imageName={song.image_url}
+                intl={song.intl}
+                alt={song.title}
+                className="w-full h-full object-cover"
+                fallback={<div className="w-full h-full flex items-center justify-center text-[10px] text-white/30">none</div>}
+              />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="text-xs font-bold text-white/80">{label}</div>
+              <div className="text-xs text-white/60 truncate">{song.title} · {song.image_url}</div>
+              {getJacketUrls(song.image_url, song.intl).map((u, i) => <SourceRow key={u} url={u} rank={i + 1} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -1,11 +1,23 @@
 import type { Song } from './types';
 import { db } from './db';
 import { songs } from './db/schema';
-import { sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { normalizeTitle } from './normalize';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
 const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
+
+// ── Chart constants are pinned to one game version ────────────────────────────
+// JP runs a version ahead of INTL, and DXRating's `internalLevelValue` tracks JP's *current* version,
+// so it can't be used as-is. The constants come from otoge-db's frozen snapshot of this version
+// (the same constants JP and INTL use for it). Bump both together when INTL moves to the next version
+// (e.g. 'MAGiCAL' + music-ex-magical-final.json, or music-ex.json while that version is still live).
+const CONSTANTS_VERSION = 'CiRCLE PLUS';
+const OTOGE_DB_CONSTANTS_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-circleplus-final.json';
+const CONSTANT_FIELDS = [
+  'lev_bas_i', 'lev_adv_i', 'lev_exp_i', 'lev_mas_i', 'lev_remas_i',
+  'dx_lev_bas_i', 'dx_lev_adv_i', 'dx_lev_exp_i', 'dx_lev_mas_i', 'dx_lev_remas_i',
+] as const;
 
 // Short-lived in-memory cache to avoid hammering DB on every request within the same process
 let memCache: Song[] | null = null;
@@ -111,6 +123,11 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataDx: any = await resDx.json();
 
+  const resConst = await fetchWithRetry(OTOGE_DB_CONSTANTS_URL);
+  if (!resConst.ok) throw new Error(`otoge-db ${CONSTANTS_VERSION} constants fetch failed: ${resConst.status}`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dataConst: any[] = await resConst.json();
+
   // ── Transform otoge-db data ───────────────────────────────────────────────────
   const mergedMap = new Map<string, Song>();
   for (const s of dataOtoge) {
@@ -131,40 +148,28 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
       // Difficulty order in dxdata: 0=BAS, 1=ADV, 2=EXP, 3=MAS, 4=REMAS
       const diffKeys = ['bas', 'adv', 'exp', 'mas', 'remas'] as const;
 
+      // Constant fields by name (Song declares them individually)
+      const fields = existing as unknown as Record<string, string | undefined>;
+
       // Collect sheets by type
       const stdSheets = dxSong.sheets.filter((sh: any) => sh.type === 'std');
       const dxSheets  = dxSong.sheets.filter((sh: any) => sh.type === 'dx');
 
-      // Helper to resolve the most recent internal level for INTL
-      const resolveInternalLevel = (sh: any) => {
-        let val = sh.internalLevelValue ?? sh.internalLevel;
-        if (sh.multiverInternalLevelValue) {
-          const versions = [
-            'CiRCLE PLUS', 'CiRCLE',
-            'PRiSM PLUS', 'PRiSM',
-            'BUDDiES PLUS', 'BUDDiES',
-            'FESTiVAL PLUS', 'FESTiVAL',
-            'UNiVERSE PLUS', 'UNiVERSE',
-            'Splash PLUS', 'Splash',
-            'maimaiでらっくす PLUS', 'maimaiでらっくす'
-          ];
-          for (const v of versions) {
-            if (v in sh.multiverInternalLevelValue) {
-              val = sh.multiverInternalLevelValue[v];
-              break;
-            }
-          }
-        }
-        return val;
+      // Constant for CONSTANTS_VERSION if DXRating lists one. Its `internalLevelValue` is JP's current
+      // version, so it's only used to fill a chart that has no constant at all.
+      const resolveInternalLevel = (sh: any, current: string | undefined) => {
+        const pinned = sh.multiverInternalLevelValue?.[CONSTANTS_VERSION];
+        if (pinned != null) return pinned;
+        return current ? null : (sh.internalLevelValue ?? sh.internalLevel ?? null);
       };
 
       // Apply STD constants
       for (let i = 0; i < stdSheets.length && i < diffKeys.length; i++) {
         const sh = stdSheets[i];
         const dk = diffKeys[i];
-        const level = resolveInternalLevel(sh);
+        const level = resolveInternalLevel(sh, fields[`lev_${dk}_i`]);
         if (level != null) {
-          (existing as any)[`lev_${dk}_i`] = String(level);
+          fields[`lev_${dk}_i`] = String(level);
         }
       }
 
@@ -172,9 +177,9 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
       for (let i = 0; i < dxSheets.length && i < diffKeys.length; i++) {
         const sh = dxSheets[i];
         const dk = diffKeys[i];
-        const level = resolveInternalLevel(sh);
+        const level = resolveInternalLevel(sh, fields[`dx_lev_${dk}_i`]);
         if (level != null) {
-          (existing as any)[`dx_lev_${dk}_i`] = String(level);
+          fields[`dx_lev_${dk}_i`] = String(level);
         }
         if (i === 0 && sh.regions) {
           existing.intl = sh.regions.intl ?? true;
@@ -208,10 +213,24 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
     }
   }
 
+  // ── Pin chart constants to CONSTANTS_VERSION (highest priority) ─────────────
+  for (const cs of dataConst) {
+    const existing = mergedMap.get(cs.title) as unknown as Record<string, string | undefined> | undefined;
+    if (!existing) continue;
+    for (const field of CONSTANT_FIELDS) {
+      if (cs[field] != null && cs[field] !== '') existing[field] = String(cs[field]);
+    }
+  }
+
   const merged = Array.from(mergedMap.values());
 
   // ── Persist to DB ────────────────────────────────────────────────────────────
   await persistSongsToDb(merged, dxratingVersion);
+
+  // Songs already in the table but missing from the INTL list (JP-listed songs) aren't rewritten
+  // above, so pin their constants too — constant fields only, no songs are added.
+  const unlisted = dataConst.filter(cs => !mergedMap.has(cs.title));
+  await pinConstantsOnExistingRows(unlisted);
 
   // Bust memory cache so next request reads fresh data
   bustMemCache();
@@ -225,6 +244,31 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
+
+const CONSTANT_COLUMNS: Record<(typeof CONSTANT_FIELDS)[number], keyof typeof songs.$inferInsert> = {
+  lev_bas_i: 'levBasI', lev_adv_i: 'levAdvI', lev_exp_i: 'levExpI', lev_mas_i: 'levMasI', lev_remas_i: 'levRemasI',
+  dx_lev_bas_i: 'dxLevBasI', dx_lev_adv_i: 'dxLevAdvI', dx_lev_exp_i: 'dxLevExpI', dx_lev_mas_i: 'dxLevMasI', dx_lev_remas_i: 'dxLevRemasI',
+};
+
+/** Overwrite just the chart-constant columns of existing `songs` rows from the CONSTANTS_VERSION snapshot. */
+async function pinConstantsOnExistingRows(snapshot: Record<string, unknown>[]): Promise<void> {
+  const titles = snapshot.map(cs => String(cs.title));
+  if (titles.length === 0) return;
+  const existing = new Set(
+    (await db.select({ title: songs.title }).from(songs).where(inArray(songs.title, titles))).map(r => r.title),
+  );
+  for (const cs of snapshot) {
+    if (!existing.has(String(cs.title))) continue;
+    const patch: Partial<typeof songs.$inferInsert> = {};
+    for (const field of CONSTANT_FIELDS) {
+      const v = cs[field];
+      if (v != null && v !== '') (patch as Record<string, string>)[CONSTANT_COLUMNS[field]] = String(v);
+    }
+    if (Object.keys(patch).length > 0) {
+      await db.update(songs).set(patch).where(eq(songs.title, String(cs.title)));
+    }
+  }
+}
 
 /**
  * Upsert a song list into the `songs` table in batches of 200.
@@ -405,17 +449,8 @@ export async function fetchSongsFromGitHub(): Promise<Song[]> {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-/**
- * Get the correct jacket URL for a song. 
- * Falls back to the otoge-db GitHub CDN for JP-only songs since the official English server returns 404.
- */
-export function getJacketUrl(imageName?: string | null, intl?: boolean | null): string {
-  if (!imageName) return '';
-  if (intl === false) {
-    return `https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket/${imageName}`;
-  }
-  return `https://maimaidx-eng.com/maimai-mobile/img/Music/${imageName}`;
-}
+// Jacket URLs live in ./jacket (DB-free, safe for client components); re-exported for existing imports.
+export { getJacketUrl, getJacketUrls } from './jacket';
 
 /**
  * Build a lookup map: normalised title → Song.

@@ -13,6 +13,7 @@ import { useLocalData } from '../../db/useLocalData';
 import { COLORS, getDifficultyColor, formatAchievement, getRankBadge } from '../../constants/Theme';
 import type { SkillAxis, SkillTier } from '../../db/recommend';
 import ManualCreditModal from '../../components/ManualCreditModal';
+import { formatShortDate, formatTime } from '@/constants/time';
 
 export default function ArcadeScreen() {
   const {
@@ -405,10 +406,10 @@ export default function ArcadeScreen() {
                 <View key={session.id || idx} style={styles.pastSessionRow}>
                   <View>
                     <Text style={styles.pastDate}>
-                      {new Date(session.startTime).toLocaleDateString()}
+                      {formatShortDate(session.startTime)}
                     </Text>
                     <Text style={styles.pastMeta}>
-                      {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {session.durationMinutes}m
+                      {formatTime(session.startTime)} • {session.durationMinutes}m
                     </Text>
                   </View>
                   <View style={styles.rowAlign}>

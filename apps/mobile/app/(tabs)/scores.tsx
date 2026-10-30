@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   FlatList,
 } from 'react-native';
@@ -24,6 +23,7 @@ import {
   Trophy,
 } from 'lucide-react-native';
 import type { ScoreWithRating, Difficulty } from '@maimai-suite/core';
+import { JacketImage } from '@/components/JacketImage';
 
 type PoolFilter = 'all' | 'new' | 'old';
 type DiffFilter = 'ALL' | 'EXP' | 'MAS' | 'REMAS' | 'UTAGE';
@@ -251,10 +251,7 @@ export default function ScoresScreen() {
         >
           <View style={[styles.gridJacketWrapper, { borderColor: diffColor }]}>
             {item.song?.image_url ? (
-              <Image
-                source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${item.song.image_url}` }}
-                style={styles.gridJacketImg}
-              />
+              <JacketImage imageName={item.song.image_url} style={styles.gridJacketImg} />
             ) : (
               <View style={[styles.gridJacketFallback, { backgroundColor: diffColor + '20' }]}>
                 <Music2 size={24} color={diffColor} />
@@ -326,10 +323,7 @@ export default function ScoresScreen() {
 
         <View style={[styles.jacketWrapper, { borderColor: diffColor }]}>
           {item.song?.image_url ? (
-            <Image
-              source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${item.song.image_url}` }}
-              style={styles.jacketImg}
-            />
+            <JacketImage imageName={item.song.image_url} style={styles.jacketImg} />
           ) : (
             <View style={[styles.jacketFallback, { backgroundColor: diffColor + '20' }]}>
               <Music2 size={16} color={diffColor} />
@@ -556,10 +550,7 @@ export default function ScoresScreen() {
                       onPress={() => navigateToModal(c)}
                     >
                       {c.imageUrl ? (
-                        <Image
-                          source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${c.imageUrl}` }}
-                          style={styles.matrixJacket}
-                        />
+                        <JacketImage imageName={c.imageUrl} style={styles.matrixJacket} />
                       ) : (
                         <View style={[styles.matrixJacketFallback, { backgroundColor: diffColor + '20' }]}>
                           <Music2 size={16} color={diffColor} />

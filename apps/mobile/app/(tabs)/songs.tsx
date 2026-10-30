@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Image,
   FlatList,
   ActivityIndicator,
 } from 'react-native';
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react-native';
 import { versionLabel, normalizeTitle } from '@maimai-suite/core';
 import type { SongRow, ScoreRow } from '../../db/schema';
+import { JacketImage } from '@/components/JacketImage';
 
 type CategoryKey = 'all' | 'anime' | 'niconico&vocaloid' | 'toho' | 'game&variety' | 'maimai' | 'original&joypolis';
 type LevelFilterKey = 'ALL' | '14+' | '14' | '13+' | '13' | '12+' | '12' | '<=11';
@@ -287,10 +287,7 @@ export default function SongsScreen() {
         >
           <View style={styles.jacketBox}>
             {song.image_url ? (
-              <Image
-                source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${song.image_url}` }}
-                style={styles.jacketImage}
-              />
+              <JacketImage imageName={song.image_url} style={styles.jacketImage} />
             ) : (
               <View style={styles.jacketFallback}>
                 <Music2 size={20} color={COLORS.purpleLight} />

@@ -6,6 +6,7 @@ import type { RatingData, Score } from '@/lib/types';
 import { getRankTitle } from '@/lib/rating';
 
 import { PageWrapper } from '@/components/page-wrapper';
+import { formatDateTime } from '@/lib/time';
 
 interface Props {
   data: {
@@ -135,7 +136,7 @@ export default function DashboardClient({ data }: Props) {
             {!mounted 
               ? 'Loading...' 
               : lastSyncDate
-                ? `Last synced ${lastSyncDate.toLocaleString()}`
+                ? `Last synced ${formatDateTime(lastSyncDate)}`
                 : 'Never synced — run your first sync to get started!'}
           </p>
         </div>

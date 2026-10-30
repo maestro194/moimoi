@@ -53,6 +53,12 @@ export async function GET(_req: NextRequest) {
       name:   getSet("profile_name"),
       avatar: getSet("profile_avatar"),
       rating: getSet("profile_rating"),
+      title:        getSet("profile_title"),
+      totalPlays:   getSet("profile_total_plays"),
+      versionPlays: getSet("profile_version_plays"),
+      courseRank:   getSet("profile_course_rank"),
+      classRank:    getSet("profile_class_rank"),
+      ratingBase:   getSet("profile_rating_base"),
     };
 
     const region = (getSet("maimai_region") ?? "intl") as Region;

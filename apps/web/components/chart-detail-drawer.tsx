@@ -5,7 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp, Trophy, ExternalLink } from 'lucide-react';
 import type { ScoreWithRating, FC, FS } from '@/lib/types';
 import { getJacketUrl } from '@/lib/song-db';
+import { JacketImg } from '@/components/jacket-img';
 import { FCBadge, FSBadge } from '@/components/badges';
+import { formatShortDate } from '@/lib/time';
 
 const DIFF_COLOR: Record<string, string> = {
   BAS:   '#3fb950',
@@ -183,9 +185,10 @@ export function ChartDetailDrawer({ score: s, onClose }: Props) {
 
                 {/* Content row */}
                 <div className="relative h-full flex items-end gap-4 p-4">
-                  {jacketUrl && (
-                    <img
-                      src={jacketUrl}
+                  {s.song && (
+                    <JacketImg
+                      imageName={s.song.image_url}
+                      intl={s.song.intl}
                       alt={s.songTitle}
                       className="w-16 h-16 rounded-xl shadow-lg shrink-0 object-cover"
                     />
@@ -311,7 +314,7 @@ export function ChartDetailDrawer({ score: s, onClose }: Props) {
                           <FSBadge fs={play.fs as FS} className="bg-white/5" />
                         </div>
                         <span className="text-[10px] text-white/30 font-num shrink-0">
-                          {new Date(play.playedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          {formatShortDate(play.playedAt)}
                         </span>
                       </div>
                     ))}

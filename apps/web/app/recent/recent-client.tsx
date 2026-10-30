@@ -9,6 +9,7 @@ import { Jacket } from '@/components/jacket';
 import { SyncBar } from '@/components/sync-bar';
 import { useRouter } from 'next/navigation';
 import { ManualCreditModalWeb } from '@/components/manual-credit-modal';
+import { formatLongDate, formatTime } from '@/lib/time';
 
 interface HydratedLog {
   id: number;
@@ -53,7 +54,30 @@ function getDifficultyColor(diff: string): string {
   }
 }
 
-function groupLogsIntoCredits(logs: HydratedLog[]): CreditGroup[] {
+/** Same chart, track and achievement — e.g. a manual entry and its synced copy. */
+function isDuplicatePlay(a: HydratedLog, b: HydratedLog): boolean {
+  return a.songTitle === b.songTitle
+    && a.difficulty === b.difficulty
+    && a.track === b.track
+    && Math.abs(parseFloat(a.achievement) - parseFloat(b.achievement)) < 0.00005;
+}
+
+/** Collapse adjacent duplicates (keeping the synced row) so they can't split a credit. */
+function dropAdjacentDuplicates(logs: HydratedLog[]): HydratedLog[] {
+  const out: HydratedLog[] = [];
+  for (const log of logs) {
+    const prev = out[out.length - 1];
+    if (prev && isDuplicatePlay(prev, log)) {
+      if (prev.isManual && !log.isManual) out[out.length - 1] = log;
+      continue;
+    }
+    out.push(log);
+  }
+  return out;
+}
+
+function groupLogsIntoCredits(allLogs: HydratedLog[]): CreditGroup[] {
+  const logs = dropAdjacentDuplicates(allLogs);
   const groups: CreditGroup[] = [];
   let currentGroup: CreditGroup | null = null;
 
@@ -343,7 +367,7 @@ const PlayRow = memo(function PlayRow({
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-0.5" suppressHydrationWarning>
-                {new Date(play.playedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {formatTime(play.playedAt)}
               </div>
               <div className="flex justify-end items-center gap-1">
                 <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70 text-[10px] font-bold tracking-wider">
@@ -533,13 +557,11 @@ const CreditSection = memo(function CreditSection({
           <h2 className="text-lg font-bold text-white">Credit #{creditNumber}</h2>
           <div className="flex items-center gap-1.5 text-sm text-white/40 font-num" suppressHydrationWarning>
             <Clock size={14} />
-            {credit.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {formatTime(credit.timestamp)}
           </div>
         </div>
         <div className="text-xs text-white/30 hidden sm:block" suppressHydrationWarning>
-          {credit.timestamp.toLocaleDateString(undefined, {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          })}
+          {formatLongDate(credit.timestamp)}
         </div>
       </div>
       <div className="flex flex-col">

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -15,6 +14,8 @@ import { Clock, ChevronDown, ChevronUp, Music2, Star, Pencil, Trash2, Plus } fro
 import { solvePlayDetails } from '@maimai-suite/core';
 import ManualCreditModal from '../../components/ManualCreditModal';
 import { deleteManualPlay } from '../../db/sync';
+import { JacketImage } from '@/components/JacketImage';
+import { formatShortDate, formatTime } from '@/constants/time';
 
 interface PlayItem {
   id: number;
@@ -38,7 +39,30 @@ interface CreditGroup {
   plays: PlayItem[];
 }
 
-function groupPlaysIntoSessions(plays: PlayItem[]): CreditGroup[] {
+/** Same chart, track and achievement — e.g. a manual entry and its synced copy. */
+function isDuplicatePlay(a: PlayItem, b: PlayItem): boolean {
+  return a.song_title === b.song_title
+    && a.difficulty === b.difficulty
+    && a.track === b.track
+    && Math.abs(Number(a.achievement) - Number(b.achievement)) < 0.00005;
+}
+
+/** Collapse adjacent duplicates (keeping the synced row) so they can't split a credit. */
+function dropAdjacentDuplicates(plays: PlayItem[]): PlayItem[] {
+  const out: PlayItem[] = [];
+  for (const play of plays) {
+    const prev = out[out.length - 1];
+    if (prev && isDuplicatePlay(prev, play)) {
+      if (prev.is_manual && !play.is_manual) out[out.length - 1] = play;
+      continue;
+    }
+    out.push(play);
+  }
+  return out;
+}
+
+function groupPlaysIntoSessions(allPlays: PlayItem[]): CreditGroup[] {
+  const plays = dropAdjacentDuplicates(allPlays);
   const groups: CreditGroup[] = [];
   let currentGroup: CreditGroup | null = null;
 
@@ -202,8 +226,8 @@ export default function SessionsScreen() {
                 <View style={styles.sessionHeaderLeft}>
                   <Clock size={14} color={COLORS.purpleLight} />
                   <Text style={styles.sessionTimeText}>
-                    {session.timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' })}{' • '}
-                    {session.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatShortDate(session.timestamp)}{' • '}
+                    {formatTime(session.timestamp)}
                   </Text>
                 </View>
                 <View style={styles.sessionBadge}>
@@ -254,10 +278,7 @@ export default function SessionsScreen() {
                       {/* Jacket with 2.5px diff border */}
                       <View style={[styles.jacketBox, { borderColor: diffColor }]}>
                         {play.song?.image_url ? (
-                          <Image
-                            source={{ uri: `https://maimaidx-eng.com/maimai-mobile/img/Music/${play.song.image_url}` }}
-                            style={styles.jacketImg}
-                          />
+                          <JacketImage imageName={play.song.image_url} style={styles.jacketImg} />
                         ) : (
                           <View style={[styles.jacketFallback, { backgroundColor: diffColor + '20' }]}>
                             <Music2 size={14} color={diffColor} />

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { ScoreWithRating } from '@/lib/types';
 import { getAllCharts, type MinimalChart } from './actions';
 import { FCBadge } from '@/components/badges';
-import { getJacketUrl } from '@/lib/song-db';
+import { JacketImg } from '@/components/jacket-img';
 
 interface Props {
   scores: ScoreWithRating[];
@@ -167,11 +167,12 @@ function MatrixCard({ chart, score, onClick }: { chart: MinimalChart, score?: Sc
       style={{ border: `2.5px solid ${diffColor}` }}
     >
       {chart.image ? (
-        <img 
-          loading="lazy" 
-          src={getJacketUrl(chart.image, chart.intl)} 
-          alt={chart.title} 
-          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
+        <JacketImg
+          loading="lazy"
+          imageName={chart.image}
+          intl={chart.intl}
+          alt={chart.title}
+          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
         />
       ) : (
         <div className="w-full h-full bg-white/5" />

@@ -7,7 +7,7 @@ import type { Song, UnifiedTag } from '@/lib/types';
 import { PageWrapper } from '@/components/page-wrapper';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toRomaji } from '@/lib/romaji';
-import { getJacketUrl } from '@/lib/song-db';
+import { JacketImg } from '@/components/jacket-img';
 import { versionLabel } from '@/lib/version-label';
 import { addTracker } from '@/app/tracker/actions';
 import { SongDetailsModal } from './SongDetailsModal';
@@ -598,7 +598,6 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
             }
             const { row, tags } = item;
             const isNew = parseInt(row.song.version) >= currentVersion - 500;
-            const jacketUrl = row.song.image_url ? getJacketUrl(row.song.image_url, row.song.intl) : null;
             const abbrKey = ABBR_TO_KEY[row.abbr] ?? row.abbr.toLowerCase();
             const diffColor = DIFF_COLOR[abbrKey] ?? '#9ca3af';
             return (
@@ -608,7 +607,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
                 onClick={() => setDetailsRow({ song: row.song, type: row.type, difficulty: row.difficulty, abbr: row.abbr })}>
                 <div className="flex items-center gap-3 flex-1 min-w-0 pr-3">
                   <div className="w-10 h-10 shrink-0 overflow-hidden rounded shadow-sm bg-black/20">
-                    {jacketUrl ? <img src={jacketUrl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" /> : <Music2 size={16} className="m-auto mt-2 text-white/20" />}
+                    <JacketImg imageName={row.song.image_url} intl={row.song.intl} alt={row.song.title} className="w-full h-full object-cover" loading="lazy" fallback={<Music2 size={16} className="m-auto mt-2 text-white/20" />} />
                   </div>
                   <div className="min-w-0">
                     <div className="font-semibold text-sm truncate text-white">{row.song.title}</div>

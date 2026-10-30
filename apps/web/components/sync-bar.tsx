@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { RefreshCw, ChevronDown } from 'lucide-react';
 import type { PlayerProfile } from '@/lib/types';
+import { formatDateTime } from '@/lib/time';
 
 interface SyncBarProps {
   profile: PlayerProfile;
@@ -94,7 +95,7 @@ export function SyncBar({ profile, lastSync }: SyncBarProps) {
         {/* Right: Last sync + Sync button */}
         <div className="flex items-center gap-3 relative z-10 w-full sm:w-auto">
           <div className="text-[10px] text-white/30 text-right hidden sm:block whitespace-nowrap" suppressHydrationWarning>
-            {lastSync ? new Date(lastSync).toLocaleString() : 'Never synced'}
+            {lastSync ? formatDateTime(lastSync) : 'Never synced'}
           </div>
 
           {/* Split button: main + dropdown */}
