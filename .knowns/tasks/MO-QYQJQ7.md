@@ -1,13 +1,14 @@
 ---
 id: MO-QYQJQ7
 title: 'B50 image: replace left sidebar with a top profile header'
-status: in-review
+status: done
 priority: medium
 labels:
   - web
   - b50
 createdAt: '2026-10-30T04:31:01.600Z'
-updatedAt: '2026-10-30T04:51:49.332Z'
+updatedAt: '2026-10-30T10:32:58.401Z'
+completedAt: '2026-10-30T10:32:58.401Z'
 timeSpent: 153
 ---
 # B50 image: replace left sidebar with a top profile header
@@ -56,5 +57,7 @@ Plan (awaiting approval):
 2026-10-30 follow-up: the user found the white header panel too prominent. Changed it to a dark translucent purple panel (rgba(38,24,62,0.55)) with a faint white border and light text (profileFg / profileMuted). New/Old values are now #c3a8ff / #6cc7ff, the title pill is white at 12% opacity, and the fallback rating box is #2a2a2a with a border. Re-rendered OK; tsc and eslint clean.
 
 2026-10-30 follow-up (user request): rank glyph colours in RANK_GLYPHS. SSS/SSS+ keep gold → sky → pink; SS+, SS, S+ and S are all gold; AAA, AA and A use R_PINK; BBB, BB and B use R_SKY (new); C and D use R_GREY #b4b0c0 (new; these previously fell back to "?"). Verified SS and SS+ on the real B50. No A or B scores in the B50, so those colours aren't visually checked.
+
+2026-10-30: section labels renamed to "New B15" / "Old B35" (user request). Committed in d1edf5a and pushed.
 <!-- SECTION:NOTES:END -->
 

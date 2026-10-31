@@ -1,14 +1,15 @@
 ---
 id: MO-4FPFFJ
 title: Hardcode displayed times to 24-hour UTC+7 (web + mobile)
-status: in-review
+status: done
 priority: medium
 labels:
   - web
   - mobile
   - time
 createdAt: '2026-10-30T04:01:00.272Z'
-updatedAt: '2026-10-30T04:01:04.564Z'
+updatedAt: '2026-10-30T10:32:58.382Z'
+completedAt: '2026-10-30T10:32:58.382Z'
 timeSpent: 0
 ---
 # Hardcode displayed times to 24-hour UTC+7 (web + mobile)

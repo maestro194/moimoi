@@ -35,6 +35,12 @@ export async function initDb() {
       lev_bas_i    TEXT,
       lev_remas    TEXT,
       lev_remas_i  TEXT,
+      dx_lev_bas     TEXT,
+      dx_lev_bas_i   TEXT,
+      dx_lev_adv     TEXT,
+      dx_lev_adv_i   TEXT,
+      dx_lev_remas   TEXT,
+      dx_lev_remas_i TEXT,
       lev_utage    TEXT,
       bpm          TEXT,
       sheets       TEXT
@@ -94,4 +100,10 @@ export async function initDb() {
   try {
     sqlite.execSync(`ALTER TABLE play_log ADD COLUMN is_manual INTEGER DEFAULT 0;`);
   } catch {}
+  // DX BAS/ADV/REMAS were missing, so DX Re:Master charts had no constant
+  for (const col of ['dx_lev_bas', 'dx_lev_bas_i', 'dx_lev_adv', 'dx_lev_adv_i', 'dx_lev_remas', 'dx_lev_remas_i']) {
+    try {
+      sqlite.execSync(`ALTER TABLE songs ADD COLUMN ${col} TEXT;`);
+    } catch {}
+  }
 }

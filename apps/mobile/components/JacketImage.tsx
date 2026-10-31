@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, View, type ImageStyle, type StyleProp } from 'react-native';
+import { View, type ImageStyle, type StyleProp } from 'react-native';
+import { Image } from 'expo-image';
 
 /** Community mirror keyed by the same image_url filename Sega uses. Covers JP + INTL songs. */
 const OTOGE_DB_JACKET_BASE = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/jacket';
@@ -19,7 +20,10 @@ interface JacketImageProps {
   style?: StyleProp<ImageStyle>;
 }
 
-/** Image that steps through the jacket source chain on load error; an empty box if all fail. */
+/**
+ * Image that steps through the jacket source chain on load error; an empty box if all fail.
+ * expo-image caches jackets in memory and on disk, and recyclingKey lets list rows reuse the view.
+ */
 export function JacketImage({ imageName, style }: JacketImageProps) {
   const urls = getJacketUrls(imageName);
   // Failure count is keyed to the song so a recycled list row restarts the chain
@@ -30,5 +34,15 @@ export function JacketImage({ imageName, style }: JacketImageProps) {
   const uri = urls[index];
   if (!uri) return <View style={style} />;
 
-  return <Image source={{ uri }} style={style} onError={() => setFailed({ key, count: index + 1 })} />;
+  return (
+    <Image
+      source={{ uri }}
+      style={style}
+      contentFit="cover"
+      cachePolicy="memory-disk"
+      recyclingKey={uri}
+      transition={0}
+      onError={() => setFailed({ key, count: index + 1 })}
+    />
+  );
 }

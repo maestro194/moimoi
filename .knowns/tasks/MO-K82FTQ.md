@@ -1,14 +1,15 @@
 ---
 id: MO-K82FTQ
 title: Fix stale INTL chart constants from song DB refresh
-status: in-review
+status: done
 priority: high
 labels:
   - web
   - song-db
   - rating
 createdAt: '2026-10-30T04:13:27.289Z'
-updatedAt: '2026-10-30T04:23:41.652Z'
+updatedAt: '2026-10-30T10:32:58.358Z'
+completedAt: '2026-10-30T10:32:58.358Z'
 timeSpent: 494
 ---
 # Fix stale INTL chart constants from song DB refresh

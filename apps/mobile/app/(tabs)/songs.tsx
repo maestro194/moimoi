@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   FlatList,
   ActivityIndicator,
 } from 'react-native';
@@ -22,6 +21,7 @@ import {
 import { versionLabel, normalizeTitle } from '@maimai-suite/core';
 import type { SongRow, ScoreRow } from '../../db/schema';
 import { JacketImage } from '@/components/JacketImage';
+import { Tap } from '@/components/Tap';
 
 type CategoryKey = 'all' | 'anime' | 'niconico&vocaloid' | 'toho' | 'game&variety' | 'maimai' | 'original&joypolis';
 type LevelFilterKey = 'ALL' | '14+' | '14' | '13+' | '13' | '12+' | '12' | '<=11';
@@ -85,7 +85,7 @@ export default function SongsScreen() {
 
       // Determine highest internal constant for sorting
       const levels = [
-        parseFloat(song.lev_remas_i || '0'),
+        parseFloat(song.dx_lev_remas_i || song.lev_remas_i || '0'),
         parseFloat(song.dx_lev_mas_i || song.lev_mas_i || '0'),
         parseFloat(song.dx_lev_exp_i || song.lev_exp_i || '0'),
       ].filter(n => !isNaN(n) && n > 0);
@@ -231,12 +231,12 @@ export default function SongsScreen() {
         display: song.dx_lev_mas,
         score: scoresByDiff.get('MAS::DX'),
       });
-      if (song.lev_remas_i || song.lev_remas) {
+      if (song.dx_lev_remas_i || song.dx_lev_remas) {
         availableDiffs.push({
           diff: 'REMAS',
           type: 'DX',
-          internal: song.lev_remas_i,
-          display: song.lev_remas,
+          internal: song.dx_lev_remas_i,
+          display: song.dx_lev_remas,
           score: scoresByDiff.get('REMAS::DX'),
         });
       }
@@ -276,7 +276,7 @@ export default function SongsScreen() {
     return (
       <View style={styles.songCard}>
         {/* Top Section: Jacket + Info */}
-        <TouchableOpacity
+        <Tap label={song.title} hint="Opens chart details"
           style={styles.cardHeader}
           onPress={() => {
             const first = availableDiffs[availableDiffs.length - 1] || availableDiffs[0];
@@ -317,7 +317,7 @@ export default function SongsScreen() {
               </View>
             </View>
           </View>
-        </TouchableOpacity>
+        </Tap>
 
         {/* Bottom Section: Difficulty Chips */}
         <View style={styles.diffChipsContainer}>
@@ -328,7 +328,7 @@ export default function SongsScreen() {
             const rank = hasScore ? getRankBadge(d.score!.achievement) : null;
 
             return (
-              <TouchableOpacity
+              <Tap label={`${d.type} ${d.diff} ${levelVal}${hasScore ? `, ${d.score!.achievement}%` : ', not played'}`}
                 key={`${d.diff}-${d.type}`}
                 style={[
                   styles.diffChipItem,
@@ -352,7 +352,7 @@ export default function SongsScreen() {
                 ) : (
                   <Text style={styles.chipUnplayedText}>--</Text>
                 )}
-              </TouchableOpacity>
+              </Tap>
             );
           })}
         </View>
@@ -374,7 +374,7 @@ export default function SongsScreen() {
       {/* Search Header */}
       <View style={styles.searchContainer}>
         <Search size={16} color={COLORS.textSubtle} style={styles.searchIcon} />
-        <TextInput
+        <TextInput accessibilityLabel="Search songs"
           style={styles.searchInput}
           placeholder="Search 1,559 songs by title, artist, or kana…"
           placeholderTextColor={COLORS.textSubtle}
@@ -382,9 +382,9 @@ export default function SongsScreen() {
           onChangeText={setSearch}
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <Tap label="Clear search" onPress={() => setSearch('')}>
             <X size={16} color={COLORS.textSubtle} />
-          </TouchableOpacity>
+          </Tap>
         )}
       </View>
 
@@ -399,14 +399,14 @@ export default function SongsScreen() {
           renderItem={({ item }) => {
             const isActive = selectedCat === item.key;
             return (
-              <TouchableOpacity
+              <Tap label={item.label} role="tab" selected={isActive}
                 style={[styles.catTab, isActive && styles.catTabActive]}
                 onPress={() => setSelectedCat(item.key)}
               >
                 <Text style={[styles.catTabText, isActive && styles.catTabTextActive]}>
                   {item.label}
                 </Text>
-              </TouchableOpacity>
+              </Tap>
             );
           }}
         />
@@ -423,14 +423,14 @@ export default function SongsScreen() {
           renderItem={({ item }) => {
             const isActive = levelFilter === item;
             return (
-              <TouchableOpacity
+              <Tap label={`Level ${item}`} selected={isActive}
                 style={[styles.levelChip, isActive && styles.levelChipActive]}
                 onPress={() => setLevelFilter(item)}
               >
                 <Text style={[styles.levelChipText, isActive && styles.levelChipTextActive]}>
                   {item}
                 </Text>
-              </TouchableOpacity>
+              </Tap>
             );
           }}
         />
@@ -442,7 +442,7 @@ export default function SongsScreen() {
           {(['ALL', 'PLAYED', 'UNPLAYED'] as const).map(st => {
             const isActive = statusFilter === st;
             return (
-              <TouchableOpacity
+              <Tap label={st === 'ALL' ? 'All songs' : st === 'PLAYED' ? 'Played' : 'Unplayed'} selected={isActive}
                 key={st}
                 style={[styles.statusBtn, isActive && styles.statusBtnActive]}
                 onPress={() => setStatusFilter(st)}
@@ -450,7 +450,7 @@ export default function SongsScreen() {
                 <Text style={[styles.statusBtnText, isActive && styles.statusBtnTextActive]}>
                   {st === 'ALL' ? 'All' : st === 'PLAYED' ? 'Played' : 'Unplayed'}
                 </Text>
-              </TouchableOpacity>
+              </Tap>
             );
           })}
         </View>
@@ -462,7 +462,7 @@ export default function SongsScreen() {
             const isActive = sortBy === s;
             const label = s === 'level_desc' ? 'Level' : s === 'title' ? 'Title' : 'New';
             return (
-              <TouchableOpacity
+              <Tap label={`Sort by ${label}`} selected={isActive}
                 key={s}
                 style={[styles.sortPill, isActive && styles.sortPillActive]}
                 onPress={() => setSortBy(s)}
@@ -470,7 +470,7 @@ export default function SongsScreen() {
                 <Text style={[styles.sortPillText, isActive && styles.sortPillTextActive]}>
                   {label}
                 </Text>
-              </TouchableOpacity>
+              </Tap>
             );
           })}
         </View>

@@ -105,10 +105,33 @@ export async function fetchAndCacheScores(): Promise<{ count: number }> {
 // Backward-compat alias
 export const fetchAndCacheBoard = fetchAndCacheScores;
 
+function getMetaValue(key: string): string | null {
+  const row = sqlite.getFirstSync<{ value: string | null }>(`SELECT value FROM sync_meta WHERE key = ?`, [key]);
+  return row?.value ?? null;
+}
+
+/** Server songs version, or null if the check failed (then we just download as before). */
+async function fetchSongsVersion(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/songs/version`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.songsVersion === 'string' ? data.songsVersion : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetch full song database from /api/songs and cache into local SQLite songs table.
+ * Skips the download when the server's songs version matches the one cached locally.
  */
-export async function fetchAndCacheSongs(): Promise<{ count: number }> {
+export async function fetchAndCacheSongs(): Promise<{ count: number; skipped?: boolean }> {
+  const serverVersion = await fetchSongsVersion();
+  if (serverVersion && serverVersion === getMetaValue('songs_version') && getSongsCount() > 0) {
+    return { count: getSongsCount(), skipped: true };
+  }
+
   const res = await fetch(`${API_URL}/api/songs`);
   if (!res.ok) throw new Error(`Songs fetch failed: HTTP ${res.status}`);
   const data = await res.json();
@@ -116,16 +139,18 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
 
   if (!songList.length) return { count: 0 };
 
-  sqlite.withTransactionSync(() => {
+  // Async so the ~1.5k-row upsert runs off the JS thread instead of freezing the UI
+  await sqlite.withTransactionAsync(async () => {
     for (const song of songList) {
-      sqlite.runSync(
+      await sqlite.runAsync(
         `INSERT INTO songs (
           title, title_kana, artist, catcode, version, image_url,
           lev_mas, lev_mas_i, dx_lev_mas, dx_lev_mas_i,
           lev_exp, lev_exp_i, dx_lev_exp, dx_lev_exp_i,
           lev_adv, lev_adv_i, lev_bas, lev_bas_i,
-          lev_remas, lev_remas_i, lev_utage, bpm, sheets
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          lev_remas, lev_remas_i, lev_utage, bpm, sheets,
+          dx_lev_bas, dx_lev_bas_i, dx_lev_adv, dx_lev_adv_i, dx_lev_remas, dx_lev_remas_i
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(title) DO UPDATE SET
           title_kana = excluded.title_kana,
           artist = excluded.artist,
@@ -148,7 +173,13 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
           lev_remas_i = excluded.lev_remas_i,
           lev_utage = excluded.lev_utage,
           bpm = excluded.bpm,
-          sheets = excluded.sheets`,
+          sheets = excluded.sheets,
+          dx_lev_bas = excluded.dx_lev_bas,
+          dx_lev_bas_i = excluded.dx_lev_bas_i,
+          dx_lev_adv = excluded.dx_lev_adv,
+          dx_lev_adv_i = excluded.dx_lev_adv_i,
+          dx_lev_remas = excluded.dx_lev_remas,
+          dx_lev_remas_i = excluded.dx_lev_remas_i`,
         [
           song.title,
           song.title_kana ?? null,
@@ -173,6 +204,12 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
           song.lev_utage ?? null,
           song.bpm ? String(song.bpm) : null,
           song.sheets ? JSON.stringify(song.sheets) : null,
+          song.dx_lev_bas ?? null,
+          song.dx_lev_bas_i ?? null,
+          song.dx_lev_adv ?? null,
+          song.dx_lev_adv_i ?? null,
+          song.dx_lev_remas ?? null,
+          song.dx_lev_remas_i ?? null,
         ],
       );
     }
@@ -183,6 +220,15 @@ export async function fetchAndCacheSongs(): Promise<{ count: number }> {
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     [new Date().toISOString(), Date.now()],
   );
+
+  // Store the version that came with this payload (not the pre-check one), so a stale CDN copy gets re-fetched
+  if (data.songsVersion) {
+    sqlite.runSync(
+      `INSERT INTO sync_meta (key, value, updated_at) VALUES ('songs_version', ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [String(data.songsVersion), Date.now()],
+    );
+  }
 
   if (data.currentVersion) {
     sqlite.runSync(
@@ -323,7 +369,7 @@ export function getCachedProfile(): PlayerProfileData | null {
  * Direct sync between Web App Cloud DB (Neon) and local SQLite.
  * Pulls scores, recent plays, player profile, and song database without connecting to SEGA.
  */
-export async function syncFromWebDb(forceSongs: boolean = false): Promise<{
+export async function syncFromWebDb(): Promise<{
   scoresCount: number;
   recentCount: number;
   songsCount: number;
@@ -335,11 +381,8 @@ export async function syncFromWebDb(forceSongs: boolean = false): Promise<{
     fetchAndCacheProfile(),
   ]);
 
-  let songCount = getSongsCount();
-  if (songCount < 1500 || forceSongs) {
-    const res = await fetchAndCacheSongs();
-    songCount = res.count;
-  }
+  // Always re-pull songs: the server's constants change on song DB refreshes, which a count check never caught
+  const songCount = (await fetchAndCacheSongs()).count || getSongsCount();
 
   sqlite.runSync(
     `INSERT INTO sync_meta (key, value, updated_at) VALUES ('last_synced_at', ?, ?)

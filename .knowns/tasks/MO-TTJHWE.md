@@ -1,13 +1,14 @@
 ---
 id: MO-TTJHWE
 title: Restyle B50 image table to reference card design
-status: in-review
+status: done
 priority: medium
 labels:
   - web
   - b50-image
 createdAt: '2026-10-29T18:11:20.157Z'
-updatedAt: '2026-10-30T02:57:11.923Z'
+updatedAt: '2026-10-30T10:32:58.314Z'
+completedAt: '2026-10-30T10:32:58.314Z'
 timeSpent: 220
 ---
 # Restyle B50 image table to reference card design

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Image,
   RefreshControl,
@@ -16,6 +15,7 @@ import { COLORS, DIFF_COLOR, getDifficultyColor, getRankBadge, formatAchievement
 import { RefreshCw, Sparkles, TrendingUp, Trophy, ArrowRight, Music2, User, Target } from 'lucide-react-native';
 import { JacketImage } from '@/components/JacketImage';
 import { formatTime } from '@/constants/time';
+import { Tap } from '@/components/Tap';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -92,7 +92,7 @@ export default function DashboardScreen() {
             {songsCount > 0 ? ` • ${songsCount.toLocaleString()} songs` : ''}
           </Text>
         </View>
-        <TouchableOpacity
+        <Tap label={syncing ? 'Syncing' : 'Sync now'}
           style={[styles.syncButton, syncing && styles.syncButtonDisabled]}
           onPress={handleManualSync}
           disabled={syncing}
@@ -105,7 +105,7 @@ export default function DashboardScreen() {
               <Text style={styles.syncButtonText}>Sync Now</Text>
             </>
           )}
-        </TouchableOpacity>
+        </Tap>
       </View>
 
       {/* Player Profile Card */}
@@ -202,13 +202,13 @@ export default function DashboardScreen() {
           <Sparkles size={18} color={COLORS.purpleLight} />
           <Text style={styles.sectionTitle}>Top Contributing Charts</Text>
         </View>
-        <TouchableOpacity
+        <Tap label="View all scores"
           style={styles.viewAllBtn}
           onPress={() => router.push('/(tabs)/scores')}
         >
           <Text style={styles.viewAllText}>View All</Text>
           <ArrowRight size={14} color={COLORS.purpleLight} />
-        </TouchableOpacity>
+        </Tap>
       </View>
 
       {topScores.length === 0 ? (
@@ -225,7 +225,7 @@ export default function DashboardScreen() {
           const rankInfo = getRankBadge(typeof item.achievement === 'string' ? parseFloat(item.achievement) : item.achievement);
 
           return (
-            <TouchableOpacity
+            <Tap label={`${item.songTitle} ${item.difficulty}, ${Number(item.achievement).toFixed(4)}%, rating ${item.rating}`}
               key={`${item.songTitle}-${item.difficulty}-${index}`}
               style={styles.scoreRow}
               onPress={() => {
@@ -290,7 +290,7 @@ export default function DashboardScreen() {
                 </Text>
                 <Text style={styles.ratingDeltaText}>+{item.rating}</Text>
               </View>
-            </TouchableOpacity>
+            </Tap>
           );
         })
       )}
@@ -311,7 +311,7 @@ export default function DashboardScreen() {
           {targetSuggestions.slice(0, 5).map((s, index) => {
             const diffColor = getDifficultyColor(s.difficulty);
             return (
-              <TouchableOpacity
+              <Tap label={`Target: ${s.songTitle} ${s.difficulty}, ${s.currentRank} to ${s.targetRank}, plus ${s.ratingGain} rating`}
                 key={`target-${s.songTitle}-${s.difficulty}-${index}`}
                 style={styles.targetRow}
                 onPress={() => {
@@ -361,7 +361,7 @@ export default function DashboardScreen() {
                   <Text style={styles.targetDeltaLabel}>Total Δ</Text>
                   <Text style={styles.targetDeltaVal}>+{s.totalRatingGain.toFixed(0)}</Text>
                 </View>
-              </TouchableOpacity>
+              </Tap>
             );
           })}
         </View>

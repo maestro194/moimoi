@@ -243,6 +243,17 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
   };
 }
 
+// ─── Version ──────────────────────────────────────────────────────────────────
+
+/**
+ * Latest refreshed_at across the songs table (ISO string), or null if it is empty. Changes whenever a
+ * song DB refresh writes rows, so clients can skip re-downloading the full song list when it hasn't.
+ */
+export async function getSongsVersion(): Promise<string | null> {
+  const [row] = await db.select({ v: sql<string | null>`max(${songs.refreshedAt})` }).from(songs);
+  return row?.v ? new Date(row.v).toISOString() : null;
+}
+
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 const CONSTANT_COLUMNS: Record<(typeof CONSTANT_FIELDS)[number], keyof typeof songs.$inferInsert> = {

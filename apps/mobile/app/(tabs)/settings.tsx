@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -12,8 +11,11 @@ import {
 import { API_URL, fullSync, syncFromWebDb, getCacheStats, clearLocalData } from '../../db/sync';
 import { COLORS } from '../../constants/Theme';
 import { Globe, Database, Trash2, RefreshCw, Key, ShieldCheck } from 'lucide-react-native';
+import { Tap } from '@/components/Tap';
+import { useLocalData } from '@/db/useLocalData';
 
 export default function SettingsScreen() {
+  const { reload } = useLocalData();
   const [region, setRegion] = useState<'intl' | 'jp'>('intl');
   const [segaId, setSegaId] = useState('');
   const [password, setPassword] = useState('');
@@ -66,6 +68,7 @@ export default function SettingsScreen() {
     try {
       const { updated, segaDown } = await fullSync();
       refreshStats();
+      reload();
       if (segaDown) {
         Alert.alert(
           'SEGA Offline — Synced from Cloud DB',
@@ -84,8 +87,9 @@ export default function SettingsScreen() {
   async function handleWebDbSync() {
     setSyncing(true);
     try {
-      const res = await syncFromWebDb(true);
+      const res = await syncFromWebDb();
       refreshStats();
+      reload();
       Alert.alert(
         'Web DB Sync Complete',
         `Loaded ${res.scoresCount} scores, ${res.recentCount} recent plays, ${res.songsCount} songs${res.profile?.name ? `, and profile (${res.profile.name})` : ''} from your Neon database.`
@@ -109,6 +113,8 @@ export default function SettingsScreen() {
           onPress: () => {
             clearLocalData();
             refreshStats();
+            reload();
+      reload();
             Alert.alert('Cleared', 'Local cache has been cleared.');
           },
         },
@@ -131,7 +137,7 @@ export default function SettingsScreen() {
         {/* Region Selector */}
         <Text style={styles.label}>Region</Text>
         <View style={styles.regionToggle}>
-          <TouchableOpacity
+          <Tap label="Region: International" role="radio" selected={region === 'intl'}
             style={[styles.regionBtn, region === 'intl' && styles.regionBtnActive]}
             onPress={() => setRegion('intl')}
           >
@@ -139,20 +145,20 @@ export default function SettingsScreen() {
             <Text style={[styles.regionBtnText, region === 'intl' && styles.regionBtnTextActive]}>
               🌏 International (INTL)
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Tap>
+          <Tap label="Region: Japan" role="radio" selected={region === 'jp'}
             style={[styles.regionBtn, region === 'jp' && styles.regionBtnActive]}
             onPress={() => setRegion('jp')}
           >
             <Text style={[styles.regionBtnText, region === 'jp' && styles.regionBtnTextActive]}>
               🇯🇵 Japan (JP)
             </Text>
-          </TouchableOpacity>
+          </Tap>
         </View>
 
         {/* SEGA ID Input */}
         <Text style={styles.label}>SEGA ID</Text>
-        <TextInput
+        <TextInput accessibilityLabel="SEGA ID"
           style={styles.input}
           value={segaId}
           onChangeText={setSegaId}
@@ -164,7 +170,7 @@ export default function SettingsScreen() {
 
         {/* Password Input */}
         <Text style={styles.label}>Password</Text>
-        <TextInput
+        <TextInput accessibilityLabel="SEGA password"
           style={styles.input}
           value={password}
           onChangeText={setPassword}
@@ -173,7 +179,7 @@ export default function SettingsScreen() {
           secureTextEntry
         />
 
-        <TouchableOpacity
+        <Tap label={saving ? 'Saving' : 'Save account settings'}
           style={[styles.buttonPrimary, saving && styles.buttonDisabled]}
           onPress={saveCredentials}
           disabled={saving}
@@ -186,7 +192,7 @@ export default function SettingsScreen() {
               <Text style={styles.buttonPrimaryText}>Save Account Settings</Text>
             </>
           )}
-        </TouchableOpacity>
+        </Tap>
       </View>
 
       {/* Local Storage & Cache Stats */}
@@ -211,7 +217,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
+        <Tap label="Full sync from maimai NET"
           style={[styles.buttonSecondary, syncing && styles.buttonDisabled]}
           onPress={handleFullSync}
           disabled={syncing}
@@ -224,9 +230,9 @@ export default function SettingsScreen() {
               <Text style={styles.buttonSecondaryText}>Sync All Records (SEGA + DB)</Text>
             </>
           )}
-        </TouchableOpacity>
+        </Tap>
 
-        <TouchableOpacity
+        <Tap label="Sync from web app database"
           style={[styles.buttonSecondary, syncing && styles.buttonDisabled, { borderColor: COLORS.blue }]}
           onPress={handleWebDbSync}
           disabled={syncing}
@@ -239,12 +245,12 @@ export default function SettingsScreen() {
               <Text style={[styles.buttonSecondaryText, { color: COLORS.blue }]}>Sync with Web App DB (Neon)</Text>
             </>
           )}
-        </TouchableOpacity>
+        </Tap>
 
-        <TouchableOpacity style={styles.dangerButton} onPress={handleClearData}>
+        <Tap label="Clear local cache" style={styles.dangerButton} onPress={handleClearData}>
           <Trash2 size={15} color={COLORS.red} />
           <Text style={styles.dangerButtonText}>Clear Local Cache</Text>
-        </TouchableOpacity>
+        </Tap>
       </View>
 
       {/* API Endpoint Note */}

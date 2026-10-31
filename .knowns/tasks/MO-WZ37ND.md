@@ -1,14 +1,15 @@
 ---
 id: MO-WZ37ND
 title: Jacket image fallback chain (Sega outage)
-status: in-review
+status: done
 priority: high
 labels:
   - web
   - mobile
   - jacket
 createdAt: '2026-10-29T17:11:37.543Z'
-updatedAt: '2026-10-29T17:31:36.083Z'
+updatedAt: '2026-10-30T10:32:58.290Z'
+completedAt: '2026-10-30T10:32:58.290Z'
 timeSpent: 492
 ---
 # Jacket image fallback chain (Sega outage)

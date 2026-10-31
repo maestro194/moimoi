@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,6 +25,7 @@ import type { PlayLogRow, SongRow, ScoreRow } from '../db/schema';
 import { calcSingleRating, versionLabel, normalizeTitle } from '@maimai-suite/core';
 import { JacketImage } from '@/components/JacketImage';
 import { formatShortDate, formatTime } from '@/constants/time';
+import { Tap } from '@/components/Tap';
 
 export default function SongDetailModal() {
   const router = useRouter();
@@ -166,12 +166,12 @@ export default function SongDetailModal() {
           {title}
         </Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} onPress={openDxRating}>
+          <Tap label="Open on DXRating" role="link" style={styles.iconBtn} onPress={openDxRating}>
             <ExternalLink size={16} color={COLORS.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+          </Tap>
+          <Tap label="Close" style={styles.iconBtn} onPress={() => router.back()}>
             <X size={18} color={COLORS.text} />
-          </TouchableOpacity>
+          </Tap>
         </View>
       </View>
 

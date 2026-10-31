@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Image,
@@ -14,6 +13,7 @@ import { COLORS, getDifficultyColor, formatAchievement, getRankBadge } from '../
 import type { SkillAxis, SkillTier } from '../../db/recommend';
 import ManualCreditModal from '../../components/ManualCreditModal';
 import { formatShortDate, formatTime } from '@/constants/time';
+import { Tap } from '@/components/Tap';
 
 export default function ArcadeScreen() {
   const {
@@ -110,7 +110,7 @@ export default function ArcadeScreen() {
 
       {/* Sync Buttons Group */}
       <View style={styles.syncButtonGroup}>
-        <TouchableOpacity
+        <Tap label={syncing ? 'Syncing' : 'Sync with maimai NET'}
           style={[styles.syncButton, syncing && styles.syncButtonDisabled]}
           onPress={triggerSync}
           disabled={syncing}
@@ -124,20 +124,20 @@ export default function ArcadeScreen() {
           ) : (
             <Text style={styles.syncButtonText}>⚡ Quick Sync (SEGA)</Text>
           )}
-        </TouchableOpacity>
+        </Tap>
 
-        <TouchableOpacity
+        <Tap label="Sync from web app database"
           style={[styles.webDbSyncButton, syncing && styles.syncButtonDisabled]}
           onPress={() => triggerWebDbSync()}
           disabled={syncing}
           activeOpacity={0.8}
         >
           <Text style={styles.webDbSyncButtonText}>☁️ Sync Web DB</Text>
-        </TouchableOpacity>
+        </Tap>
       </View>
 
       {/* Manual Credit Action Button */}
-      <TouchableOpacity
+      <Tap label="Log arcade credit manually"
         style={styles.manualCreditBtn}
         onPress={() => setShowManualModal(true)}
         activeOpacity={0.8}
@@ -152,7 +152,7 @@ export default function ArcadeScreen() {
             <Text style={styles.manualBadgeText}>MANUAL</Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </Tap>
 
       {/* 1. Last Credit Result Card */}
       {lastCredit && lastCredit.tracks.length > 0 && (
@@ -257,7 +257,7 @@ export default function ArcadeScreen() {
 
         {/* Mode Toggle */}
         <View style={styles.toggleRow}>
-          <TouchableOpacity
+          <Tap label="Push skillset" role="tab" selected={recMode === 'push_skillset'}
             style={[styles.toggleBtn, recMode === 'push_skillset' && styles.toggleBtnActive]}
             onPress={() => setRecMode('push_skillset')}
           >
@@ -266,9 +266,9 @@ export default function ArcadeScreen() {
             >
               Push Skillset
             </Text>
-          </TouchableOpacity>
+          </Tap>
 
-          <TouchableOpacity
+          <Tap label="Farm rating" role="tab" selected={recMode === 'farm_rating'}
             style={[styles.toggleBtn, recMode === 'farm_rating' && styles.toggleBtnActive]}
             onPress={() => setRecMode('farm_rating')}
           >
@@ -277,7 +277,7 @@ export default function ArcadeScreen() {
             >
               Farm Rating
             </Text>
-          </TouchableOpacity>
+          </Tap>
         </View>
 
         <Text style={styles.toggleSubtext}>
@@ -391,14 +391,14 @@ export default function ArcadeScreen() {
       {/* 5. Past Sessions Accordion */}
       {clusteredSessions.length > 0 && (
         <View style={styles.sectionCard}>
-          <TouchableOpacity
+          <Tap label={`Past arcade sessions, ${clusteredSessions.length}`} expanded={showPastSessions}
             style={styles.cardHeaderRow}
             onPress={() => setShowPastSessions(!showPastSessions)}
             activeOpacity={0.7}
           >
             <Text style={styles.cardTitle}>📜 Past Arcade Sessions ({clusteredSessions.length})</Text>
             <Text style={styles.toggleArrow}>{showPastSessions ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
+          </Tap>
 
           {showPastSessions && (
             <View style={{ marginTop: 12 }}>

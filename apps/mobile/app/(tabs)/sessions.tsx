@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -16,6 +15,7 @@ import ManualCreditModal from '../../components/ManualCreditModal';
 import { deleteManualPlay } from '../../db/sync';
 import { JacketImage } from '@/components/JacketImage';
 import { formatShortDate, formatTime } from '@/constants/time';
+import { Tap } from '@/components/Tap';
 
 interface PlayItem {
   id: number;
@@ -206,7 +206,7 @@ export default function SessionsScreen() {
               <Text style={styles.screenTitle}>Arcade Sessions</Text>
               <Text style={styles.screenSubtitle}>Clustered plays & breakdown analysis</Text>
             </View>
-            <TouchableOpacity
+            <Tap label="Log credit manually"
               style={styles.logCreditBtn}
               onPress={() => {
                 setEditingPlay(null);
@@ -215,7 +215,7 @@ export default function SessionsScreen() {
             >
               <Plus size={14} color="#ffffff" style={{ marginRight: 4 }} />
               <Text style={styles.logCreditBtnText}>Log Credit</Text>
-            </TouchableOpacity>
+            </Tap>
           </View>
         }
         renderItem={({ item: session }) => {
@@ -266,7 +266,7 @@ export default function SessionsScreen() {
 
                 return (
                   <View key={play.id} style={[styles.playRowWrapper, playIdx > 0 && styles.playRowBorder]}>
-                    <TouchableOpacity
+                    <Tap label={`Track ${play.track ?? playIdx + 1}: ${play.song_title} ${play.difficulty}, ${Number(play.achievement).toFixed(4)}%`} expanded={isExpanded}
                       style={styles.playRow}
                       onPress={() => setExpandedId(isExpanded ? null : play.id)}
                     >
@@ -320,7 +320,7 @@ export default function SessionsScreen() {
                           <Text style={styles.achText}>{formatAchievement(play.achievement)}</Text>
                           {Boolean(play.is_manual) && (
                             <View style={styles.manualIconsRow}>
-                              <TouchableOpacity
+                              <Tap label="Edit play"
                                 hitSlop={8}
                                 style={styles.actionPencilBtn}
                                 onPress={(e: any) => {
@@ -330,8 +330,8 @@ export default function SessionsScreen() {
                                 }}
                               >
                                 <Pencil size={11} color={COLORS.purpleLight} />
-                              </TouchableOpacity>
-                              <TouchableOpacity
+                              </Tap>
+                              <Tap label="Delete play"
                                 hitSlop={8}
                                 style={styles.actionTrashBtn}
                                 onPress={(e: any) => {
@@ -340,7 +340,7 @@ export default function SessionsScreen() {
                                 }}
                               >
                                 <Trash2 size={11} color={COLORS.red} />
-                              </TouchableOpacity>
+                              </Tap>
                             </View>
                           )}
                         </View>
@@ -357,7 +357,7 @@ export default function SessionsScreen() {
                           </View>
                         )}
                       </View>
-                    </TouchableOpacity>
+                    </Tap>
 
                     {/* Detailed Note Breakdown Table */}
                     {isExpanded && solvedDetails && (

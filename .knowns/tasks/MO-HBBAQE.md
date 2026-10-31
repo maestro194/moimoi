@@ -1,7 +1,7 @@
 ---
 id: MO-HBBAQE
 title: Dedupe manual vs synced plays (credit grouping broken)
-status: in-review
+status: done
 priority: high
 labels:
   - web
@@ -9,7 +9,8 @@ labels:
   - sync
   - data
 createdAt: '2026-10-30T03:55:10.474Z'
-updatedAt: '2026-10-30T04:11:33.322Z'
+updatedAt: '2026-10-30T10:32:58.335Z'
+completedAt: '2026-10-30T10:32:58.335Z'
 timeSpent: 376
 ---
 # Dedupe manual vs synced plays (credit grouping broken)
@@ -64,5 +65,7 @@ Verified: web + mobile tsc clean; with the duplicates still in the DB, /recent s
 - Found and fixed a second bug: the old sync's exact-time check matched ANY row in that minute, so an official play sharing a minute with a manual entry for a different chart was skipped. The exact-time check now also requires the same chart.
 - Fallout: Oct 27 09:10 credit now reads t1 t3. Its official t2 was skipped by the old sync (shared a minute with manual #3203) and #3203 is now deleted. That play is still in maimai NET's latest 50, so the next sync with the fixed code should restore it. User to run the sync.
 - Full-DB scan: 2505 plays, 710 credits, 12 with a missing/odd track. Only the Oct 27 09:10 one is from this cleanup; the other 11 were already there (mostly manual-only credits).
+
+2026-10-30: user ran a sync with the fixed code. Verified from the DB: the Oct 27 16:10 (UTC+7) credit has all 3 tracks again (t2 頓珍漢の宴 68.4459 restored); 0 manual rows duplicate an official play; 0 non-blank manual plays remain inside maimai NET's latest-50 window. 86 older manual rows stay manual (outside the window). Committed in d1edf5a and pushed.
 <!-- SECTION:NOTES:END -->
 

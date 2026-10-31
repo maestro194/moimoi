@@ -32,6 +32,12 @@ export interface SongRow {
   lev_bas_i: string | null;
   lev_remas: string | null;
   lev_remas_i: string | null;
+  dx_lev_bas: string | null;
+  dx_lev_bas_i: string | null;
+  dx_lev_adv: string | null;
+  dx_lev_adv_i: string | null;
+  dx_lev_remas: string | null;
+  dx_lev_remas_i: string | null;
   lev_utage: string | null;
   bpm: string | null;
   sheets: string | null;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, createElement, useContext, useMemo, useState, useEffect, useCallback, type ReactNode } from 'react';
 import {
   getCachedScores,
   getCachedRecentPlays,
@@ -52,11 +52,11 @@ export interface LocalDataState {
   rawScores: ScoreRow[];
   fetchRecommendations: (mode: 'push_skillset' | 'farm_rating') => RecommendedTarget[];
   triggerSync: () => Promise<{ segaDown: boolean }>;
-  triggerWebDbSync: (forceSongs?: boolean) => Promise<void>;
+  triggerWebDbSync: () => Promise<void>;
   reload: () => void;
 }
 
-export function useLocalData(): LocalDataState {
+function useLocalDataSource(): LocalDataState {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [segaOffline, setSegaOffline] = useState(false);
@@ -128,6 +128,12 @@ export function useLocalData(): LocalDataState {
           lev_bas_i: s.lev_bas_i ?? undefined,
           lev_remas: s.lev_remas ?? undefined,
           lev_remas_i: s.lev_remas_i ?? undefined,
+          dx_lev_bas: s.dx_lev_bas ?? undefined,
+          dx_lev_bas_i: s.dx_lev_bas_i ?? undefined,
+          dx_lev_adv: s.dx_lev_adv ?? undefined,
+          dx_lev_adv_i: s.dx_lev_adv_i ?? undefined,
+          dx_lev_remas: s.dx_lev_remas ?? undefined,
+          dx_lev_remas_i: s.dx_lev_remas_i ?? undefined,
           lev_utage: s.lev_utage ?? undefined,
         };
         const existing = songMap.get(norm);
@@ -194,7 +200,7 @@ export function useLocalData(): LocalDataState {
     [playerSkillProfile, rawScores, rawSongs, ratingData]
   );
 
-  const triggerSync = async (): Promise<{ segaDown: boolean }> => {
+  const triggerSync = useCallback(async (): Promise<{ segaDown: boolean }> => {
     setSyncing(true);
     try {
       const res = await fullSync();
@@ -207,12 +213,12 @@ export function useLocalData(): LocalDataState {
     } finally {
       setSyncing(false);
     }
-  };
+  }, [loadLocal]);
 
-  const triggerWebDbSync = async (forceSongs: boolean = false): Promise<void> => {
+  const triggerWebDbSync = useCallback(async (): Promise<void> => {
     setSyncing(true);
     try {
-      await syncFromWebDb(forceSongs);
+      await syncFromWebDb();
       loadLocal();
     } catch (err) {
       console.error('Web DB sync error:', err);
@@ -220,9 +226,9 @@ export function useLocalData(): LocalDataState {
     } finally {
       setSyncing(false);
     }
-  };
+  }, [loadLocal]);
 
-  return {
+  return useMemo(() => ({
     loading,
     syncing,
     segaOffline,
@@ -242,5 +248,27 @@ export function useLocalData(): LocalDataState {
     triggerSync,
     triggerWebDbSync,
     reload: loadLocal,
-  };
+  }), [
+    loading, syncing, segaOffline, lastSyncedAt, currentVersion, profile, ratingData, targetSuggestions,
+    recentPlays, songsCount, clusteredSessions, lastCredit, playerSkillProfile, rawSongs, rawScores,
+    fetchRecommendations, triggerSync, triggerWebDbSync, loadLocal,
+  ]);
+}
+
+const LocalDataContext = createContext<LocalDataState | null>(null);
+
+/**
+ * Loads the local SQLite data once for the whole app. Before this each tab ran its own useLocalData(),
+ * so every tab re-read all songs/scores and recomputed rating, skill profile and sessions on the JS thread,
+ * and a sync in one tab left the others stale.
+ */
+export function LocalDataProvider({ children }: { children: ReactNode }) {
+  const value = useLocalDataSource();
+  return createElement(LocalDataContext.Provider, { value }, children);
+}
+
+export function useLocalData(): LocalDataState {
+  const ctx = useContext(LocalDataContext);
+  if (!ctx) throw new Error('useLocalData must be used inside <LocalDataProvider>');
+  return ctx;
 }

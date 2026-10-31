@@ -71,7 +71,8 @@ export function getChartConstant(
     raw = songType === 'DX' ? (song.dx_lev_exp_i || song.lev_exp_i) : (song.lev_exp_i || song.dx_lev_exp_i);
     if (!raw) raw = songType === 'DX' ? song.dx_lev_exp : song.lev_exp;
   } else if (difficulty === 'REMAS') {
-    raw = song.lev_remas_i || song.lev_remas;
+    raw = songType === 'DX' ? (song.dx_lev_remas_i || song.lev_remas_i) : (song.lev_remas_i || song.dx_lev_remas_i);
+    if (!raw) raw = songType === 'DX' ? song.dx_lev_remas : song.lev_remas;
   }
 
   if (!raw) return 11.0;
@@ -108,7 +109,7 @@ export function computeChartSkillProfile(
 
   if (song.sheets) {
     try {
-      const sheetsList = typeof song.sheets === 'string' ? JSON.parse(song.sheets) : song.sheets;
+      const sheetsList = parsedSheets(song);
       if (Array.isArray(sheetsList)) {
         const diffKey = difficulty.toLowerCase() === 'mas' ? 'master' :
                         difficulty.toLowerCase() === 'exp' ? 'expert' : 'remaster';
@@ -194,6 +195,15 @@ export function computeChartSkillProfile(
   };
 }
 
+/** Parsed `sheets` JSON per song row; rows are reused until the next data load, so parse each once. */
+const sheetsCache = new WeakMap<SongRow, unknown>();
+function parsedSheets(song: SongRow): unknown {
+  if (sheetsCache.has(song)) return sheetsCache.get(song);
+  const parsed = typeof song.sheets === 'string' ? JSON.parse(song.sheets) : song.sheets;
+  sheetsCache.set(song, parsed);
+  return parsed;
+}
+
 /**
  * Compute player's 6-axis skill stats from their Top 15 EXP/MAS/REMAS plays.
  */
@@ -273,20 +283,28 @@ export function computePlayerSkillProfile(
 /**
  * Predict achievement score for a player on a given chart.
  */
-export function predictAchievement(
-  playerProfile: PlayerSkillProfile,
-  chartProfile: ChartSkillProfile,
-  scores: ScoreRow[]
-): number {
-  // 1. Calculate player baseline near this constant
+/** Average achievement over the player's EXP/MAS/REMAS scores >= 80%, or null if there are none. */
+function scoreBaseline(scores: ScoreRow[]): number | null {
   const nearby = scores.filter(s => {
     return ['EXP', 'MAS', 'REMAS'].includes(s.difficulty) && s.achievement >= 80.0;
   });
+  if (nearby.length === 0) return null;
+  return nearby.reduce((sum, s) => sum + s.achievement, 0) / nearby.length;
+}
+
+export function predictAchievement(
+  playerProfile: PlayerSkillProfile,
+  chartProfile: ChartSkillProfile,
+  scores: ScoreRow[],
+  /** Precomputed scoreBaseline(scores); pass it when predicting many charts for the same scores. */
+  precomputedBaseline?: number | null
+): number {
+  // 1. Calculate player baseline
+  const avg = precomputedBaseline !== undefined ? precomputedBaseline : scoreBaseline(scores);
 
   let baseline = 98.5;
-  if (nearby.length > 0) {
-    const totalAchv = nearby.reduce((sum, s) => sum + s.achievement, 0);
-    baseline = totalAchv / nearby.length;
+  if (avg !== null) {
+    baseline = avg;
   } else {
     if (chartProfile.constant >= 14.5) baseline = 96.5;
     else if (chartProfile.constant >= 14.0) baseline = 97.8;
@@ -320,29 +338,30 @@ export function getRecommendations(
   songs: SongRow[],
   b50FloorRating: number = 280
 ): RecommendedTarget[] {
-  const playedKeys = new Set(
-    scores.map(s => `${normalizeTitle(s.song_title)}_${s.difficulty}_${s.song_type ?? 'DX'}`)
-  );
-
   const candidates: RecommendedTarget[] = [];
   const targetWeakSkill = playerProfile.weakestSkill;
 
+  // Index scores once (first match wins, as scores.find did); a per-chart linear scan that
+  // re-normalized every title cost ~0.4 s per call on desktop Node, far more on Hermes.
+  const scoreByChart = new Map<string, ScoreRow>();
+  for (const s of scores) {
+    const key = `${normalizeTitle(s.song_title)}_${s.difficulty}_${s.song_type ?? 'DX'}`;
+    if (!scoreByChart.has(key)) scoreByChart.set(key, s);
+  }
+  const baseline = scoreBaseline(scores);
+
   for (const song of songs) {
     const difficulties: Array<'MAS' | 'EXP' | 'REMAS'> = ['MAS', 'EXP'];
-    if (song.lev_remas) difficulties.push('REMAS');
+    if (song.dx_lev_remas || song.lev_remas) difficulties.push('REMAS');
+    const normTitle = normalizeTitle(song.title);
 
     for (const diff of difficulties) {
       const chartProfile = computeChartSkillProfile(song, diff, 'DX');
       if (chartProfile.constant < 12.0) continue; // Focus on 12.0+
 
-      const scoreKey = `${normalizeTitle(song.title)}_${diff}_DX`;
-      const existingScore = scores.find(
-        s => normalizeTitle(s.song_title) === normalizeTitle(song.title) &&
-             s.difficulty === diff &&
-             (s.song_type ?? 'DX') === 'DX'
-      );
+      const existingScore = scoreByChart.get(`${normTitle}_${diff}_DX`);
 
-      const predicted = predictAchievement(playerProfile, chartProfile, scores);
+      const predicted = predictAchievement(playerProfile, chartProfile, scores, baseline);
 
       if (mode === 'push_skillset') {
         const weakStatOnChart = chartProfile.skills[targetWeakSkill];

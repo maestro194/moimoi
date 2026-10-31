@@ -1,13 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
-  TouchableOpacity,
   ActivityIndicator,
   FlatList,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useLocalData } from '../../db/useLocalData';
@@ -24,11 +23,218 @@ import {
 } from 'lucide-react-native';
 import type { ScoreWithRating, Difficulty } from '@maimai-suite/core';
 import { JacketImage } from '@/components/JacketImage';
+import { Tap } from '@/components/Tap';
 
 type PoolFilter = 'all' | 'new' | 'old';
 type DiffFilter = 'ALL' | 'EXP' | 'MAS' | 'REMAS' | 'UTAGE';
 type SortOption = 'rating' | 'achievement' | 'level';
 type ViewMode = 'grid' | 'list' | 'matrix';
+
+interface MatrixChart {
+  title: string;
+  difficulty: string;
+  type: 'DX' | 'STD';
+  level: number;
+  imageUrl: string;
+  score?: ScoreWithRating;
+}
+
+/** Flattened rows for the virtualized list: section/level headers plus rows of cards. */
+type ListRow =
+  | { kind: 'section'; key: string; title: string; count: number; max?: number; sum?: number; first: boolean }
+  | { kind: 'cards'; key: string; items: ScoreWithRating[]; startIndex: number }
+  | { kind: 'level'; key: string; level: number; count: number; first: boolean }
+  | { kind: 'charts'; key: string; charts: MatrixChart[] };
+
+const MATRIX_CARD_W = 68;
+const MATRIX_GAP = 8;
+const LIST_PADDING_H = 16;
+
+const chartKeyOf = (s: { songTitle: string; difficulty: string; songType?: string }) =>
+  `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
+
+function SectionHeader({ title, count, max, sum }: { title: string; count: number; max?: number; sum?: number }) {
+  return (
+    <View style={styles.sectionHeaderRow}>
+      <View style={styles.sectionTitleWithCount}>
+        <Text style={styles.sectionMainTitle}>{title}</Text>
+        <Text style={styles.sectionCountText}>
+          ({count}{max ? `/${max}` : ''})
+        </Text>
+      </View>
+      {sum !== undefined && max && (
+        <View style={styles.sectionStats}>
+          <Text style={styles.sectionSumText}>Sum {sum}</Text>
+          <Text style={styles.sectionAvgText}>Avg {(sum / max).toFixed(1)}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+interface ScoreCardProps {
+  item: ScoreWithRating;
+  index: number;
+  grid: boolean;
+  b15Rank?: number;
+  b35Rank?: number;
+  onOpen: (item: ScoreWithRating) => void;
+}
+
+// Memoized so scrolling only renders rows entering the window, not every card again
+const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b35Rank, onOpen }: ScoreCardProps) {
+  const diffColor = getDifficultyColor(item.difficulty);
+  const achNum = typeof item.achievement === 'string' ? parseFloat(item.achievement) : item.achievement;
+  const rankInfo = getRankBadge(achNum);
+  const cardLabel = `${item.songTitle} ${item.difficulty}, ${achNum.toFixed(4)}%, rating ${item.rating}`;
+
+  if (grid) {
+    return (
+      <Tap label={cardLabel} style={styles.gridCard} onPress={() => onOpen(item)}>
+        <View style={[styles.gridJacketWrapper, { borderColor: diffColor }]}>
+          {item.song?.image_url ? (
+            <JacketImage imageName={item.song.image_url} style={styles.gridJacketImg} />
+          ) : (
+            <View style={[styles.gridJacketFallback, { backgroundColor: diffColor + '20' }]}>
+              <Music2 size={24} color={diffColor} />
+            </View>
+          )}
+          <View style={[styles.gridDiffBadge, { backgroundColor: diffColor }]}>
+            <Text style={styles.gridDiffBadgeText}>
+              {item.difficulty} {item.internalLevel > 0 ? item.internalLevel.toFixed(1) : '?'}
+            </Text>
+          </View>
+          {b15Rank !== undefined ? (
+            <View style={[styles.poolRankBadge, styles.b15RankBadge]}>
+              <Text style={styles.b15RankBadgeText}>B15 #{b15Rank}</Text>
+            </View>
+          ) : b35Rank !== undefined ? (
+            <View style={[styles.poolRankBadge, styles.b35RankBadge]}>
+              <Text style={styles.b35RankBadgeText}>B35 #{b35Rank}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={styles.gridSongTitle} numberOfLines={1}>
+          {item.songTitle}
+        </Text>
+
+        <View style={styles.gridStatsRow}>
+          <Text style={styles.gridAchText}>{achNum.toFixed(4)}%</Text>
+          <Text style={styles.gridRatingText}>+{item.rating}</Text>
+        </View>
+
+        <View style={styles.gridBadgesRow}>
+          <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
+            <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+          </View>
+          {item.fc && (
+            <View style={styles.fcBadge}>
+              <Text style={styles.fcText}>{item.fc}</Text>
+            </View>
+          )}
+          {item.songType === 'STD' && (
+            <View style={styles.stdBadge}>
+              <Text style={styles.stdText}>STD</Text>
+            </View>
+          )}
+        </View>
+      </Tap>
+    );
+  }
+
+  return (
+    <Tap label={cardLabel} style={styles.card} onPress={() => onOpen(item)}>
+      <View style={styles.rankIndex}>
+        <Text style={styles.rankIndexText}>#{index + 1}</Text>
+        {b15Rank !== undefined ? (
+          <View style={[styles.poolRankBadgeSmall, styles.b15RankBadge]}>
+            <Text style={styles.b15RankBadgeTextSmall}>B15</Text>
+          </View>
+        ) : b35Rank !== undefined ? (
+          <View style={[styles.poolRankBadgeSmall, styles.b35RankBadge]}>
+            <Text style={styles.b35RankBadgeTextSmall}>B35</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={[styles.jacketWrapper, { borderColor: diffColor }]}>
+        {item.song?.image_url ? (
+          <JacketImage imageName={item.song.image_url} style={styles.jacketImg} />
+        ) : (
+          <View style={[styles.jacketFallback, { backgroundColor: diffColor + '20' }]}>
+            <Music2 size={16} color={diffColor} />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.scoreInfo}>
+        <Text style={styles.songTitle} numberOfLines={1}>
+          {item.songTitle}
+        </Text>
+        <View style={styles.badgeRow}>
+          <View style={[styles.diffBadge, { backgroundColor: diffColor }]}>
+            <Text style={styles.diffBadgeText}>
+              {item.difficulty} {item.internalLevel > 0 ? item.internalLevel.toFixed(1) : '?'}
+            </Text>
+          </View>
+          <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
+            <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+          </View>
+          {item.fc && (
+            <View style={styles.fcBadge}>
+              <Text style={styles.fcText}>{item.fc}</Text>
+            </View>
+          )}
+          {item.songType === 'STD' && (
+            <View style={styles.stdBadge}>
+              <Text style={styles.stdText}>STD</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.scoreValues}>
+        <Text style={styles.achievementText}>{formatAchievement(achNum)}</Text>
+        <Text style={styles.ratingDeltaText}>+{item.rating}</Text>
+      </View>
+    </Tap>
+  );
+});
+
+const MatrixCard = React.memo(function MatrixCard({ c, onOpen }: { c: MatrixChart; onOpen: (c: MatrixChart) => void }) {
+  const diffColor = getDifficultyColor(c.difficulty);
+  const achNum = c.score ? (typeof c.score.achievement === 'string' ? parseFloat(c.score.achievement) : c.score.achievement) : 0;
+  const rankInfo = c.score ? getRankBadge(achNum) : null;
+
+  return (
+    <Tap label={`${c.title} ${c.difficulty}${c.score ? `, ${achNum.toFixed(4)}%` : ', not played'}`}
+      style={[styles.matrixCard, { borderColor: c.score ? diffColor : COLORS.borderSubtle }]}
+      onPress={() => onOpen(c)}
+    >
+      {c.imageUrl ? (
+        <JacketImage imageName={c.imageUrl} style={styles.matrixJacket} />
+      ) : (
+        <View style={[styles.matrixJacketFallback, { backgroundColor: diffColor + '20' }]}>
+          <Music2 size={16} color={diffColor} />
+        </View>
+      )}
+
+      <View style={styles.matrixCardOverlay}>
+        {rankInfo ? (
+          <View style={[styles.matrixRankBadge, { backgroundColor: rankInfo.bg }]}>
+            <Text style={[styles.matrixRankText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+          </View>
+        ) : (
+          <View style={styles.matrixUnplayedBadge}>
+            <Text style={styles.matrixUnplayedText}>--</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.matrixCardTitle} numberOfLines={1}>{c.title}</Text>
+    </Tap>
+  );
+});
 
 export default function ScoresScreen() {
   const router = useRouter();
@@ -156,22 +362,12 @@ export default function ScoresScreen() {
       scoreMap.set(`${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`, s);
     }
 
-    // Extract all chart instances from songs
-    interface ChartItem {
-      title: string;
-      difficulty: string;
-      type: 'DX' | 'STD';
-      level: number;
-      imageUrl: string;
-      score?: ScoreWithRating;
-    }
-
-    const chartsByLevel = new Map<number, ChartItem[]>();
+    const chartsByLevel = new Map<number, MatrixChart[]>();
 
     for (const song of rawSongs) {
       const diffs: Array<{ key: string; diff: string; type: 'DX' | 'STD'; img: string }> = [
         { key: song.dx_lev_mas_i || song.lev_mas_i || '', diff: 'MAS', type: song.dx_lev_mas_i ? 'DX' : 'STD', img: song.image_url || '' },
-        { key: song.lev_remas_i || '', diff: 'REMAS', type: 'DX', img: song.image_url || '' },
+        { key: song.dx_lev_remas_i || song.lev_remas_i || '', diff: 'REMAS', type: song.dx_lev_remas_i ? 'DX' : 'STD', img: song.image_url || '' },
         { key: song.dx_lev_exp_i || song.lev_exp_i || '', diff: 'EXP', type: song.dx_lev_exp_i ? 'DX' : 'STD', img: song.image_url || '' },
       ];
 
@@ -207,6 +403,101 @@ export default function ScoresScreen() {
     });
   }, [viewMode, matrixRange, hideUnplayed, rawSongs, allScores]);
 
+  const { width } = useWindowDimensions();
+  const matrixCols = Math.max(1, Math.floor((width - LIST_PADDING_H * 2 + MATRIX_GAP) / (MATRIX_CARD_W + MATRIX_GAP)));
+
+  const rows = useMemo<ListRow[]>(() => {
+    const out: ListRow[] = [];
+    if (viewMode === 'matrix') {
+      matrixData.forEach(({ level, charts }, li) => {
+        out.push({ kind: 'level', key: `lv-${level}`, level, count: charts.length, first: li === 0 });
+        for (let i = 0; i < charts.length; i += matrixCols) {
+          out.push({ kind: 'charts', key: `lv-${level}-${i}`, charts: charts.slice(i, i + matrixCols) });
+        }
+      });
+      return out;
+    }
+    const perRow = viewMode === 'grid' ? 2 : 1;
+    const sections = [
+      { id: 'b15', title: 'NEW CHARTS (B15)', items: newB15, max: 15, sum: newB15Sum },
+      { id: 'b35', title: 'OLD CHARTS (B35)', items: oldB35, max: 35, sum: oldB35Sum },
+      { id: 'newRest', title: 'NEW REMAINING', items: newRemaining },
+      { id: 'oldRest', title: 'OLD REMAINING', items: oldRemaining },
+    ];
+    for (const sec of sections) {
+      if (!sec.items.length) continue;
+      out.push({ kind: 'section', key: sec.id, title: sec.title, count: sec.items.length, max: sec.max, sum: sec.sum, first: out.length === 0 });
+      for (let i = 0; i < sec.items.length; i += perRow) {
+        out.push({ kind: 'cards', key: `${sec.id}-${i}`, items: sec.items.slice(i, i + perRow), startIndex: i });
+      }
+    }
+    return out;
+  }, [viewMode, matrixData, matrixCols, newB15, oldB35, newRemaining, oldRemaining, newB15Sum, oldB35Sum]);
+
+  const navigateToModal = useCallback((item: ScoreWithRating | MatrixChart) => {
+    const it = item as any;
+    router.push({
+      pathname: '/modal',
+      params: {
+        title: it.songTitle || it.title,
+        difficulty: it.difficulty,
+        achievement: String(it.achievement ?? it.score?.achievement ?? 0),
+        internalLevel: String(it.internalLevel ?? it.level ?? 0),
+        rating: String(it.rating ?? it.score?.rating ?? 0),
+        songType: it.songType ?? it.type ?? 'DX',
+        fc: it.fc ?? it.score?.fc ?? '',
+        fs: it.fs ?? it.score?.fs ?? '',
+        artist: it.song?.artist ?? '',
+        imageUrl: it.song?.image_url ?? it.imageUrl ?? '',
+      },
+    });
+  }, [router]);
+
+  const renderRow = useCallback(({ item: row }: { item: ListRow }) => {
+    switch (row.kind) {
+      case 'section':
+        return (
+          <View style={!row.first && styles.sectionSpacer}>
+            <SectionHeader title={row.title} count={row.count} max={row.max} sum={row.sum} />
+          </View>
+        );
+      case 'cards':
+        return (
+          <View style={viewMode === 'grid' ? styles.gridRowLine : undefined}>
+            {row.items.map((s, j) => {
+              const key = chartKeyOf(s);
+              return (
+                <ScoreCard
+                  key={key}
+                  item={s}
+                  index={row.startIndex + j}
+                  grid={viewMode === 'grid'}
+                  b15Rank={b15RankMap.get(key)}
+                  b35Rank={b35RankMap.get(key)}
+                  onOpen={navigateToModal}
+                />
+              );
+            })}
+          </View>
+        );
+      case 'level':
+        return (
+          <View style={[styles.matrixLevelHeader, !row.first && styles.levelSpacer]}>
+            <Text style={styles.matrixLevelTitle}>CONSTANT {row.level.toFixed(1)}</Text>
+            <Text style={styles.matrixLevelCount}>{row.count} charts</Text>
+          </View>
+        );
+      case 'charts':
+        return (
+          <View style={styles.matrixRowLine}>
+            {row.charts.map(c => (
+              <MatrixCard key={`${c.title}::${c.difficulty}::${c.type}`} c={c} onOpen={navigateToModal} />
+            ))}
+          </View>
+        );
+    }
+  }, [viewMode, b15RankMap, b35RankMap, navigateToModal]);
+
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
@@ -216,180 +507,12 @@ export default function ScoresScreen() {
     );
   }
 
-  const navigateToModal = (item: ScoreWithRating | any) => {
-    router.push({
-      pathname: '/modal',
-      params: {
-        title: item.songTitle || item.title,
-        difficulty: item.difficulty,
-        achievement: String(item.achievement ?? item.score?.achievement ?? 0),
-        internalLevel: String(item.internalLevel ?? item.level ?? 0),
-        rating: String(item.rating ?? item.score?.rating ?? 0),
-        songType: item.songType ?? item.type ?? 'DX',
-        fc: item.fc ?? item.score?.fc ?? '',
-        fs: item.fs ?? item.score?.fs ?? '',
-        artist: item.song?.artist ?? '',
-        imageUrl: item.song?.image_url ?? item.imageUrl ?? '',
-      },
-    });
-  };
-
-  const renderScoreCard = (item: ScoreWithRating, index: number) => {
-    const diffColor = getDifficultyColor(item.difficulty);
-    const achNum = typeof item.achievement === 'string' ? parseFloat(item.achievement) : item.achievement;
-    const rankInfo = getRankBadge(achNum);
-    const chartKey = `${item.songTitle}::${item.difficulty}::${item.songType ?? 'DX'}`;
-    const b15Rank = b15RankMap.get(chartKey);
-    const b35Rank = b35RankMap.get(chartKey);
-
-    if (viewMode === 'grid') {
-      return (
-        <TouchableOpacity
-          key={`${item.songTitle}-${item.difficulty}-${item.id}-${index}`}
-          style={styles.gridCard}
-          onPress={() => navigateToModal(item)}
-        >
-          <View style={[styles.gridJacketWrapper, { borderColor: diffColor }]}>
-            {item.song?.image_url ? (
-              <JacketImage imageName={item.song.image_url} style={styles.gridJacketImg} />
-            ) : (
-              <View style={[styles.gridJacketFallback, { backgroundColor: diffColor + '20' }]}>
-                <Music2 size={24} color={diffColor} />
-              </View>
-            )}
-            <View style={[styles.gridDiffBadge, { backgroundColor: diffColor }]}>
-              <Text style={styles.gridDiffBadgeText}>
-                {item.difficulty} {item.internalLevel > 0 ? item.internalLevel.toFixed(1) : '?'}
-              </Text>
-            </View>
-            {b15Rank !== undefined ? (
-              <View style={[styles.poolRankBadge, styles.b15RankBadge]}>
-                <Text style={styles.b15RankBadgeText}>B15 #{b15Rank}</Text>
-              </View>
-            ) : b35Rank !== undefined ? (
-              <View style={[styles.poolRankBadge, styles.b35RankBadge]}>
-                <Text style={styles.b35RankBadgeText}>B35 #{b35Rank}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <Text style={styles.gridSongTitle} numberOfLines={1}>
-            {item.songTitle}
-          </Text>
-
-          <View style={styles.gridStatsRow}>
-            <Text style={styles.gridAchText}>{achNum.toFixed(4)}%</Text>
-            <Text style={styles.gridRatingText}>+{item.rating}</Text>
-          </View>
-
-          <View style={styles.gridBadgesRow}>
-            <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-              <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
-            </View>
-            {item.fc && (
-              <View style={styles.fcBadge}>
-                <Text style={styles.fcText}>{item.fc}</Text>
-              </View>
-            )}
-            {item.songType === 'STD' && (
-              <View style={styles.stdBadge}>
-                <Text style={styles.stdText}>STD</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-      );
-    }
-
-    // List view
-    return (
-      <TouchableOpacity
-        key={`${item.songTitle}-${item.difficulty}-${item.id}-${index}`}
-        style={styles.card}
-        onPress={() => navigateToModal(item)}
-      >
-        <View style={styles.rankIndex}>
-          <Text style={styles.rankIndexText}>#{index + 1}</Text>
-          {b15Rank !== undefined ? (
-            <View style={[styles.poolRankBadgeSmall, styles.b15RankBadge]}>
-              <Text style={styles.b15RankBadgeTextSmall}>B15</Text>
-            </View>
-          ) : b35Rank !== undefined ? (
-            <View style={[styles.poolRankBadgeSmall, styles.b35RankBadge]}>
-              <Text style={styles.b35RankBadgeTextSmall}>B35</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <View style={[styles.jacketWrapper, { borderColor: diffColor }]}>
-          {item.song?.image_url ? (
-            <JacketImage imageName={item.song.image_url} style={styles.jacketImg} />
-          ) : (
-            <View style={[styles.jacketFallback, { backgroundColor: diffColor + '20' }]}>
-              <Music2 size={16} color={diffColor} />
-            </View>
-          )}
-        </View>
-
-        <View style={styles.scoreInfo}>
-          <Text style={styles.songTitle} numberOfLines={1}>
-            {item.songTitle}
-          </Text>
-          <View style={styles.badgeRow}>
-            <View style={[styles.diffBadge, { backgroundColor: diffColor }]}>
-              <Text style={styles.diffBadgeText}>
-                {item.difficulty} {item.internalLevel > 0 ? item.internalLevel.toFixed(1) : '?'}
-              </Text>
-            </View>
-            <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-              <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
-            </View>
-            {item.fc && (
-              <View style={styles.fcBadge}>
-                <Text style={styles.fcText}>{item.fc}</Text>
-              </View>
-            )}
-            {item.songType === 'STD' && (
-              <View style={styles.stdBadge}>
-                <Text style={styles.stdText}>STD</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.scoreValues}>
-          <Text style={styles.achievementText}>{formatAchievement(achNum)}</Text>
-          <Text style={styles.ratingDeltaText}>+{item.rating}</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderSectionHeader = (title: string, count: number, maxCount?: number, sum?: number) => {
-    return (
-      <View style={styles.sectionHeaderRow}>
-        <View style={styles.sectionTitleWithCount}>
-          <Text style={styles.sectionMainTitle}>{title}</Text>
-          <Text style={styles.sectionCountText}>
-            ({count}{maxCount ? `/${maxCount}` : ''})
-          </Text>
-        </View>
-        {sum !== undefined && maxCount && (
-          <View style={styles.sectionStats}>
-            <Text style={styles.sectionSumText}>Sum {sum}</Text>
-            <Text style={styles.sectionAvgText}>Avg {(sum / maxCount).toFixed(1)}</Text>
-          </View>
-        )}
-      </View>
-    );
-  };
-
   return (
     <View style={styles.container}>
       {/* Search Header */}
       <View style={styles.searchContainer}>
         <Search size={16} color={COLORS.textSubtle} style={styles.searchIcon} />
-        <TextInput
+        <TextInput accessibilityLabel="Search scores"
           style={styles.searchInput}
           placeholder="Search song title or artist…"
           placeholderTextColor={COLORS.textSubtle}
@@ -397,9 +520,9 @@ export default function ScoresScreen() {
           onChangeText={setSearch}
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <Tap label="Clear search" onPress={() => setSearch('')}>
             <X size={16} color={COLORS.textSubtle} />
-          </TouchableOpacity>
+          </Tap>
         )}
       </View>
 
@@ -417,37 +540,37 @@ export default function ScoresScreen() {
                 : `B35 (${ratingData?.oldCharts?.length ?? 0})`;
 
             return (
-              <TouchableOpacity
+              <Tap label={label} role="tab" selected={isActive}
                 key={p}
                 style={[styles.poolTab, isActive && styles.poolTabActive]}
                 onPress={() => setPoolFilter(p)}
               >
                 <Text style={[styles.poolTabText, isActive && styles.poolTabTextActive]}>{label}</Text>
-              </TouchableOpacity>
+              </Tap>
             );
           })}
         </View>
 
         {/* View Switcher: Grid, List, Matrix */}
         <View style={styles.viewSwitcher}>
-          <TouchableOpacity
+          <Tap label="Grid view" role="tab" selected={viewMode === 'grid'}
             style={[styles.viewBtn, viewMode === 'grid' && styles.viewBtnActive]}
             onPress={() => setViewMode('grid')}
           >
             <LayoutGrid size={15} color={viewMode === 'grid' ? '#fff' : COLORS.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Tap>
+          <Tap label="List view" role="tab" selected={viewMode === 'list'}
             style={[styles.viewBtn, viewMode === 'list' && styles.viewBtnActive]}
             onPress={() => setViewMode('list')}
           >
             <ListIcon size={15} color={viewMode === 'list' ? '#fff' : COLORS.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Tap>
+          <Tap label="Level matrix view" role="tab" selected={viewMode === 'matrix'}
             style={[styles.viewBtn, viewMode === 'matrix' && styles.viewBtnActive]}
             onPress={() => setViewMode('matrix')}
           >
             <BarChart2 size={15} color={viewMode === 'matrix' ? '#fff' : COLORS.textMuted} />
-          </TouchableOpacity>
+          </Tap>
         </View>
       </View>
 
@@ -459,7 +582,7 @@ export default function ScoresScreen() {
             const chipColor = d === 'ALL' ? COLORS.purpleLight : getDifficultyColor(d);
 
             return (
-              <TouchableOpacity
+              <Tap label={`Difficulty: ${d}`} selected={isActive}
                 key={d}
                 style={[
                   styles.diffChip,
@@ -475,7 +598,7 @@ export default function ScoresScreen() {
                 >
                   {d}
                 </Text>
-              </TouchableOpacity>
+              </Tap>
             );
           })}
         </View>
@@ -488,7 +611,7 @@ export default function ScoresScreen() {
           <View style={styles.sortOptions}>
             <ArrowUpDown size={12} color={COLORS.textSubtle} />
             {(['rating', 'achievement', 'level'] as const).map(s => (
-              <TouchableOpacity
+              <Tap label={`Sort by ${s}`} selected={sortBy === s}
                 key={s}
                 onPress={() => setSortBy(s)}
                 style={[styles.sortBtn, sortBy === s && styles.sortBtnActive]}
@@ -496,130 +619,51 @@ export default function ScoresScreen() {
                 <Text style={[styles.sortBtnText, sortBy === s && styles.sortBtnTextActive]}>
                   {s.charAt(0).toUpperCase() + s.slice(1)}
                 </Text>
-              </TouchableOpacity>
+              </Tap>
             ))}
           </View>
         </View>
       )}
 
-      {/* Content Area */}
-      {viewMode === 'matrix' ? (
-        /* Matrix View */
-        <ScrollView style={styles.matrixContainer} contentContainerStyle={styles.matrixContent}>
-          {/* Matrix Level Range Selector */}
-          <View style={styles.matrixRangeRow}>
-            {(['14+', '14', '13+', 'all'] as const).map(r => (
-              <TouchableOpacity
-                key={r}
-                style={[styles.rangeBtn, matrixRange === r && styles.rangeBtnActive]}
-                onPress={() => setMatrixRange(r)}
-              >
-                <Text style={[styles.rangeBtnText, matrixRange === r && styles.rangeBtnTextActive]}>
-                  {r === '14+' ? 'Lv 14.5 - 15.0' : r === '14' ? 'Lv 14.0 - 14.4' : r === '13+' ? 'Lv 13.5 - 13.9' : 'All Levels'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+      {/* Content Area: one virtualized list (grid, list or level matrix) */}
+      <FlatList
+        style={viewMode === 'matrix' ? styles.matrixContainer : styles.scrollArea}
+        contentContainerStyle={viewMode === 'matrix' ? styles.matrixContent : styles.listContent}
+        data={rows}
+        keyExtractor={row => row.key}
+        renderItem={renderRow}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews
+        ListHeaderComponent={viewMode === 'matrix' ? (
+          <View>
+            {/* Matrix Level Range Selector */}
+            <View style={styles.matrixRangeRow}>
+              {(['14+', '14', '13+', 'all'] as const).map(r => (
+                <Tap label={r === 'all' ? 'All levels' : `Level range ${r}`} selected={matrixRange === r}
+                  key={r}
+                  style={[styles.rangeBtn, matrixRange === r && styles.rangeBtnActive]}
+                  onPress={() => setMatrixRange(r)}
+                >
+                  <Text style={[styles.rangeBtnText, matrixRange === r && styles.rangeBtnTextActive]}>
+                    {r === '14+' ? 'Lv 14.5 - 15.0' : r === '14' ? 'Lv 14.0 - 14.4' : r === '13+' ? 'Lv 13.5 - 13.9' : 'All Levels'}
+                  </Text>
+                </Tap>
+              ))}
+            </View>
+
+            {/* Hide unplayed toggle */}
+            <Tap label="Hide unplayed charts" role="checkbox" checked={hideUnplayed}
+              style={styles.toggleUnplayedBtn}
+              onPress={() => setHideUnplayed(!hideUnplayed)}
+            >
+              <View style={[styles.toggleCheckbox, hideUnplayed && styles.toggleCheckboxActive]} />
+              <Text style={styles.toggleUnplayedText}>Hide unplayed charts</Text>
+            </Tap>
           </View>
-
-          {/* Hide unplayed toggle */}
-          <TouchableOpacity
-            style={styles.toggleUnplayedBtn}
-            onPress={() => setHideUnplayed(!hideUnplayed)}
-          >
-            <View style={[styles.toggleCheckbox, hideUnplayed && styles.toggleCheckboxActive]} />
-            <Text style={styles.toggleUnplayedText}>Hide unplayed charts</Text>
-          </TouchableOpacity>
-
-          {matrixData.map(({ level, charts }) => (
-            <View key={level} style={styles.matrixLevelBlock}>
-              <View style={styles.matrixLevelHeader}>
-                <Text style={styles.matrixLevelTitle}>CONSTANT {level.toFixed(1)}</Text>
-                <Text style={styles.matrixLevelCount}>{charts.length} charts</Text>
-              </View>
-
-              <View style={styles.matrixGrid}>
-                {charts.map((c, i) => {
-                  const diffColor = getDifficultyColor(c.difficulty);
-                  const achNum = c.score ? (typeof c.score.achievement === 'string' ? parseFloat(c.score.achievement) : c.score.achievement) : 0;
-                  const rankInfo = c.score ? getRankBadge(achNum) : null;
-
-                  return (
-                    <TouchableOpacity
-                      key={`${c.title}-${c.difficulty}-${i}`}
-                      style={[styles.matrixCard, { borderColor: c.score ? diffColor : COLORS.borderSubtle }]}
-                      onPress={() => navigateToModal(c)}
-                    >
-                      {c.imageUrl ? (
-                        <JacketImage imageName={c.imageUrl} style={styles.matrixJacket} />
-                      ) : (
-                        <View style={[styles.matrixJacketFallback, { backgroundColor: diffColor + '20' }]}>
-                          <Music2 size={16} color={diffColor} />
-                        </View>
-                      )}
-
-                      <View style={styles.matrixCardOverlay}>
-                        {rankInfo ? (
-                          <View style={[styles.matrixRankBadge, { backgroundColor: rankInfo.bg }]}>
-                            <Text style={[styles.matrixRankText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
-                          </View>
-                        ) : (
-                          <View style={styles.matrixUnplayedBadge}>
-                            <Text style={styles.matrixUnplayedText}>--</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.matrixCardTitle} numberOfLines={1}>{c.title}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-      ) : (
-        /* Sectioned List or Grid View */
-        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.listContent}>
-          {/* New B15 Section */}
-          {newB15.length > 0 && (
-            <View style={styles.sectionContainer}>
-              {renderSectionHeader('NEW CHARTS (B15)', newB15.length, 15, newB15Sum)}
-              <View style={viewMode === 'grid' ? styles.gridRow : undefined}>
-                {newB15.map((item, index) => renderScoreCard(item, index))}
-              </View>
-            </View>
-          )}
-
-          {/* Old B35 Section */}
-          {oldB35.length > 0 && (
-            <View style={styles.sectionContainer}>
-              {renderSectionHeader('OLD CHARTS (B35)', oldB35.length, 35, oldB35Sum)}
-              <View style={viewMode === 'grid' ? styles.gridRow : undefined}>
-                {oldB35.map((item, index) => renderScoreCard(item, index))}
-              </View>
-            </View>
-          )}
-
-          {/* New Remaining Section */}
-          {newRemaining.length > 0 && (
-            <View style={styles.sectionContainer}>
-              {renderSectionHeader('NEW REMAINING', newRemaining.length)}
-              <View style={viewMode === 'grid' ? styles.gridRow : undefined}>
-                {newRemaining.map((item, index) => renderScoreCard(item, index))}
-              </View>
-            </View>
-          )}
-
-          {/* Old Remaining Section */}
-          {oldRemaining.length > 0 && (
-            <View style={styles.sectionContainer}>
-              {renderSectionHeader('OLD REMAINING', oldRemaining.length)}
-              <View style={viewMode === 'grid' ? styles.gridRow : undefined}>
-                {oldRemaining.map((item, index) => renderScoreCard(item, index))}
-              </View>
-            </View>
-          )}
-        </ScrollView>
-      )}
+        ) : undefined}
+      />
     </View>
   );
 }
@@ -762,8 +806,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 40,
   },
-  sectionContainer: {
-    marginBottom: 20,
+  sectionSpacer: {
+    marginTop: 20,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -804,10 +848,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.cyan,
   },
-  gridRow: {
+  gridRowLine: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
+    marginBottom: 10,
     justifyContent: 'space-between',
   },
   gridCard: {
@@ -1028,8 +1072,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
   },
-  matrixLevelBlock: {
-    marginBottom: 16,
+  levelSpacer: {
+    marginTop: 8,
   },
   matrixLevelHeader: {
     flexDirection: 'row',
@@ -1050,13 +1094,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSubtle,
   },
-  matrixGrid: {
+  matrixRowLine: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: MATRIX_GAP,
+    marginBottom: MATRIX_GAP,
   },
   matrixCard: {
-    width: 68,
+    width: MATRIX_CARD_W,
     borderRadius: 10,
     borderWidth: 1.5,
     overflow: 'hidden',

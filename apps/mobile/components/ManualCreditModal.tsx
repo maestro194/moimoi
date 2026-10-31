@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Modal,
-  TouchableOpacity,
   TextInput,
   ScrollView,
   KeyboardAvoidingView,
@@ -18,6 +17,7 @@ import { X, Check, Trash2, Plus, Zap, Calculator, Sparkles, ChevronRight } from 
 import { solvePlayDetails, normalizeTitle } from '@maimai-suite/core';
 import type { SongRow, PlayLogRow } from '../db/schema';
 import { saveManualCredit, updateManualPlay, deleteManualPlay, calculateDxScoreFromDetails } from '../db/sync';
+import { Tap } from '@/components/Tap';
 
 interface MatrixRow {
   cp: string;
@@ -463,9 +463,9 @@ export default function ManualCreditModal({
               <Text style={styles.manualTagText}>MANUAL</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={12}>
+          <Tap label="Close" style={styles.closeBtn} onPress={onClose} hitSlop={12}>
             <X size={20} color={COLORS.textMuted} />
-          </TouchableOpacity>
+          </Tap>
         </View>
 
         <ScrollView
@@ -480,7 +480,7 @@ export default function ManualCreditModal({
                 const isSelected = activeTrackIdx === idx;
                 const isFilled = Boolean(tracks[idx].songTitle && tracks[idx].achievement);
                 return (
-                  <TouchableOpacity
+                  <Tap label={`Track ${idx + 1}, ${isFilled ? 'filled' : 'empty'}`} role="tab" selected={isSelected}
                     key={idx}
                     style={[styles.trackTab, isSelected && styles.trackTabActive]}
                     onPress={() => setActiveTrackIdx(idx)}
@@ -496,18 +496,18 @@ export default function ManualCreditModal({
                         ]}
                       />
                     </View>
-                  </TouchableOpacity>
+                  </Tap>
                 );
               })}
 
               {trackCount === 3 && (
-                <TouchableOpacity
+                <Tap label="Add track 4"
                   style={styles.addTrackTab}
                   onPress={() => setTrackCount(4)}
                 >
                   <Plus size={14} color={COLORS.cyan} />
                   <Text style={styles.addTrackText}>Track 4</Text>
-                </TouchableOpacity>
+                </Tap>
               )}
             </View>
           )}
@@ -518,7 +518,7 @@ export default function ManualCreditModal({
 
             {/* Song Autocomplete Search Input */}
             <View style={styles.searchBox}>
-              <TextInput
+              <TextInput accessibilityLabel="Search song"
                 style={styles.searchInput}
                 placeholder="Search song title or artist..."
                 placeholderTextColor={COLORS.textSubtle}
@@ -554,7 +554,7 @@ export default function ManualCreditModal({
             {isSearching[activeTrackIdx] && searchResults.length > 0 && (
               <View style={styles.dropdownList}>
                 {searchResults.map(song => (
-                  <TouchableOpacity
+                  <Tap label={song.title}
                     key={song.title}
                     style={styles.dropdownItem}
                     onPress={() => selectSong(song)}
@@ -568,7 +568,7 @@ export default function ManualCreditModal({
                       </Text>
                     </View>
                     <ChevronRight size={16} color={COLORS.textSubtle} />
-                  </TouchableOpacity>
+                  </Tap>
                 ))}
               </View>
             )}
@@ -577,22 +577,22 @@ export default function ManualCreditModal({
             <View style={styles.chartControlRow}>
               {/* Type Toggle */}
               <View style={styles.typeToggleGroup}>
-                <TouchableOpacity
+                <Tap label="Chart type DX" role="radio" selected={currentTrack.songType === 'DX'}
                   style={[styles.typeBtn, currentTrack.songType === 'DX' && styles.typeBtnActive]}
                   onPress={() => updateCurrentTrack({ songType: 'DX' })}
                 >
                   <Text style={[styles.typeBtnText, currentTrack.songType === 'DX' && styles.typeBtnTextActive]}>
                     DX
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </Tap>
+                <Tap label="Chart type STD" role="radio" selected={currentTrack.songType === 'STD'}
                   style={[styles.typeBtn, currentTrack.songType === 'STD' && styles.typeBtnActive]}
                   onPress={() => updateCurrentTrack({ songType: 'STD' })}
                 >
                   <Text style={[styles.typeBtnText, currentTrack.songType === 'STD' && styles.typeBtnTextActive]}>
                     STD
                   </Text>
-                </TouchableOpacity>
+                </Tap>
               </View>
 
               {/* Constant preview if available */}
@@ -610,7 +610,7 @@ export default function ManualCreditModal({
                 const isSelected = currentTrack.difficulty.toUpperCase() === diff;
                 const color = getDifficultyColor(diff);
                 return (
-                  <TouchableOpacity
+                  <Tap label={`Difficulty ${diff}`} role="radio" selected={isSelected}
                     key={diff}
                     style={[
                       styles.diffChip,
@@ -626,7 +626,7 @@ export default function ManualCreditModal({
                     >
                       {diff}
                     </Text>
-                  </TouchableOpacity>
+                  </Tap>
                 );
               })}
             </View>
@@ -643,7 +643,7 @@ export default function ManualCreditModal({
 
           {/* Section: Mode Switcher */}
           <View style={styles.modeTabBar}>
-            <TouchableOpacity
+            <Tap label="Quick score" role="tab" selected={currentTrack.entryMode === 'quick'}
               style={[styles.modeTab, currentTrack.entryMode === 'quick' && styles.modeTabActive]}
               onPress={() => updateCurrentTrack({ entryMode: 'quick' })}
             >
@@ -656,9 +656,9 @@ export default function ManualCreditModal({
               >
                 Quick Score
               </Text>
-            </TouchableOpacity>
+            </Tap>
 
-            <TouchableOpacity
+            <Tap label="Detailed judgments" role="tab" selected={currentTrack.entryMode === 'detailed'}
               style={[styles.modeTab, currentTrack.entryMode === 'detailed' && styles.modeTabActive]}
               onPress={() => updateCurrentTrack({ entryMode: 'detailed' })}
             >
@@ -671,7 +671,7 @@ export default function ManualCreditModal({
               >
                 Detailed Judgments
               </Text>
-            </TouchableOpacity>
+            </Tap>
           </View>
 
           {/* Primary Achievement Input */}
@@ -679,7 +679,7 @@ export default function ManualCreditModal({
             <View style={styles.achRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sectionLabel}>ACHIEVEMENT RATE (%)</Text>
-                <TextInput
+                <TextInput accessibilityLabel="Achievement rate"
                   style={styles.achInput}
                   placeholder="100.4128"
                   placeholderTextColor={COLORS.textSubtle}
@@ -691,7 +691,7 @@ export default function ManualCreditModal({
 
               <View style={{ width: 140 }}>
                 <Text style={styles.sectionLabel}>DX SCORE (OPTIONAL)</Text>
-                <TextInput
+                <TextInput accessibilityLabel="DX score"
                   style={styles.achInput}
                   placeholder={solverResult?.computedDx ? String(solverResult.computedDx) : '2450'}
                   placeholderTextColor={COLORS.textSubtle}
@@ -708,7 +708,7 @@ export default function ManualCreditModal({
               <View style={styles.medalGroup}>
                 <Text style={styles.medalLabel}>Combo:</Text>
                 {FC_OPTIONS.map(opt => (
-                  <TouchableOpacity
+                  <Tap label={`Full combo: ${opt}`} selected={currentTrack.fc === opt}
                     key={opt}
                     style={[
                       styles.medalChip,
@@ -724,14 +724,14 @@ export default function ManualCreditModal({
                     >
                       {opt || 'None'}
                     </Text>
-                  </TouchableOpacity>
+                  </Tap>
                 ))}
               </View>
 
               <View style={styles.medalGroup}>
                 <Text style={styles.medalLabel}>Sync:</Text>
                 {FS_OPTIONS.map(opt => (
-                  <TouchableOpacity
+                  <Tap label={`Full sync: ${opt}`} selected={currentTrack.fs === opt}
                     key={opt}
                     style={[
                       styles.medalChip,
@@ -747,7 +747,7 @@ export default function ManualCreditModal({
                     >
                       {opt || 'None'}
                     </Text>
-                  </TouchableOpacity>
+                  </Tap>
                 ))}
               </View>
             </View>
@@ -778,7 +778,7 @@ export default function ManualCreditModal({
                     {type.toUpperCase()}
                   </Text>
                   {(['cp', 'p', 'gr', 'go', 'miss'] as const).map(col => (
-                    <TextInput
+                    <TextInput accessibilityLabel={`${type} ${{ cp: 'critical perfect', p: 'perfect', gr: 'great', go: 'good', miss: 'miss' }[col]}`}
                       key={col}
                       style={styles.matrixInput}
                       placeholder="0"
@@ -795,7 +795,7 @@ export default function ManualCreditModal({
               <View style={styles.timingRow}>
                 <View style={styles.timingCol}>
                   <Text style={styles.timingLabel}>FAST</Text>
-                  <TextInput
+                  <TextInput accessibilityLabel="Fast"
                     style={styles.timingInput}
                     placeholder="0"
                     placeholderTextColor={COLORS.textSubtle}
@@ -807,7 +807,7 @@ export default function ManualCreditModal({
 
                 <View style={styles.timingCol}>
                   <Text style={styles.timingLabel}>LATE</Text>
-                  <TextInput
+                  <TextInput accessibilityLabel="Late"
                     style={styles.timingInput}
                     placeholder="0"
                     placeholderTextColor={COLORS.textSubtle}
@@ -819,7 +819,7 @@ export default function ManualCreditModal({
 
                 <View style={styles.timingCol}>
                   <Text style={styles.timingLabel}>MAX COMBO</Text>
-                  <TextInput
+                  <TextInput accessibilityLabel="Max combo"
                     style={styles.timingInput}
                     placeholder="0"
                     placeholderTextColor={COLORS.textSubtle}
@@ -871,7 +871,7 @@ export default function ManualCreditModal({
 
           {/* Submit & Action Buttons */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity
+            <Tap label={submitting ? 'Saving' : isEditMode ? 'Save changes' : `Log credit, ${trackCount} tracks`}
               style={[styles.saveBtn, submitting && styles.saveBtnDisabled]}
               onPress={handleSave}
               disabled={submitting}
@@ -883,17 +883,17 @@ export default function ManualCreditModal({
                   {isEditMode ? 'Save Changes' : `Log Credit (${trackCount} Tracks)`}
                 </Text>
               )}
-            </TouchableOpacity>
+            </Tap>
 
             {isEditMode && (
-              <TouchableOpacity
+              <Tap label="Delete play"
                 style={styles.deleteBtn}
                 onPress={handleDelete}
                 disabled={submitting}
               >
                 <Trash2 size={16} color={COLORS.red} />
                 <Text style={styles.deleteBtnText}>Delete Play</Text>
-              </TouchableOpacity>
+              </Tap>
             )}
           </View>
         </ScrollView>
@@ -1257,7 +1257,7 @@ const styles = StyleSheet.create({
   },
   matrixInput: {
     flex: 1,
-    height: 36,
+    height: 44, // minimum touch target
     backgroundColor: COLORS.surfaceLight,
     borderRadius: 6,
     borderWidth: 1,
@@ -1283,7 +1283,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   timingInput: {
-    height: 36,
+    height: 44, // minimum touch target
     backgroundColor: COLORS.surfaceLight,
     borderRadius: 6,
     borderWidth: 1,
