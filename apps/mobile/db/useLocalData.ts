@@ -23,6 +23,8 @@ import {
   type RecommendedTarget,
 } from './recommend';
 import {
+  computeFoil,
+  type FoilInfo,
   computeRating,
   normalizeTitle,
   detectCurrentVersion,
@@ -50,6 +52,8 @@ export interface LocalDataState {
   playerSkillProfile: PlayerSkillProfile | null;
   rawSongs: SongRow[];
   rawScores: ScoreRow[];
+  /** Foil per B50 chart, keyed by foilKey() from @maimai-suite/core. */
+  foil: Map<string, FoilInfo>;
   fetchRecommendations: (mode: 'push_skillset' | 'farm_rating') => RecommendedTarget[];
   triggerSync: () => Promise<{ segaDown: boolean }>;
   triggerWebDbSync: () => Promise<void>;
@@ -228,6 +232,11 @@ function useLocalDataSource(): LocalDataState {
     }
   }, [loadLocal]);
 
+  const foil = useMemo(
+    () => (ratingData ? computeFoil(ratingData.newCharts, ratingData.oldCharts) : new Map<string, FoilInfo>()),
+    [ratingData],
+  );
+
   return useMemo(() => ({
     loading,
     syncing,
@@ -244,13 +253,14 @@ function useLocalDataSource(): LocalDataState {
     playerSkillProfile,
     rawSongs,
     rawScores,
+    foil,
     fetchRecommendations,
     triggerSync,
     triggerWebDbSync,
     reload: loadLocal,
   }), [
     loading, syncing, segaOffline, lastSyncedAt, currentVersion, profile, ratingData, targetSuggestions,
-    recentPlays, songsCount, clusteredSessions, lastCredit, playerSkillProfile, rawSongs, rawScores,
+    recentPlays, songsCount, clusteredSessions, lastCredit, playerSkillProfile, rawSongs, rawScores, foil,
     fetchRecommendations, triggerSync, triggerWebDbSync, loadLocal,
   ]);
 }

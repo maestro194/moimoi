@@ -1,0 +1,185 @@
+/*
+ * Foil for B50 cards (rules in lib/foil.ts, mirrored from packages/core).
+ * Everything that moves is a transform or opacity on its own layer, so the browser composites it
+ * instead of repainting the card each frame:
+ * - .edge: an oversized conic gradient rotated behind the card; .frame's padding leaves it showing as the foil edge
+ * - .band: a wave of colour translated across the card
+ * - .glow: the recent-best shimmer, pulsing in opacity
+ */
+
+.root {
+  position: relative;
+}
+
+.frame {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 14px;
+  padding: 2px;
+}
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+.edge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(300%, 480px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.tint,
+.band {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  mix-blend-mode: screen;
+}
+
+/* the band is wider than the card and slides from one side to the other */
+.band {
+  inset: 0 -100%;
+  translate: -35% 0;
+}
+
+/* ── tiers ── */
+.secret {
+  padding: 3px;
+  box-shadow: 0 0 28px -4px rgba(199, 155, 255, 0.8);
+}
+.secret .edge {
+  background: conic-gradient(#ff8fd8, #ffe08a, #8affc1, #8ad8ff, #c79bff, #ff8fd8);
+}
+.secret .tint {
+  background: linear-gradient(125deg, rgba(255, 143, 216, 0.16), rgba(255, 224, 138, 0.1), rgba(138, 255, 193, 0.1), rgba(138, 216, 255, 0.16), rgba(199, 155, 255, 0.16));
+}
+.secret .band {
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 143, 216, 0.4) 42%, rgba(255, 224, 138, 0.4) 44.5%, rgba(138, 255, 193, 0.4) 47%, rgba(138, 216, 255, 0.4) 49.5%, rgba(199, 155, 255, 0.4) 52%, transparent 56%);
+}
+
+.gold {
+  padding: 2.5px;
+  box-shadow: 0 0 22px -6px rgba(245, 196, 81, 0.75);
+}
+.gold .edge {
+  background: conic-gradient(#8a5a12, #ffe49a, #c8922a, #fff3c4, #a8701c, #ffe49a, #8a5a12);
+}
+.gold .tint {
+  background: linear-gradient(125deg, rgba(255, 228, 154, 0.12), rgba(200, 146, 42, 0.06), rgba(255, 243, 196, 0.12));
+}
+.gold .band {
+  background: linear-gradient(115deg, transparent 39%, rgba(200, 146, 42, 0.3) 43%, rgba(255, 228, 154, 0.4) 46%, rgba(255, 250, 225, 0.42) 47.5%, rgba(255, 214, 120, 0.34) 49.5%, rgba(168, 112, 28, 0.28) 52.5%, transparent 56%);
+}
+
+.silver {
+  box-shadow: 0 0 16px -8px rgba(223, 230, 239, 0.7);
+}
+.silver .edge {
+  background: conic-gradient(#7d8796, #eef2f7, #9aa3b2, #ffffff, #7d8796, #eef2f7, #7d8796);
+}
+.silver .tint {
+  background: linear-gradient(125deg, rgba(238, 242, 247, 0.08), rgba(154, 163, 178, 0.03), rgba(255, 255, 255, 0.08));
+}
+.silver .band {
+  background: linear-gradient(115deg, transparent 40%, rgba(200, 212, 255, 0.24) 44%, rgba(255, 255, 255, 0.28) 46.5%, rgba(255, 214, 240, 0.24) 49%, rgba(200, 255, 240, 0.22) 51.5%, transparent 55%);
+}
+
+/* rating number printed in foil */
+.rating {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+.rating-secret { background-image: linear-gradient(90deg, #ffe08a, #ff8fd8, #8ad8ff, #c79bff); }
+.rating-gold { background-image: linear-gradient(90deg, #fff3c4, #f5c451, #c8922a); }
+.rating-silver { background-image: linear-gradient(90deg, #ffffff, #c9d1dc, #8e98a8); }
+
+/* ── recent best: blue outline + glow that fades with --fresh (1 → 0 over 30 days) ── */
+.glow {
+  position: absolute;
+  inset: -3px;
+  border-radius: 17px;
+  pointer-events: none;
+  z-index: 3;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, #7fb2ff calc(var(--fresh) * 100%), transparent),
+    0 0 calc(4px + 26px * var(--fresh)) -4px color-mix(in srgb, #7fb2ff calc(var(--fresh) * 100%), transparent);
+}
+
+.tag,
+.crown {
+  position: absolute;
+  top: -8px;
+  z-index: 4;
+  font-size: 9.5px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 4px 7px;
+  border-radius: 5px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.tag {
+  right: 10px;
+  background: #7fb2ff;
+  color: #061423;
+}
+.crown {
+  left: 10px;
+  background: linear-gradient(90deg, #ffe49a, #c8922a);
+  color: #2a1d00;
+}
+.top1 {
+  outline: 2px solid #ffe49a;
+  outline-offset: 3px;
+}
+
+/* ── motion: on by default, off for reduced motion, the "Foil animation" setting, or cards off screen ── */
+@keyframes spin {
+  to { rotate: 360deg; }
+}
+@keyframes sweep {
+  0%, 100% { translate: -35% 0; }
+  50% { translate: 35% 0; }
+}
+@keyframes pulse {
+  50% { opacity: 0.55; }
+}
+
+.secret .edge { animation: spin 5s linear infinite; }
+.gold .edge { animation: spin 11s linear infinite; }
+.silver .edge { animation: spin 16s linear infinite; }
+.secret .band { animation: sweep 4s ease-in-out infinite; }
+.gold .band { animation: sweep 5s ease-in-out infinite; }
+.silver .band { animation: sweep 6.5s ease-in-out infinite; }
+.glow { animation: pulse 2.6s ease-in-out infinite; }
+
+.root[data-offscreen] .edge,
+.root[data-offscreen] .band,
+.root[data-offscreen] .glow {
+  animation-play-state: paused;
+}
+
+:global(html[data-foil='static']) .edge,
+:global(html[data-foil='static']) .band,
+:global(html[data-foil='static']) .glow {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge,
+  .band,
+  .glow {
+    animation: none;
+  }
+}

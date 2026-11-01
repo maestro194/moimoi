@@ -3,3 +3,4 @@ export * from './rating';
 export * from './accuracy-solver';
 export * from './normalize';
 export * from './version';
+export * from './foil';

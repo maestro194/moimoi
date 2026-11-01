@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Save, CheckCircle, AlertCircle, Globe, RefreshCw, Trash2, Database, X } from 'lucide-react';
 import { bustSongsCache } from '@/app/songs/songs-client';
+import { useFoilAnimation } from '@/components/foil-card';
 
 export default function SettingsClient() {
   const [segaId, setSegaId] = useState('');
@@ -19,6 +20,7 @@ export default function SettingsClient() {
   const [refreshDbMsg, setRefreshDbMsg] = useState<{ ok: boolean; text: string } | null>(null);
   
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [foilAnimated, setFoilAnimated] = useFoilAnimation();
 
   useEffect(() => {
     fetch('/api/settings').then(r => r.json()).then(d => {
@@ -136,6 +138,25 @@ export default function SettingsClient() {
             {saveMsg.text}
           </div>
         )}
+      </div>
+
+      {/* Display */}
+      <div className="glass rounded-2xl p-5 border mb-5" style={{ borderColor: 'var(--border)' }}>
+        <h2 className="font-semibold text-sm mb-1">Display</h2>
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={foilAnimated}
+            onChange={e => setFoilAnimated(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-purple-500"
+          />
+          <span>
+            <span className="text-sm font-medium">Foil animation</span>
+            <span className="block text-xs mt-0.5" style={{ color: 'var(--foreground-muted)' }}>
+              Moving foil edges and light on your best B50 cards. When off, the cards keep a still foil. Always off if your system asks for reduced motion.
+            </span>
+          </span>
+        </label>
       </div>
 
       {process.env.NODE_ENV === 'development' && (

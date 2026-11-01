@@ -7,15 +7,18 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Switch,
 } from 'react-native';
 import { API_URL, fullSync, syncFromWebDb, getCacheStats, clearLocalData } from '../../db/sync';
 import { COLORS } from '../../constants/Theme';
-import { Globe, Database, Trash2, RefreshCw, Key, ShieldCheck } from 'lucide-react-native';
+import { Globe, Database, Trash2, RefreshCw, Key, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { Tap } from '@/components/Tap';
 import { useLocalData } from '@/db/useLocalData';
+import { useFoilAnimation } from '@/db/foilPref';
 
 export default function SettingsScreen() {
   const { reload } = useLocalData();
+  const [foilAnimated, setFoilAnimated] = useFoilAnimation();
   const [region, setRegion] = useState<'intl' | 'jp'>('intl');
   const [segaId, setSegaId] = useState('');
   const [password, setPassword] = useState('');
@@ -195,6 +198,28 @@ export default function SettingsScreen() {
         </Tap>
       </View>
 
+      {/* Display */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Sparkles size={18} color={COLORS.amber} />
+          <Text style={styles.cardTitle}>Display</Text>
+        </View>
+        <View style={styles.switchRow}>
+          <View style={styles.switchText}>
+            <Text style={styles.switchLabel}>Foil animation</Text>
+            <Text style={styles.switchDesc}>
+              Moving foil edges and light on your best B50 cards. When off, the cards keep a still foil. Always off when Reduce Motion is on.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Foil animation"
+            value={foilAnimated}
+            onValueChange={setFoilAnimated}
+            trackColor={{ true: COLORS.purple, false: COLORS.border }}
+          />
+        </View>
+      </View>
+
       {/* Local Storage & Cache Stats */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -286,6 +311,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  switchText: {
+    flex: 1,
+  },
+  switchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  switchDesc: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    lineHeight: 18,
+    marginTop: 2,
   },
   cardDesc: {
     fontSize: 12,

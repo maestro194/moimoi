@@ -16,6 +16,8 @@ import { RefreshCw, Sparkles, TrendingUp, Trophy, ArrowRight, Music2, User, Targ
 import { JacketImage } from '@/components/JacketImage';
 import { formatTime } from '@/constants/time';
 import { Tap } from '@/components/Tap';
+import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
+import { foilKey } from '@maimai-suite/core';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -29,6 +31,7 @@ export default function DashboardScreen() {
     songsCount,
     triggerSync,
     reload,
+    foil,
   } = useLocalData();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -223,11 +226,14 @@ export default function DashboardScreen() {
         topScores.map((item, index) => {
           const diffColor = getDifficultyColor(item.difficulty);
           const rankInfo = getRankBadge(typeof item.achievement === 'string' ? parseFloat(item.achievement) : item.achievement);
+          const itemFoil = foil.get(foilKey(item));
+          const framed = hasFoil(itemFoil);
+          const ratingColor = foilRatingColor(itemFoil);
 
-          return (
+          const row = (
             <Tap label={`${item.songTitle} ${item.difficulty}, ${Number(item.achievement).toFixed(4)}%, rating ${item.rating}`}
               key={`${item.songTitle}-${item.difficulty}-${index}`}
-              style={styles.scoreRow}
+              style={[styles.scoreRow, framed && styles.scoreRowInFoil]}
               onPress={() => {
                 router.push({
                   pathname: '/modal',
@@ -288,10 +294,15 @@ export default function DashboardScreen() {
                 <Text style={styles.achievementText}>
                   {formatAchievement(typeof item.achievement === 'string' ? parseFloat(item.achievement) : item.achievement)}
                 </Text>
-                <Text style={styles.ratingDeltaText}>+{item.rating}</Text>
+                <Text style={[styles.ratingDeltaText, ratingColor ? { color: ratingColor } : null]}>+{item.rating}</Text>
               </View>
             </Tap>
           );
+          return framed ? (
+            <FoilFrame key={`${item.songTitle}-${item.difficulty}-${index}`} foil={itemFoil} radius={16} style={styles.scoreFoilRoot}>
+              {row}
+            </FoilFrame>
+          ) : row;
         })
       )}
 
@@ -571,6 +582,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
+  },
+  scoreFoilRoot: {
+    marginBottom: 10,
+  },
+  scoreRowInFoil: {
+    marginBottom: 0,
   },
   scoreRow: {
     flexDirection: 'row',

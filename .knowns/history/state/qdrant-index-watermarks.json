@@ -44,11 +44,20 @@
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true
   },
+  "task:MO-7Q2YGD": {
+    "entityType": "task",
+    "entityId": "MO-7Q2YGD",
+    "canonicalHash": "f0f80458903098ccb533edd361febe9b60a292433e1bf6b37c927ce2639c3cf8",
+    "revision": 1,
+    "path": "tasks/MO-7Q2YGD.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
   "task:MO-7QX1G0": {
     "entityType": "task",
     "entityId": "MO-7QX1G0",
-    "canonicalHash": "7e8ddc2dac1095cdbb5d1aa9d57bc19a84d69e1b83a681fe571cb5a0129aae23",
-    "revision": 1,
+    "canonicalHash": "460c018370af74f03ba72bf19668b767eae3781e3e4a89668809615e4952f01d",
+    "revision": 2,
     "path": "tasks/MO-7QX1G0.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true
@@ -101,8 +110,8 @@
   "task:MO-FQJWP2": {
     "entityType": "task",
     "entityId": "MO-FQJWP2",
-    "canonicalHash": "a8c2780e7fa53dcc1e432f94493bafbb4140c2cfed4a6c1e731e1550380d460a",
-    "revision": 1,
+    "canonicalHash": "6f1bcc3361d56b723f364e11b7542c9108fd2ad38af752f74a60c43682f19e17",
+    "revision": 4,
     "path": "tasks/MO-FQJWP2.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true
@@ -239,6 +248,15 @@
     "canonicalHash": "19dd534bcb5cbe1f9d1940ebc84877d13210fa47d6e6664c75f734958d86a69a",
     "revision": 6,
     "path": "tasks/MO-VT069M.md",
+    "indexedAt": "0001-01-01T00:00:00Z",
+    "stale": true
+  },
+  "task:MO-VWFTGZ": {
+    "entityType": "task",
+    "entityId": "MO-VWFTGZ",
+    "canonicalHash": "070368a60830c225bf66d5a1228fb3c88b07981272d4c66338125e4f16b1b107",
+    "revision": 5,
+    "path": "tasks/MO-VWFTGZ.md",
     "indexedAt": "0001-01-01T00:00:00Z",
     "stale": true
   },

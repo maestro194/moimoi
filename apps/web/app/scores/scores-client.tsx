@@ -9,6 +9,8 @@ import { getJacketUrl } from '@/lib/song-db';
 import { Jacket } from '@/components/jacket';
 import { SyncBar } from '@/components/sync-bar';
 import { ChartDetailDrawer } from '@/components/chart-detail-drawer';
+import { FoilCard, foilRatingClass } from '@/components/foil-card';
+import { foilKey, type FoilInfo } from '@/lib/foil';
 
 interface Props {
   scored: ScoreWithRating[];
@@ -18,6 +20,8 @@ interface Props {
   oldRating: number;
   profile: PlayerProfile;
   lastSync: string | null;
+  /** Foil per B50 chart, keyed by foilKey() (computed on the server from the real B50). */
+  foil: Record<string, FoilInfo>;
 }
 
 const DIFF_ORDER: Difficulty[] = ['REMAS', 'MAS', 'EXP', 'ADV', 'BAS'];
@@ -47,7 +51,7 @@ function DiffBadge({ diff }: { diff: string }) {
 
 import { FCBadge, FSBadge } from '@/components/badges';
 
-export default function ScoresClient({ scored, total, totalRating, newRating, oldRating, profile, lastSync }: Props) {
+export default function ScoresClient({ scored, total, totalRating, newRating, oldRating, profile, lastSync, foil }: Props) {
   const [query, setQuery] = useState('');
   const [diff, setDiff] = useState<'ALL' | Difficulty>('ALL');
   const [sort, setSort] = useState<'rating' | 'achievement' | 'title'>('rating');
@@ -124,7 +128,10 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
         
         {view === 'grid' ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {data.map((s, i) => <B50Card key={s.id} score={s} index={i} animated={limit !== null} onSelect={openDrawer} />)}
+            {data.map((s, i) => (
+              <B50Card key={s.id} score={s} index={i} animated={limit !== null} onSelect={openDrawer}
+                foil={limit !== null ? foil[foilKey(s)] : undefined} />
+            ))}
           </div>
         ) : (
           <div className="glass rounded-xl overflow-hidden divide-y divide-white/5">
@@ -331,18 +338,22 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
   );
 }
 
-function B50Card({ score: s, index = 0, animated = false, onSelect }: { score: ScoreWithRating, index?: number, animated?: boolean, onSelect?: (s: ScoreWithRating) => void }) {
+function B50Card({ score: s, index = 0, animated = false, onSelect, foil }: { score: ScoreWithRating, index?: number, animated?: boolean, onSelect?: (s: ScoreWithRating) => void, foil?: FoilInfo }) {
   const diffColor = DIFF_COLOR[s.difficulty] ?? '#fff';
   const isDX = s.songType === 'DX';
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl h-[160px] group shadow-lg hover:scale-105 hover:-translate-y-1 transition-transform duration-300 cursor-pointer ${animated ? 'animate-slide-up' : ''}`}
-      style={{ 
-        border: `2.5px solid ${diffColor}`,
+    <FoilCard
+      foil={foil}
+      className={`hover:scale-105 hover:-translate-y-1 transition-transform duration-300 ${animated ? 'animate-slide-up' : ''}`}
+      style={{
         animationDelay: animated ? `${index * 0.03}s` : undefined,
         animationFillMode: animated ? 'both' : undefined
       }}
+    >
+    <div
+      className="relative overflow-hidden rounded-xl h-[160px] group shadow-lg cursor-pointer"
+      style={{ border: `2.5px solid ${diffColor}` }}
       onClick={() => onSelect?.(s)}
     >
       {/* Background Image */}
@@ -392,12 +403,14 @@ function B50Card({ score: s, index = 0, animated = false, onSelect }: { score: S
                 </span>
               )}
             </div>
-            <div className="text-[16px] md:text-lg font-bold font-num leading-none tracking-tight tabular-nums drop-shadow-md" style={{ color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
+            <div className={`text-[16px] md:text-lg font-bold font-num leading-none tracking-tight tabular-nums drop-shadow-md ${foilRatingClass(foil)}`}
+              style={foil?.tier ? undefined : { color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
               {s.rating}
             </div>
           </div>
         </div>
       </div>
     </div>
+    </FoilCard>
   );
 }

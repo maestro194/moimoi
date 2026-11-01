@@ -24,6 +24,8 @@ import {
 import type { ScoreWithRating, Difficulty } from '@maimai-suite/core';
 import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
+import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
+import type { FoilInfo } from '@maimai-suite/core';
 
 type PoolFilter = 'all' | 'new' | 'old';
 type DiffFilter = 'ALL' | 'EXP' | 'MAS' | 'REMAS' | 'UTAGE';
@@ -42,7 +44,7 @@ interface MatrixChart {
 /** Flattened rows for the virtualized list: section/level headers plus rows of cards. */
 type ListRow =
   | { kind: 'section'; key: string; title: string; count: number; max?: number; sum?: number; first: boolean }
-  | { kind: 'cards'; key: string; items: ScoreWithRating[]; startIndex: number }
+  | { kind: 'cards'; key: string; items: ScoreWithRating[]; startIndex: number; inB50: boolean }
   | { kind: 'level'; key: string; level: number; count: number; first: boolean }
   | { kind: 'charts'; key: string; charts: MatrixChart[] };
 
@@ -78,11 +80,25 @@ interface ScoreCardProps {
   grid: boolean;
   b15Rank?: number;
   b35Rank?: number;
+  /** Only set for cards in the B15/B35 sections. */
+  foil?: FoilInfo;
   onOpen: (item: ScoreWithRating) => void;
 }
 
 // Memoized so scrolling only renders rows entering the window, not every card again
-const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b35Rank, onOpen }: ScoreCardProps) {
+const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b35Rank, foil, onOpen }: ScoreCardProps) {
+  const card = <ScoreCardBody item={item} index={index} grid={grid} b15Rank={b15Rank} b35Rank={b35Rank} foil={foil} onOpen={onOpen} />;
+  if (!hasFoil(foil)) return card;
+  return (
+    <FoilFrame foil={foil} radius={grid ? 16 : 14} style={grid ? styles.gridFoilRoot : styles.listFoilRoot}>
+      {card}
+    </FoilFrame>
+  );
+});
+
+function ScoreCardBody({ item, index, grid, b15Rank, b35Rank, foil, onOpen }: ScoreCardProps) {
+  const framed = hasFoil(foil);
+  const ratingColor = foilRatingColor(foil);
   const diffColor = getDifficultyColor(item.difficulty);
   const achNum = typeof item.achievement === 'string' ? parseFloat(item.achievement) : item.achievement;
   const rankInfo = getRankBadge(achNum);
@@ -90,7 +106,7 @@ const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b3
 
   if (grid) {
     return (
-      <Tap label={cardLabel} style={styles.gridCard} onPress={() => onOpen(item)}>
+      <Tap label={cardLabel} style={[styles.gridCard, framed && styles.cardInFoil]} onPress={() => onOpen(item)}>
         <View style={[styles.gridJacketWrapper, { borderColor: diffColor }]}>
           {item.song?.image_url ? (
             <JacketImage imageName={item.song.image_url} style={styles.gridJacketImg} />
@@ -121,7 +137,7 @@ const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b3
 
         <View style={styles.gridStatsRow}>
           <Text style={styles.gridAchText}>{achNum.toFixed(4)}%</Text>
-          <Text style={styles.gridRatingText}>+{item.rating}</Text>
+          <Text style={[styles.gridRatingText, ratingColor ? { color: ratingColor } : null]}>+{item.rating}</Text>
         </View>
 
         <View style={styles.gridBadgesRow}>
@@ -144,7 +160,7 @@ const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b3
   }
 
   return (
-    <Tap label={cardLabel} style={styles.card} onPress={() => onOpen(item)}>
+    <Tap label={cardLabel} style={[styles.card, framed && styles.cardInFoil]} onPress={() => onOpen(item)}>
       <View style={styles.rankIndex}>
         <Text style={styles.rankIndexText}>#{index + 1}</Text>
         {b15Rank !== undefined ? (
@@ -196,11 +212,11 @@ const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b3
 
       <View style={styles.scoreValues}>
         <Text style={styles.achievementText}>{formatAchievement(achNum)}</Text>
-        <Text style={styles.ratingDeltaText}>+{item.rating}</Text>
+        <Text style={[styles.ratingDeltaText, ratingColor ? { color: ratingColor } : null]}>+{item.rating}</Text>
       </View>
     </Tap>
   );
-});
+}
 
 const MatrixCard = React.memo(function MatrixCard({ c, onOpen }: { c: MatrixChart; onOpen: (c: MatrixChart) => void }) {
   const diffColor = getDifficultyColor(c.difficulty);
@@ -238,7 +254,7 @@ const MatrixCard = React.memo(function MatrixCard({ c, onOpen }: { c: MatrixChar
 
 export default function ScoresScreen() {
   const router = useRouter();
-  const { loading, ratingData, rawSongs } = useLocalData();
+  const { loading, ratingData, rawSongs, foil } = useLocalData();
 
   const [search, setSearch] = useState('');
   const [poolFilter, setPoolFilter] = useState<PoolFilter>('all');
@@ -428,7 +444,7 @@ export default function ScoresScreen() {
       if (!sec.items.length) continue;
       out.push({ kind: 'section', key: sec.id, title: sec.title, count: sec.items.length, max: sec.max, sum: sec.sum, first: out.length === 0 });
       for (let i = 0; i < sec.items.length; i += perRow) {
-        out.push({ kind: 'cards', key: `${sec.id}-${i}`, items: sec.items.slice(i, i + perRow), startIndex: i });
+        out.push({ kind: 'cards', key: `${sec.id}-${i}`, items: sec.items.slice(i, i + perRow), startIndex: i, inB50: sec.id === 'b15' || sec.id === 'b35' });
       }
     }
     return out;
@@ -474,6 +490,7 @@ export default function ScoresScreen() {
                   grid={viewMode === 'grid'}
                   b15Rank={b15RankMap.get(key)}
                   b35Rank={b35RankMap.get(key)}
+                  foil={row.inB50 ? foil.get(key) : undefined}
                   onOpen={navigateToModal}
                 />
               );
@@ -496,7 +513,7 @@ export default function ScoresScreen() {
           </View>
         );
     }
-  }, [viewMode, b15RankMap, b35RankMap, navigateToModal]);
+  }, [viewMode, b15RankMap, b35RankMap, foil, navigateToModal]);
 
   if (loading) {
     return (
@@ -853,6 +870,18 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 10,
     justifyContent: 'space-between',
+  },
+  // A foil frame takes the card's place in the row; the card inside then fills it
+  gridFoilRoot: {
+    width: '48%',
+    marginBottom: 4,
+  },
+  listFoilRoot: {
+    marginBottom: 8,
+  },
+  cardInFoil: {
+    width: '100%',
+    marginBottom: 0,
   },
   gridCard: {
     width: '48%',
