@@ -18,6 +18,7 @@ import { solvePlayDetails, normalizeTitle } from '@maimai-suite/core';
 import type { SongRow, PlayLogRow } from '../db/schema';
 import { saveManualCredit, updateManualPlay, deleteManualPlay, calculateDxScoreFromDetails } from '../db/sync';
 import { Tap } from '@/components/Tap';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MatrixRow {
   cp: string;
@@ -90,6 +91,8 @@ export default function ManualCreditModal({
   songs,
   initialPlay,
 }: ManualCreditModalProps) {
+  // Full-screen RN Modal draws under the status bar and home indicator, so pad by the real insets
+  const insets = useSafeAreaInsets();
   const isEditMode = Boolean(initialPlay);
   const [activeTrackIdx, setActiveTrackIdx] = useState(0);
   const [trackCount, setTrackCount] = useState(3);
@@ -454,7 +457,7 @@ export default function ManualCreditModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           <View style={styles.headerTitleRow}>
             <Text style={styles.headerTitle}>
               {isEditMode ? 'Edit Manual Play' : 'Log Arcade Credit'}
@@ -470,7 +473,7 @@ export default function ManualCreditModal({
 
         <ScrollView
           style={styles.scrollArea}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 16 }]}
           keyboardShouldPersistTaps="handled"
         >
           {/* Track Selector Tabs (In credit mode) */}
@@ -912,7 +915,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 54 : 20,
     paddingBottom: 16,
     backgroundColor: COLORS.surface,
     borderBottomWidth: 1,

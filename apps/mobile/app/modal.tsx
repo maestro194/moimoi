@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, getDifficultyColor, getRankBadge, formatAchievement } from '../constants/Theme';
 import {
   Music2,
@@ -29,6 +30,8 @@ import { Tap } from '@/components/Tap';
 
 export default function SongDetailModal() {
   const router = useRouter();
+  // Full-height on Android edge-to-edge: keep the last content clear of the gesture bar
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     title: string;
     difficulty: string;
@@ -175,7 +178,7 @@ export default function SongDetailModal() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 18 }]}>
         {/* Jacket Art with 2.5px difficulty border */}
         <View style={styles.jacketWrapper}>
           <View style={[styles.jacketBorder, { borderColor: diffColor }]}>
