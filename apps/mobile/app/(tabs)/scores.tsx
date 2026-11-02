@@ -21,7 +21,7 @@ import {
   BarChart2,
   Trophy,
 } from 'lucide-react-native';
-import type { ScoreWithRating, Difficulty } from '@maimai-suite/core';
+import { chartKey, type ScoreWithRating, type Difficulty } from '@maimai-suite/core';
 import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
 import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
@@ -51,9 +51,6 @@ type ListRow =
 const MATRIX_CARD_W = 68;
 const MATRIX_GAP = 8;
 const LIST_PADDING_H = 16;
-
-const chartKeyOf = (s: { songTitle: string; difficulty: string; songType?: string }) =>
-  `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
 
 function SectionHeader({ title, count, max, sum }: { title: string; count: number; max?: number; sum?: number }) {
   return (
@@ -316,17 +313,15 @@ export default function ScoresScreen() {
     const b15R = new Map<string, number>();
     const b35R = new Map<string, number>();
 
-    const getKey = (s: { songTitle: string; difficulty: string; songType?: string }) =>
-      `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
 
     b15.forEach((s, idx) => {
-      const key = getKey(s);
+      const key = chartKey(s);
       b15S.add(key);
       b15R.set(key, idx + 1);
     });
 
     b35.forEach((s, idx) => {
-      const key = getKey(s);
+      const key = chartKey(s);
       b35S.add(key);
       b35R.set(key, idx + 1);
     });
@@ -336,17 +331,15 @@ export default function ScoresScreen() {
 
   // Group filtered scores into New B15, Old B35, New Remaining, Old Remaining
   const { newB15, oldB35, newRemaining, oldRemaining } = useMemo(() => {
-    const getKey = (s: { songTitle: string; difficulty: string; songType?: string }) =>
-      `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
 
     const newSongs = filteredScores.filter(s => s.pool === 'new' && (s.difficulty as string) !== 'UTAGE');
     const oldSongs = filteredScores.filter(s => s.pool === 'old' && (s.difficulty as string) !== 'UTAGE');
 
     return {
-      newB15: newSongs.filter(s => b15Set.has(getKey(s))),
-      oldB35: oldSongs.filter(s => b35Set.has(getKey(s))),
-      newRemaining: newSongs.filter(s => !b15Set.has(getKey(s))),
-      oldRemaining: oldSongs.filter(s => !b35Set.has(getKey(s))),
+      newB15: newSongs.filter(s => b15Set.has(chartKey(s))),
+      oldB35: oldSongs.filter(s => b35Set.has(chartKey(s))),
+      newRemaining: newSongs.filter(s => !b15Set.has(chartKey(s))),
+      oldRemaining: oldSongs.filter(s => !b35Set.has(chartKey(s))),
     };
   }, [filteredScores, b15Set, b35Set]);
 
@@ -375,7 +368,7 @@ export default function ScoresScreen() {
 
     const scoreMap = new Map<string, ScoreWithRating>();
     for (const s of allScores) {
-      scoreMap.set(`${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`, s);
+      scoreMap.set(chartKey(s), s);
     }
 
     const chartsByLevel = new Map<number, MatrixChart[]>();
@@ -393,7 +386,7 @@ export default function ScoresScreen() {
         if (isNaN(lv) || lv < minLv || lv > maxLv) continue;
 
         const rounded = Math.round(lv * 10) / 10;
-        const score = scoreMap.get(`${song.title}::${d.diff}::${d.type}`);
+        const score = scoreMap.get(chartKey({ title: song.title, difficulty: d.diff, type: d.type }));
         if (hideUnplayed && !score) continue;
 
         if (!chartsByLevel.has(rounded)) {
@@ -481,7 +474,7 @@ export default function ScoresScreen() {
         return (
           <View style={viewMode === 'grid' ? styles.gridRowLine : undefined}>
             {row.items.map((s, j) => {
-              const key = chartKeyOf(s);
+              const key = chartKey(s);
               return (
                 <ScoreCard
                   key={key}
@@ -508,7 +501,7 @@ export default function ScoresScreen() {
         return (
           <View style={styles.matrixRowLine}>
             {row.charts.map(c => (
-              <MatrixCard key={`${c.title}::${c.difficulty}::${c.type}`} c={c} onOpen={navigateToModal} />
+              <MatrixCard key={chartKey(c)} c={c} onOpen={navigateToModal} />
             ))}
           </View>
         );

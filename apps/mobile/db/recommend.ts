@@ -1,5 +1,5 @@
 import type { ScoreRow, SongRow } from './schema';
-import { calcSingleRating, normalizeTitle } from '@maimai-suite/core';
+import { calcSingleRating, chartKey, type SongIndex } from '@maimai-suite/core';
 
 export type SkillAxis = 'TAP' | 'SPIN' | 'SPEED' | 'STAMINA' | 'TECH' | 'ACCURACY';
 
@@ -209,7 +209,7 @@ function parsedSheets(song: SongRow): unknown {
  */
 export function computePlayerSkillProfile(
   scores: ScoreRow[],
-  songMap: Map<string, SongRow>
+  songs: SongIndex<SongRow>
 ): PlayerSkillProfile {
   const eligibleScores = scores.filter(
     s => ['EXP', 'MAS', 'REMAS'].includes(s.difficulty) && s.achievement >= 75.0
@@ -225,7 +225,7 @@ export function computePlayerSkillProfile(
   };
 
   for (const s of eligibleScores) {
-    const song = songMap.get(normalizeTitle(s.song_title));
+    const song = songs.forChart(s);
     if (!song) continue;
 
     const profile = computeChartSkillProfile(
@@ -341,11 +341,11 @@ export function getRecommendations(
   const candidates: RecommendedTarget[] = [];
   const targetWeakSkill = playerProfile.weakestSkill;
 
-  // Index scores once (first match wins, as scores.find did); a per-chart linear scan that
-  // re-normalized every title cost ~0.4 s per call on desktop Node, far more on Hermes.
+  // Index scores once by chart (first match wins, as scores.find did); a per-chart linear scan
+  // cost ~0.4 s per call on desktop Node, far more on Hermes.
   const scoreByChart = new Map<string, ScoreRow>();
   for (const s of scores) {
-    const key = `${normalizeTitle(s.song_title)}_${s.difficulty}_${s.song_type ?? 'DX'}`;
+    const key = chartKey(s);
     if (!scoreByChart.has(key)) scoreByChart.set(key, s);
   }
   const baseline = scoreBaseline(scores);
@@ -353,13 +353,12 @@ export function getRecommendations(
   for (const song of songs) {
     const difficulties: Array<'MAS' | 'EXP' | 'REMAS'> = ['MAS', 'EXP'];
     if (song.dx_lev_remas || song.lev_remas) difficulties.push('REMAS');
-    const normTitle = normalizeTitle(song.title);
 
     for (const diff of difficulties) {
       const chartProfile = computeChartSkillProfile(song, diff, 'DX');
       if (chartProfile.constant < 12.0) continue; // Focus on 12.0+
 
-      const existingScore = scoreByChart.get(`${normTitle}_${diff}_DX`);
+      const existingScore = scoreByChart.get(chartKey({ title: song.title, difficulty: diff, type: 'DX' }));
 
       const predicted = predictAchievement(playerProfile, chartProfile, scores, baseline);
 

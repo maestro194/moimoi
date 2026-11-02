@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { scores, settings } from '@/lib/db/schema';
-import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
-import { computeRating, getTargetSuggestions } from '@maimai-suite/core';
+import { fetchSongs, detectCurrentVersion } from '@/lib/song-db';
+import { computeRating, getTargetSuggestions, SongIndex } from '@maimai-suite/core';
 import type { Score, Difficulty } from '@maimai-suite/core';
 import AnalysisClient from './analysis-client';
 import { inArray } from 'drizzle-orm';
@@ -18,7 +18,7 @@ export default async function AnalysisPage() {
     ]);
 
     const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
-    const songMap = buildSongMap(songs);
+    const songIndex = new SongIndex(songs);
     
     const currentVersion = detectCurrentVersion(songs);
 
@@ -34,7 +34,7 @@ export default async function AnalysisPage() {
       playedAt: s.playedAt,
     }));
 
-    const ratingData = computeRating(typedScores, songMap, currentVersion);
+    const ratingData = computeRating(typedScores, songIndex, currentVersion);
     const suggestions = getTargetSuggestions(ratingData, ratingData.allScores, 1000);
 
     return <AnalysisClient ratingData={ratingData} suggestions={suggestions} totalScores={typedScores.length} />;

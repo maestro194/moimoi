@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { ScoreWithRating } from '@maimai-suite/core';
+import { chartKey, type ScoreWithRating } from '@maimai-suite/core';
 import { getAllCharts, type MinimalChart } from './actions';
 import { FCBadge } from '@/components/badges';
 import { JacketImg } from '@/components/jacket-img';
@@ -67,7 +67,7 @@ export default function MatrixView({ scores, minLevel, maxLevel, hideUnplayed, o
     // Prepare scores lookup
     const scoreMap = new Map<string, ScoreWithRating>();
     for (const s of scores) {
-      scoreMap.set(`${s.songTitle}::${s.difficulty}::${s.songType}`, s);
+      scoreMap.set(chartKey(s), s);
     }
 
     // Sort levels descending
@@ -82,7 +82,7 @@ export default function MatrixView({ scores, minLevel, maxLevel, hideUnplayed, o
       if (!hideUnplayed) tiers.set('No record', []);
 
       for (const chart of levelCharts) {
-        const key = `${chart.title}::${chart.diff}::${chart.type}`;
+        const key = chartKey({ title: chart.title, difficulty: chart.diff, type: chart.type });
         const score = scoreMap.get(key);
         
         if (score) {

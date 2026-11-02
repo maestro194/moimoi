@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { sqlite } from './client';
 import type { ScoreRow, SongRow, PlayLogRow } from './schema';
-import { normalizeTitle, solvePlayDetails } from '@maimai-suite/core';
+import { normalizeTitle, sameChart, SongIndex, solvePlayDetails } from '@maimai-suite/core';
 
 function resolveApiUrl(): string {
   if (Constants.expoConfig?.extra?.apiUrl) {
@@ -487,14 +487,11 @@ export function getCachedScores(): Array<ScoreRow & { song?: SongRow | null }> {
   const scoresList = sqlite.getAllSync<ScoreRow>(`SELECT * FROM scores ORDER BY achievement DESC`);
   const allSongs = sqlite.getAllSync<SongRow>(`SELECT * FROM songs`);
 
-  const songMap = new Map<string, SongRow>();
-  for (const s of allSongs) {
-    songMap.set(normalizeTitle(s.title), s);
-  }
+  const songIndex = new SongIndex(allSongs);
 
   return scoresList.map(score => ({
     ...score,
-    song: songMap.get(normalizeTitle(score.song_title)) ?? null,
+    song: songIndex.forChart(score) ?? null,
   }));
 }
 
@@ -505,14 +502,11 @@ export function getCachedRecentPlays(): Array<PlayLogRow & { song?: SongRow | nu
   const playLogs = sqlite.getAllSync<PlayLogRow>(`SELECT * FROM play_log ORDER BY played_at DESC LIMIT 50`);
   const allSongs = sqlite.getAllSync<SongRow>(`SELECT * FROM songs`);
 
-  const songMap = new Map<string, SongRow>();
-  for (const s of allSongs) {
-    songMap.set(normalizeTitle(s.title), s);
-  }
+  const songIndex = new SongIndex(allSongs);
 
   return playLogs.map(log => ({
     ...log,
-    song: songMap.get(normalizeTitle(log.song_title)) ?? null,
+    song: songIndex.forChart(log) ?? null,
   }));
 }
 
@@ -627,9 +621,7 @@ export function getLastCreditInfo(
     let isPB = false;
     if (allScores) {
       const existing = allScores.find(
-        s => normalizeTitle(s.song_title) === normalizeTitle(play.song_title) &&
-             s.difficulty === play.difficulty &&
-             (s.song_type ?? 'DX') === (play.song_type ?? 'DX')
+        s => sameChart(s, play)
       );
       if (existing && play.achievement >= existing.achievement) {
         isPB = true;

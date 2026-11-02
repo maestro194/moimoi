@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { scores, settings } from '@/lib/db/schema';
-import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
-import { computeRating } from '@maimai-suite/core';
+import { fetchSongs, detectCurrentVersion } from '@/lib/song-db';
+import { computeRating, SongIndex } from '@maimai-suite/core';
 import type { Score, Difficulty } from '@maimai-suite/core';
 import { desc } from 'drizzle-orm';
 import { Suspense } from 'react';
@@ -20,7 +20,7 @@ async function getDashboardData() {
 
     const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
 
-    const songMap = buildSongMap(songs);
+    const songIndex = new SongIndex(songs);
      
     const currentVersion = detectCurrentVersion(songs);
 
@@ -36,7 +36,7 @@ async function getDashboardData() {
       playedAt: s.playedAt,
     }));
 
-    const ratingData = computeRating(typedScores, songMap, currentVersion);
+    const ratingData = computeRating(typedScores, songIndex, currentVersion);
 
     const profile = {
       name: getSet('profile_name'),

@@ -26,7 +26,7 @@ import {
   computeFoil,
   type FoilInfo,
   computeRating,
-  normalizeTitle,
+  SongIndex,
   detectCurrentVersion,
   getTargetSuggestions,
   type Song,
@@ -51,6 +51,8 @@ export interface LocalDataState {
   lastCredit: LastCreditSummary | null;
   playerSkillProfile: PlayerSkillProfile | null;
   rawSongs: SongRow[];
+  /** rawSongs looked up by chart (see chartRef / SongIndex in @maimai-suite/core). */
+  songIndex: SongIndex<SongRow>;
   rawScores: ScoreRow[];
   /** Foil per B50 chart, keyed by foilKey() from @maimai-suite/core. */
   foil: Map<string, FoilInfo>;
@@ -90,13 +92,10 @@ function useLocalDataSource(): LocalDataState {
       setRawSongs(songsList);
       setSongsCount(songsList.length);
 
-      const songRowMap = new Map<string, SongRow>();
-      for (const s of songsList) {
-        songRowMap.set(normalizeTitle(s.title), s);
-      }
+      const songRows = new SongIndex(songsList);
 
       // Compute player 6-axis skill profile
-      const skillProfile = computePlayerSkillProfile(allScoreRows, songRowMap);
+      const skillProfile = computePlayerSkillProfile(allScoreRows, songRows);
       setPlayerSkillProfile(skillProfile);
 
       // Detect game version: check sync_meta first, or detect from song DB with >= 20 count rule
@@ -108,10 +107,9 @@ function useLocalDataSource(): LocalDataState {
         : detectCurrentVersion(songsList);
       setCurrentVersion(activeVersion);
 
-      const songMap = new Map<string, Song>();
+      const songObjs: Song[] = [];
 
       for (const s of songsList) {
-        const norm = normalizeTitle(s.title);
         const songObj: Song = {
           title: s.title,
           artist: s.artist ?? '',
@@ -140,10 +138,7 @@ function useLocalDataSource(): LocalDataState {
           dx_lev_remas_i: s.dx_lev_remas_i ?? undefined,
           lev_utage: s.lev_utage ?? undefined,
         };
-        const existing = songMap.get(norm);
-        if (!existing || ((s.lev_mas_i || s.dx_lev_mas_i || s.lev_exp_i || s.dx_lev_exp_i) && !existing.lev_mas_i && !existing.dx_lev_mas_i)) {
-          songMap.set(norm, songObj);
-        }
+        songObjs.push(songObj);
       }
 
       const formattedScores: Score[] = cachedScores.map(s => ({
@@ -158,7 +153,7 @@ function useLocalDataSource(): LocalDataState {
         playedAt: new Date(s.played_at),
       }));
 
-      const computed = computeRating(formattedScores, songMap, activeVersion);
+      const computed = computeRating(formattedScores, new SongIndex(songObjs), activeVersion);
       setRatingData(computed);
 
       const cachedProfile = getCachedProfile();
@@ -232,6 +227,8 @@ function useLocalDataSource(): LocalDataState {
     }
   }, [loadLocal]);
 
+  const songIndex = useMemo(() => new SongIndex(rawSongs), [rawSongs]);
+
   const foil = useMemo(
     () => (ratingData ? computeFoil(ratingData.newCharts, ratingData.oldCharts) : new Map<string, FoilInfo>()),
     [ratingData],
@@ -252,6 +249,7 @@ function useLocalDataSource(): LocalDataState {
     lastCredit,
     playerSkillProfile,
     rawSongs,
+    songIndex,
     rawScores,
     foil,
     fetchRecommendations,
@@ -260,7 +258,7 @@ function useLocalDataSource(): LocalDataState {
     reload: loadLocal,
   }), [
     loading, syncing, segaOffline, lastSyncedAt, currentVersion, profile, ratingData, targetSuggestions,
-    recentPlays, songsCount, clusteredSessions, lastCredit, playerSkillProfile, rawSongs, rawScores, foil,
+    recentPlays, songsCount, clusteredSessions, lastCredit, playerSkillProfile, rawSongs, songIndex, rawScores, foil,
     fetchRecommendations, triggerSync, triggerWebDbSync, loadLocal,
   ]);
 }

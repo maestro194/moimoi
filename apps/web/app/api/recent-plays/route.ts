@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { playLog } from '@/lib/db/schema';
 import { desc, isNotNull } from 'drizzle-orm';
-import { fetchSongs, buildSongMap } from '@/lib/song-db';
-import { normalizeTitle, getSongInternalLevel } from '@maimai-suite/core';
+import { fetchSongs } from '@/lib/song-db';
+import { SongIndex, getSongInternalLevel } from '@maimai-suite/core';
 import type { Difficulty } from '@maimai-suite/core';
 
 export const dynamic = 'force-dynamic';
@@ -22,10 +22,10 @@ export async function GET(request: Request) {
       fetchSongs(),
     ]);
 
-    const songMap = buildSongMap(songsData);
+    const songIndex = new SongIndex(songsData);
 
     const recentScores = rows.map(r => {
-      const song = songMap.get(normalizeTitle(r.songTitle)) ?? null;
+      const song = songIndex.forChart(r) ?? null;
       let internalLevel = 0;
       if (song) {
         internalLevel = getSongInternalLevel(

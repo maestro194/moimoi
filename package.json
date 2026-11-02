@@ -8,6 +8,7 @@
     "lint": "pnpm --filter web lint",
     "db:generate": "pnpm --filter web db:generate",
     "db:push": "pnpm --filter web db:push",
-    "db:studio": "pnpm --filter web db:studio"
+    "db:studio": "pnpm --filter web db:studio",
+    "test": "pnpm --filter @maimai-suite/core test"
   }
 }

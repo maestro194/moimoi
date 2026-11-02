@@ -19,7 +19,7 @@ import { scores, playLog, settings, scoreHistory, scoreTrackers } from './db/sch
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { CookieJar } from 'tough-cookie';
 import makeFetchCookie from 'fetch-cookie';
-import { solvePlayDetails } from '@maimai-suite/core';
+import { chartKey, solvePlayDetails } from '@maimai-suite/core';
 import { MANUAL_MATCH_WINDOW_MS, findManualDuplicate, isManualPlay, isSamePlay, stripManualFlag, type PlayKey } from './play-dedupe';
 
 const MAIMAI_BASE: Record<Region, string> = {
@@ -315,7 +315,7 @@ async function fetchRatingTargetScores(
         const songType: SongType = musicTypeFromSrc(iconSrc);
 
         // Skip if already seen from genre pages
-        if (existingKeys.has(`${songTitle}::${difficulty}::${songType}`)) return;
+        if (existingKeys.has(chartKey({ songTitle, difficulty, songType }))) return;
 
         const achvMatch = scoreBlocks.eq(0).text().match(/(\d+\.?\d*)%/);
         if (!achvMatch) return;
@@ -771,8 +771,8 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
     }
   }
 
-    // Build a set of already-seen (title::difficulty::songType) pairs
-    const seenKeys = new Set(allParsed.map(s => `${s.songTitle}::${s.difficulty}::${s.songType}`));
+    // Charts already seen (by chart identity)
+    const seenKeys = new Set(allParsed.map(s => chartKey(s)));
     if (onProgress) onProgress('Checking rating target page for any hidden scores...');
     const hidden = await fetchRatingTargetScores(region, clal!, seenKeys);
     if (hidden.length > 0) {
@@ -785,10 +785,10 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
   if (onProgress && allParsed.length > 0) onProgress(`Comparing new scores against database...`);
   const existingScoresRaw = await db.select().from(scores);
   
-  // Create a fast lookup map: songTitle -> diff -> songType -> Score
+  // Existing best score per chart (by chart identity)
   const existingScoresMap = new Map<string, typeof existingScoresRaw[0]>();
   for (const s of existingScoresRaw) {
-    existingScoresMap.set(`${s.songTitle}::${s.difficulty}::${s.songType}`, s);
+    existingScoresMap.set(chartKey(s), s);
   }
 
   // Filter allParsed into what actually needs to be inserted or updated
@@ -796,7 +796,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
   const scoresToUpdateSet = new Set<typeof existingScoresRaw[0]>();
 
   for (const score of allParsed) {
-    const key = `${score.songTitle}::${score.difficulty}::${score.songType}`;
+    const key = chartKey(score);
     const existingForDiff = existingScoresMap.get(key);
 
     if (existingForDiff) {
@@ -903,20 +903,17 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
       // Build a fast lookup of the best scores we just saved/know about
       const bestScoreMap = new Map<string, number>();
       for (const s of existingScoresRaw) {
-        bestScoreMap.set(
-          `${s.songTitle}::${s.difficulty}::${s.songType}`,
-          parseFloat(s.achievement as string),
-        );
+        bestScoreMap.set(chartKey(s), parseFloat(s.achievement as string));
       }
       // Also fold in freshly inserted scores
       for (const s of scoresToInsert) {
-        const key = `${s.songTitle}::${s.difficulty}::${s.songType}`;
+        const key = chartKey(s);
         const cur = bestScoreMap.get(key) ?? 0;
         if (s.achievement > cur) bestScoreMap.set(key, s.achievement);
       }
 
       for (const goal of activeGoals) {
-        const key = `${goal.songTitle}::${goal.difficulty}::${goal.songType}`;
+        const key = chartKey(goal);
         const best = bestScoreMap.get(key) ?? 0;
         const target = parseFloat(goal.targetAchievement as string);
         if (best >= target) {

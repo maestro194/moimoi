@@ -18,7 +18,7 @@ import {
   Filter,
   Disc,
 } from 'lucide-react-native';
-import { versionLabel, normalizeTitle } from '@maimai-suite/core';
+import { versionLabel, chartKey } from '@maimai-suite/core';
 import type { SongRow, ScoreRow } from '../../db/schema';
 import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
@@ -48,7 +48,7 @@ interface SongWithScores {
 
 export default function SongsScreen() {
   const router = useRouter();
-  const { loading, rawSongs, rawScores } = useLocalData();
+  const { loading, rawSongs, rawScores, songIndex } = useLocalData();
 
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState<CategoryKey>('all');
@@ -56,11 +56,11 @@ export default function SongsScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [sortBy, setSortBy] = useState<SortKey>('level_desc');
 
-  // Map of scores: key is normalizedTitle::diff::type
+  // Best score per chart (chartKey)
   const userScoresMap = useMemo(() => {
     const map = new Map<string, ScoreRow>();
     for (const sc of rawScores) {
-      const key = `${normalizeTitle(sc.song_title)}::${sc.difficulty}::${sc.song_type ?? 'DX'}`;
+      const key = chartKey(sc);
       const existing = map.get(key);
       if (!existing || sc.achievement > existing.achievement) {
         map.set(key, sc);
@@ -72,15 +72,17 @@ export default function SongsScreen() {
   // Combine songs with user's scores and compute highest chart level
   const preparedSongs = useMemo(() => {
     return rawSongs.map((song): SongWithScores => {
-      const norm = normalizeTitle(song.title);
       const scoresByDiff = new Map<string, ScoreRow>();
 
       const diffs = ['EXP', 'MAS', 'REMAS'];
       for (const d of diffs) {
-        const dxScore = userScoresMap.get(`${norm}::${d}::DX`);
-        if (dxScore) scoresByDiff.set(`${d}::DX`, dxScore);
-        const stdScore = userScoresMap.get(`${norm}::${d}::STD`);
-        if (stdScore) scoresByDiff.set(`${d}::STD`, stdScore);
+        for (const type of ['DX', 'STD'] as const) {
+          const chart = { title: song.title, difficulty: d, type };
+          // Skip a score that belongs to another song with the same title (TRUST / Trust)
+          if (songIndex.forChart(chart) !== song) continue;
+          const score = userScoresMap.get(chartKey(chart));
+          if (score) scoresByDiff.set(`${d}::${type}`, score);
+        }
       }
 
       // Determine highest internal constant for sorting
@@ -98,7 +100,7 @@ export default function SongsScreen() {
         scoresByDiff,
       };
     });
-  }, [rawSongs, userScoresMap]);
+  }, [rawSongs, songIndex, userScoresMap]);
 
   // Filter and sort songs
   const filteredSongs = useMemo(() => {

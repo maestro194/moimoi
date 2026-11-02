@@ -23,7 +23,8 @@ import {
 } from 'lucide-react-native';
 import { sqlite } from '../db/client';
 import type { PlayLogRow, SongRow, ScoreRow } from '../db/schema';
-import { calcSingleRating, versionLabel, normalizeTitle } from '@maimai-suite/core';
+import { calcSingleRating, chartRef, sameChart, versionLabel } from '@maimai-suite/core';
+import { useLocalData } from '@/db/useLocalData';
 import { JacketImage } from '@/components/JacketImage';
 import { formatShortDate, formatTime } from '@/constants/time';
 import { Tap } from '@/components/Tap';
@@ -49,14 +50,14 @@ export default function SongDetailModal() {
   const difficulty = params.difficulty ?? 'MAS';
   const songType = params.songType ?? 'DX';
   const diffColor = getDifficultyColor(difficulty);
+  const chart = useMemo(() => chartRef({ title, difficulty, type: songType }), [title, difficulty, songType]);
+  const { songIndex } = useLocalData();
 
   // Load song record from SQLite for note counts, designer, bpm, and version
   const songData = useMemo(() => {
     try {
-      const songRow = sqlite.getFirstSync<SongRow>(
-        `SELECT * FROM songs WHERE title = ? OR title_kana = ? LIMIT 1`,
-        [title, title]
-      );
+      const songRow = songIndex.forChart(chart)
+        ?? sqlite.getFirstSync<SongRow>(`SELECT * FROM songs WHERE title_kana = ? LIMIT 1`, [title]);
       if (!songRow) return null;
 
       let sheetObj: any = null;
@@ -84,19 +85,19 @@ export default function SongDetailModal() {
     } catch {
       return null;
     }
-  }, [title, difficulty, songType]);
+  }, [songIndex, chart, title, difficulty, songType]);
 
   // Load best score from SQLite if param achievement is 0
   const bestScore = useMemo(() => {
     try {
-      return sqlite.getFirstSync<ScoreRow>(
-        `SELECT * FROM scores WHERE song_title = ? AND difficulty = ? ORDER BY achievement DESC LIMIT 1`,
-        [title, difficulty]
-      );
+      // Matched by chart identity, so DX and STD (and title spellings) don't mix
+      return sqlite
+        .getAllSync<ScoreRow>(`SELECT * FROM scores WHERE difficulty = ? ORDER BY achievement DESC`, [chart.difficulty])
+        .find(s => sameChart(s, chart)) ?? null;
     } catch {
       return null;
     }
-  }, [title, difficulty]);
+  }, [chart]);
 
   const paramAch = parseFloat(params.achievement ?? '0');
   const achNum = paramAch > 0 ? paramAch : (bestScore?.achievement ?? 0);
@@ -120,14 +121,14 @@ export default function SongDetailModal() {
   // Query local play_log for history on this specific chart
   const playHistory = useMemo(() => {
     try {
-      return sqlite.getAllSync<PlayLogRow>(
-        `SELECT * FROM play_log WHERE song_title = ? AND difficulty = ? ORDER BY played_at DESC LIMIT 20`,
-        [title, difficulty]
-      );
+      return sqlite
+        .getAllSync<PlayLogRow>(`SELECT * FROM play_log WHERE difficulty = ? ORDER BY played_at DESC`, [chart.difficulty])
+        .filter(p => sameChart(p, chart))
+        .slice(0, 20);
     } catch {
       return [];
     }
-  }, [title, difficulty]);
+  }, [chart]);
 
   // Target rating milestones
   const milestones = useMemo(() => {

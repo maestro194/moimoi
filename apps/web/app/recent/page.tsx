@@ -2,8 +2,8 @@ import { db } from '@/lib/db';
 import { playLog, settings } from '@/lib/db/schema';
 import { desc, inArray } from 'drizzle-orm';
 import RecentClient from './recent-client';
-import { fetchSongs, buildSongMap } from '@/lib/song-db';
-import { normalizeTitle, calcSingleRating, getSongInternalLevel, solvePlayDetails } from '@maimai-suite/core';
+import { fetchSongs } from '@/lib/song-db';
+import { SongIndex, calcSingleRating, getSongInternalLevel, solvePlayDetails } from '@maimai-suite/core';
 import type { PlayerProfile, Difficulty } from '@maimai-suite/core';
 
 export const dynamic = 'force-dynamic';
@@ -26,11 +26,11 @@ export default async function RecentPage() {
     region: (regionStr as PlayerProfile['region']) || 'intl',
   };
 
-  const songDb = buildSongMap(songsData);
+  const songIndex = new SongIndex(songsData);
 
   // Hydrate with ratings and song metadata
   const hydratedLogs = allLogs.map(log => {
-    const song = songDb.get(normalizeTitle(log.songTitle)) ?? null;
+    const song = songIndex.forChart(log) ?? null;
     let internalLevel = 0;
     let rating = 0;
 

@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { scores, scoreTrackers, settings, trackerLists, trackerItems, sessionItems } from '@/lib/db/schema';
-import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
-import { computeRating } from '@maimai-suite/core';
+import { fetchSongs, detectCurrentVersion } from '@/lib/song-db';
+import { computeRating, SongIndex } from '@maimai-suite/core';
 import type { Score, Difficulty } from '@maimai-suite/core';
 import TrackerClient from './tracker-client';
 import { inArray } from 'drizzle-orm';
@@ -24,7 +24,7 @@ export default async function TrackerPage() {
     ]);
 
     const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
-    const songMap = buildSongMap(songs);
+    const songIndex = new SongIndex(songs);
     
     const currentVersion = detectCurrentVersion(songs);
 
@@ -40,7 +40,7 @@ export default async function TrackerPage() {
       playedAt: s.playedAt,
     }));
 
-    const currentRating = computeRating(typedScores, songMap, currentVersion);
+    const currentRating = computeRating(typedScores, songIndex, currentVersion);
 
     // Format dates to strings for initial props to avoid Next.js serialization warnings
     const initialLists = lists.map(l => ({
@@ -67,7 +67,7 @@ export default async function TrackerPage() {
         scores={currentRating.allScores} 
         typedScores={typedScores}
         currentTotalRating={currentRating.totalRating}
-        songMapRecord={Object.fromEntries(songMap)}
+        songs={songs}
         currentVersion={currentVersion}
         allCharts={allCharts}
         initialLists={initialLists}

@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Target, Plus, Search, Trash2, Check, X, Play, List, Edit2, Info } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
 import type { ScoreWithRating, Score, Difficulty, Song } from '@maimai-suite/core';
-import { computeRating, calcSingleRating, getSongInternalLevel, normalizeTitle } from '@maimai-suite/core';
+import { computeRating, calcSingleRating, getSongInternalLevel, sameChart, SongIndex } from '@maimai-suite/core';
 import { addTracker, deleteTracker } from './actions';
 import type { MinimalChart } from '@/app/scores/actions';
 import { Jacket } from '@/components/jacket';
@@ -25,7 +25,7 @@ interface Props {
   scores: ScoreWithRating[];
   typedScores: Score[];
   currentTotalRating: number;
-  songMapRecord: Record<string, any>;
+  songs: Song[];
   currentVersion: number;
   allCharts: MinimalChart[];
   initialLists: { id: number; name: string; emoji: string; color: string; sortOrder: number }[];
@@ -50,8 +50,8 @@ const DIFF_COLOR: Record<string, string> = {
 
 type Tab = 'session' | 'goals' | 'lists';
 
-export default function TrackerClient({ trackers, scores, typedScores, currentTotalRating, songMapRecord, currentVersion, allCharts, initialLists, initialItems, initialSession }: Props) {
-  const songMap = useMemo(() => new Map(Object.entries(songMapRecord)), [songMapRecord]);
+export default function TrackerClient({ trackers, scores, typedScores, currentTotalRating, songs, currentVersion, allCharts, initialLists, initialItems, initialSession }: Props) {
+  const songIndex = useMemo(() => new SongIndex(songs), [songs]);
   const [activeTab, setActiveTab] = useState<Tab>('session');
   
   const { data, act } = useBoard();
@@ -80,7 +80,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
   };
 
   const openDetails = useCallback((songTitle: string, sheetType: string, sheetDifficulty: string) => {
-    const song = songMap.get(normalizeTitle(songTitle)) as Song | undefined;
+    const song = songIndex.forChart({ songTitle, difficulty: sheetDifficulty, songType: sheetType });
     if (!song) return;
     setDetailsRow({
       song,
@@ -89,24 +89,24 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
       abbr: sheetDifficulty,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songMap]);
+  }, [songIndex]);
 
   // Computed data for existing trackers
   const trackerData = useMemo(() => {
     return trackers.map(t => {
       const targetAchv = parseFloat(t.targetAchievement);
       
-      const existing = scores.find(s => s.songTitle === t.songTitle && s.difficulty === t.difficulty && s.songType === t.songType);
+      const existing = scores.find(s => sameChart(s, t));
       
       const hypoScores = [...typedScores];
-      const existIdx = hypoScores.findIndex(s => s.songTitle === t.songTitle && s.difficulty === t.difficulty && s.songType === t.songType);
+      const existIdx = hypoScores.findIndex(s => sameChart(s, t));
       
       let hypotheticalInternalLevel = 0;
       if (existing) {
         hypotheticalInternalLevel = existing.internalLevel;
         hypoScores[existIdx] = { ...hypoScores[existIdx], achievement: Math.max(hypoScores[existIdx].achievement, targetAchv) };
       } else {
-        const songInfo = songMap.get(normalizeTitle(t.songTitle));
+        const songInfo = songIndex.forChart(t);
         hypotheticalInternalLevel = songInfo ? getSongInternalLevel(songInfo, t.difficulty as Difficulty, t.songType as 'DX'|'STD') : 0;
         
         hypoScores.push({
@@ -122,7 +122,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
         });
       }
 
-      const hypoData = computeRating(hypoScores, songMap, currentVersion);
+      const hypoData = computeRating(hypoScores, songIndex, currentVersion);
       const delta = hypoData.totalRating - currentTotalRating;
       
       const targetSingleRating = calcSingleRating(hypotheticalInternalLevel, targetAchv).floored;
@@ -135,7 +135,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
         targetSingleRating
       };
     }).sort((a, b) => b.delta - a.delta);
-  }, [trackers, scores, typedScores, currentTotalRating, songMap, currentVersion]);
+  }, [trackers, scores, typedScores, currentTotalRating, songIndex, currentVersion]);
 
   const allGoals = useMemo(() => {
     return trackerData;
@@ -196,7 +196,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {session.map(item => {
-            const songInfo = songMap.get(normalizeTitle(item.songTitle));
+            const songInfo = songIndex.forChart({ songTitle: item.songTitle, difficulty: item.sheetDifficulty, songType: item.sheetType });
             const level = songInfo ? getSongInternalLevel(songInfo, item.sheetDifficulty as Difficulty, item.sheetType as 'DX'|'STD') : 0;
             return (
               <div key={item.id} className={`glass p-3 rounded-xl border border-white/5 flex items-center gap-3 transition-colors ${item.played ? 'opacity-40' : ''}`}>
@@ -248,7 +248,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {allGoals.map(d => {
-            const songInfo = songMap.get(normalizeTitle(d.tracker.songTitle));
+            const songInfo = songIndex.forChart(d.tracker);
             const currentAchv = d.existing?.achievement ?? 0;
             const targetAchv = parseFloat(d.tracker.targetAchievement);
             const prog = Math.min(100, Math.max(0, (currentAchv / targetAchv) * 100));
@@ -362,7 +362,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                     <div className="p-4 text-center text-xs text-white/30">No charts in this list.</div>
                   ) : (
                     listItems.map(item => {
-                      const songInfo = songMap.get(normalizeTitle(item.songTitle));
+                      const songInfo = songIndex.forChart({ songTitle: item.songTitle, difficulty: item.sheetDifficulty, songType: item.sheetType });
                       const level = songInfo ? getSongInternalLevel(songInfo, item.sheetDifficulty as Difficulty, item.sheetType as 'DX'|'STD') : 0;
                       return (
                         <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">
@@ -473,8 +473,8 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
               
               <div className="flex gap-4 mb-6">
                 <Jacket 
-                  imageUrl={songMap.get(normalizeTitle(selectedGoal.tracker.songTitle))?.image_url} 
-                  intl={songMap.get(normalizeTitle(selectedGoal.tracker.songTitle))?.intl} 
+                  imageUrl={songIndex.forChart(selectedGoal.tracker)?.image_url} 
+                  intl={songIndex.forChart(selectedGoal.tracker)?.intl} 
                   songTitle={selectedGoal.tracker.songTitle} 
                   difficulty={selectedGoal.tracker.difficulty} 
                   internalLevel={selectedGoal.internalLevel} 
@@ -616,7 +616,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                     <div className="text-center text-white/30 py-8 text-sm">{search ? 'No charts found.' : 'Type to search...'}</div>
                   ) : (
                     filteredCharts.map((c, i) => {
-                      const songInfo = songMap.get(normalizeTitle(c.title));
+                      const songInfo = songIndex.forChart({ title: c.title, difficulty: c.diff, type: c.type });
                       return (
                         <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">
                           <div className="flex items-center gap-3 min-w-0 pr-4">

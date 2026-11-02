@@ -2,7 +2,6 @@ import type { Song } from '@maimai-suite/core';
 import { db } from './db';
 import { songs } from './db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { normalizeTitle } from '@maimai-suite/core';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
 const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
@@ -462,22 +461,6 @@ export async function fetchSongsFromGitHub(): Promise<Song[]> {
 
 // Jacket URLs live in ./jacket (DB-free, safe for client components); re-exported for existing imports.
 export { getJacketUrl, getJacketUrls } from './jacket';
-
-/**
- * Build a lookup map: normalised title → Song.
- * Prefers entries that have more internal level data.
- */
-export function buildSongMap(songs: Song[]): Map<string, Song> {
-  const map = new Map<string, Song>();
-  for (const song of songs) {
-    const key = normalizeTitle(song.title);
-    const existing = map.get(key);
-    if (!existing || ((song.lev_mas_i || song.dx_lev_mas_i || song.lev_exp_i || song.dx_lev_exp_i) && !existing.lev_mas_i && !existing.dx_lev_mas_i)) {
-      map.set(key, song);
-    }
-  }
-  return map;
-}
 
 /** Current game version from the song DB (shared rule in @maimai-suite/core). */
 export { detectCurrentVersion } from '@maimai-suite/core';

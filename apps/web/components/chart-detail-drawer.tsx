@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp, Trophy, ExternalLink } from 'lucide-react';
-import type { ScoreWithRating, FC, FS } from '@maimai-suite/core';
+import { chartKey, type ScoreWithRating, type FC, type FS } from '@maimai-suite/core';
 import { getJacketUrl } from '@/lib/song-db';
 import { JacketImg } from '@/components/jacket-img';
 import { FCBadge, FSBadge } from '@/components/badges';
@@ -55,9 +55,7 @@ interface Props {
 // ── Module-level cache (B): survives re-renders, cleared on page navigation ──
 const playsCache = new Map<string, ChartPlaysData>();
 
-function cacheKey(s: ScoreWithRating) {
-  return `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
-}
+const cacheKey = (s: ScoreWithRating) => chartKey(s);
 
 function useChartPlays(score: ScoreWithRating | null) {
   const [data, setData] = useState<ChartPlaysData | null>(null);

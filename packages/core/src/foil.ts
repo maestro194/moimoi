@@ -8,6 +8,8 @@
  * - freshness: a recent best shimmers, fading to nothing over FOIL_FADE_DAYS.
  */
 
+import { chartKey } from './chart';
+
 export type FoilTier = 'secret' | 'gold' | 'silver';
 
 export interface FoilInfo {
@@ -35,9 +37,8 @@ interface FoilChart {
   playedAt: Date | string;
 }
 
-/** Same composite key the apps use to index B15/B35 charts. */
-export const foilKey = (s: { songTitle: string; difficulty: string; songType?: string | null }) =>
-  `${s.songTitle}::${s.difficulty}::${s.songType ?? 'DX'}`;
+/** Foil info is keyed by chart identity (chartKey). */
+export const foilKey = chartKey;
 
 const DAY_MS = 86_400_000;
 const UTC7_MS = 7 * 3_600_000;

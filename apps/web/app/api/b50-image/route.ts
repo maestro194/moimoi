@@ -1,8 +1,8 @@
 import { type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { scores, settings } from "@/lib/db/schema";
-import { fetchSongs, buildSongMap, detectCurrentVersion } from "@/lib/song-db";
-import { computeRating } from "@maimai-suite/core";
+import { fetchSongs, detectCurrentVersion } from "@/lib/song-db";
+import { computeRating, SongIndex } from "@maimai-suite/core";
 import { generateB50Image } from "@/lib/b50-image";
 import { segaLogin, saveSetting } from "@/lib/maimai-sync";
 import type { Score, Difficulty, Region } from "@maimai-suite/core";
@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest) {
 
     const getSet = (k: string) => settingRows.find((r) => r.key === k)?.value ?? null;
 
-    const songMap = buildSongMap(songs);
+    const songIndex = new SongIndex(songs);
     const versionStr = getSet("maimai_version");
     const currentVersion = versionStr
       ? parseInt(versionStr, 10)
@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest) {
       playedAt: s.playedAt,
     }));
 
-    const ratingData = computeRating(typedScores, songMap, currentVersion);
+    const ratingData = computeRating(typedScores, songIndex, currentVersion);
 
     if (ratingData.newCharts.length === 0 && ratingData.oldCharts.length === 0) {
       return new Response(

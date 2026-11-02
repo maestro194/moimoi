@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, memo } from 'react';
-import type { FC, FS, Difficulty, PlayerProfile } from '@maimai-suite/core';
+import { sameChart, type FC, type FS, type Difficulty, type PlayerProfile } from '@maimai-suite/core';
 import { Clock, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { FCBadge, FSBadge } from '@/components/badges';
 import { PageWrapper } from '@/components/page-wrapper';
@@ -56,8 +56,7 @@ function getDifficultyColor(diff: string): string {
 
 /** Same chart, track and achievement — e.g. a manual entry and its synced copy. */
 function isDuplicatePlay(a: HydratedLog, b: HydratedLog): boolean {
-  return a.songTitle === b.songTitle
-    && a.difficulty === b.difficulty
+  return sameChart(a, b)
     && a.track === b.track
     && Math.abs(parseFloat(a.achievement) - parseFloat(b.achievement)) < 0.00005;
 }

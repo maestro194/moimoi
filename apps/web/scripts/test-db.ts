@@ -1,10 +1,11 @@
 import { db } from '../lib/db';
 import { scores } from '../lib/db/schema';
-import { fetchSongs, buildSongMap, detectCurrentVersion } from '../lib/song-db';
+import { fetchSongs } from '../lib/song-db';
+import { SongIndex } from '@maimai-suite/core';
 
 async function main() {
   const songs = await fetchSongs();
-  const map = buildSongMap(songs);
+  const index = new SongIndex(songs);
   const allScores = await db.select().from(scores);
   
   let newCount = 0;
@@ -12,7 +13,7 @@ async function main() {
   let oldCount = 0;
   
   for (const s of allScores) {
-    const song = map.get(s.songTitle);
+    const song = index.forChart(s);
     if (!song) {
       missingCount++;
     } else {
@@ -29,7 +30,7 @@ async function main() {
   
   if (missingCount > 0) {
     console.log('Sample missing:');
-    console.log(allScores.filter(s => !map.has(s.songTitle)).slice(0, 5).map(s => s.songTitle));
+    console.log(allScores.filter(s => !index.forChart(s)).slice(0, 5).map(s => s.songTitle));
   }
 }
 

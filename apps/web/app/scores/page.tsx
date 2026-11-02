@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { scores, settings } from '@/lib/db/schema';
-import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
-import { computeRating, computeFoil } from '@maimai-suite/core';
+import { fetchSongs, detectCurrentVersion } from '@/lib/song-db';
+import { computeRating, computeFoil, SongIndex } from '@maimai-suite/core';
 import type { Score, Difficulty, PlayerProfile } from '@maimai-suite/core';
 import ScoresClient from './scores-client';
 import { inArray } from 'drizzle-orm';
@@ -21,7 +21,7 @@ export default async function ScoresPage() {
 
     const getSet = (k: string) => settingRows.find(r => r.key === k)?.value ?? null;
 
-    const songMap = buildSongMap(songs);
+    const songIndex = new SongIndex(songs);
     
     const currentVersion = detectCurrentVersion(songs);
 
@@ -37,7 +37,7 @@ export default async function ScoresPage() {
       playedAt: s.playedAt,
     }));
 
-    const ratingData = computeRating(typedScores, songMap, currentVersion);
+    const ratingData = computeRating(typedScores, songIndex, currentVersion);
     // Foil is decided here from the real B50 so the server and client render the same cards
     const foil = Object.fromEntries(computeFoil(ratingData.newCharts, ratingData.oldCharts));
 

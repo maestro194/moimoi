@@ -1,5 +1,5 @@
 import type { RankDef, Difficulty, Song, Score, ScoreWithRating, RatingData, RatingPool } from './types';
-import { normalizeTitle } from './normalize';
+import { chartKey, sameChart, type SongIndex } from './chart';
 
 // ─── Rank definitions (from myjian/mai-tools) ───────────────────────────────
 export const RANK_DEFINITIONS: RankDef[] = [
@@ -149,9 +149,9 @@ export function getSongInternalLevel(
  * Mid-update songs (version 26001, 26002 …) are folded into their parent
  * big version via floor-to-nearest-500.
  */
-export function deriveBigVersions(songDb: Map<string, Song>): number[] {
+export function deriveBigVersions(songs: Iterable<{ version: string }>): number[] {
   const seen = new Set<number>();
-  for (const song of songDb.values()) {
+  for (const song of songs) {
     const v = parseInt(song.version, 10);
     if (!isNaN(v) && v > 0) {
       seen.add(Math.floor(v / 500) * 500);
@@ -170,7 +170,7 @@ export function deriveBigVersions(songDb: Map<string, Song>): number[] {
  * When a user overrides the version in Settings, this function automatically
  * adjusts which pool songs fall into.
  */
-export function getNewPoolThreshold(songDb: Map<string, Song>, currentVersion: number): number {
+export function getNewPoolThreshold(currentVersion: number): number {
   // A major version is a multiple of 1000.
   // Base versions end in 000, PLUS versions end in 500.
   // The threshold for the new pool is always the base version of the current cycle.
@@ -203,16 +203,16 @@ export function detectCurrentVersion(songs: Array<{ version?: string | null }>):
  */
 export function computeRating(
   scores: Score[],
-  songDb: Map<string, Song>,
+  songs: SongIndex<Song>,
   currentVersion: number
 ): RatingData & { allScores: ScoreWithRating[] } {
   // Derive pool threshold from the big versions at or before currentVersion.
   // This respects the user's version override from Settings:
   // e.g. if override = 25500 (PRiSM PLUS), threshold = 25000 (PRiSM).
-  const poolThreshold = getNewPoolThreshold(songDb, currentVersion);
+  const poolThreshold = getNewPoolThreshold(currentVersion);
 
   const scored: ScoreWithRating[] = scores.map(score => {
-    const song = songDb.get(normalizeTitle(score.songTitle));
+    const song = songs.forChart(score);
     const internalLevel = song
       ? getSongInternalLevel(song, score.difficulty, score.songType ?? 'DX')
       : 0;
@@ -281,8 +281,7 @@ export function computeRating(
 function deduplicateBest(scores: ScoreWithRating[]): ScoreWithRating[] {
   const map = new Map<string, ScoreWithRating>();
   for (const score of scores) {
-    const normTitle = normalizeTitle(score.songTitle);
-    const key = `${normTitle}::${score.difficulty}::${score.songType}`;
+    const key = chartKey(score);
     const existing = map.get(key);
     if (!existing || score.rating > existing.rating) {
       map.set(key, score);
@@ -347,7 +346,7 @@ export function getTargetSuggestions(
     // Only suggest if it would improve or enter the top pool
     if (targetRating <= cutoff && topList.length >= maxLen) continue;
 
-    const inTopList = topList.some(s => s.songTitle === score.songTitle && s.difficulty === score.difficulty);
+    const inTopList = topList.some(s => sameChart(s, score));
     const totalRatingGain = inTopList ? targetRating - score.rating : targetRating - cutoff;
 
     if (totalRatingGain <= 0) continue;

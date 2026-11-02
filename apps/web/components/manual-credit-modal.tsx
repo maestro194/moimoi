@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Trash2, Plus, Zap, Calculator, Sparkles, ChevronRight, Search, Loader2 } from 'lucide-react';
-import { solvePlayDetails, normalizeTitle } from '@maimai-suite/core';
+import { solvePlayDetails, SongIndex } from '@maimai-suite/core';
 import type { Song } from '@maimai-suite/core';
 
 interface MatrixRow {
@@ -102,6 +102,7 @@ export function ManualCreditModalWeb({
   const [activeTrackIdx, setActiveTrackIdx] = useState(0);
   const [trackCount, setTrackCount] = useState(3);
   const [songs, setSongs] = useState<Song[]>(initialSongs || []);
+  const songIndex = useMemo(() => new SongIndex(songs), [songs]);
   const [loadingSongs, setLoadingSongs] = useState(false);
 
   const [tracks, setTracks] = useState<TrackFormState[]>([
@@ -283,9 +284,8 @@ export function ManualCreditModalWeb({
   // Selected song object
   const selectedSong = useMemo(() => {
     if (!currentTrack.songTitle) return null;
-    const target = normalizeTitle(currentTrack.songTitle);
-    return songs.find(s => normalizeTitle(s.title) === target) || null;
-  }, [songs, currentTrack.songTitle]);
+    return songIndex.forChart({ songTitle: currentTrack.songTitle, difficulty: currentTrack.difficulty, songType: currentTrack.songType }) ?? null;
+  }, [songIndex, currentTrack.songTitle, currentTrack.difficulty, currentTrack.songType]);
 
   // Selected sheet details (note counts reference)
   const selectedSheet = useMemo(() => {

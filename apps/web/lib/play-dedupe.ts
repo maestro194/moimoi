@@ -2,6 +2,7 @@
 // Shared by the sync (lib/maimai-sync.ts) and the one-off cleanup (scripts/dedupe-manual-plays.ts).
 
 import type { SelectPlayLog } from './db/schema';
+import { sameChart } from '@maimai-suite/core';
 
 /** Manual entries are typed in after the fact, so their time is only approximate. */
 export const MANUAL_MATCH_WINDOW_MS = 30 * 60 * 1000;
@@ -25,9 +26,7 @@ function sameAchievement(a: string | number, b: string | number): boolean {
 
 /** Same chart, same track and same achievement — the play's identity apart from its time. */
 export function isSamePlay(a: PlayKey, b: PlayKey): boolean {
-  return a.songTitle === b.songTitle
-    && a.difficulty === b.difficulty
-    && a.songType === b.songType
+  return sameChart(a, b)
     && a.track === b.track
     && sameAchievement(a.achievement, b.achievement);
 }

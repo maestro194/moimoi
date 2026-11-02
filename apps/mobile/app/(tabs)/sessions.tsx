@@ -10,7 +10,7 @@ import {
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
 import { Clock, ChevronDown, ChevronUp, Music2, Star, Pencil, Trash2, Plus } from 'lucide-react-native';
-import { solvePlayDetails } from '@maimai-suite/core';
+import { sameChart, solvePlayDetails } from '@maimai-suite/core';
 import ManualCreditModal from '../../components/ManualCreditModal';
 import { deleteManualPlay } from '../../db/sync';
 import { JacketImage } from '@/components/JacketImage';
@@ -41,8 +41,7 @@ interface CreditGroup {
 
 /** Same chart, track and achievement — e.g. a manual entry and its synced copy. */
 function isDuplicatePlay(a: PlayItem, b: PlayItem): boolean {
-  return a.song_title === b.song_title
-    && a.difficulty === b.difficulty
+  return sameChart(a, b)
     && a.track === b.track
     && Math.abs(Number(a.achievement) - Number(b.achievement)) < 0.00005;
 }
