@@ -2,10 +2,10 @@ import { type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { scores, settings } from "@/lib/db/schema";
 import { fetchSongs, buildSongMap, detectCurrentVersion } from "@/lib/song-db";
-import { computeRating } from "@/lib/rating";
+import { computeRating } from "@maimai-suite/core";
 import { generateB50Image } from "@/lib/b50-image";
 import { segaLogin, saveSetting } from "@/lib/maimai-sync";
-import type { Score, Difficulty, Region } from "@/lib/types";
+import type { Score, Difficulty, Region } from "@maimai-suite/core";
 import { desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";

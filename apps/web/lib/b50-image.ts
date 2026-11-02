@@ -8,7 +8,7 @@
 import { createCanvas, loadImage, GlobalFonts, type SKRSContext2D } from "@napi-rs/canvas";
 import { promises as fs } from "fs";
 import path from "path";
-import type { ScoreWithRating, RatingData } from "./types";
+import type { ScoreWithRating, RatingData } from "@maimai-suite/core";
 import { OTOGE_DB_JACKET_BASE } from "./jacket";
 import { formatIsoDate } from "./time";
 

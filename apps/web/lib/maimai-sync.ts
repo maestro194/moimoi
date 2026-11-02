@@ -13,13 +13,13 @@
  */
 
 import * as cheerio from 'cheerio';
-import type { Difficulty, FC, FS, Region, SongType } from './types';
+import type { Difficulty, FC, FS, Region, SongType } from '@maimai-suite/core';
 import { db } from './db';
 import { scores, playLog, settings, scoreHistory, scoreTrackers } from './db/schema';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { CookieJar } from 'tough-cookie';
 import makeFetchCookie from 'fetch-cookie';
-import { solvePlayDetails } from './accuracy-solver';
+import { solvePlayDetails } from '@maimai-suite/core';
 import { MANUAL_MATCH_WINDOW_MS, findManualDuplicate, isManualPlay, isSamePlay, stripManualFlag, type PlayKey } from './play-dedupe';
 
 const MAIMAI_BASE: Record<Region, string> = {

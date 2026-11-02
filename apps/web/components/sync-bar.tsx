@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { RefreshCw, ChevronDown } from 'lucide-react';
-import type { PlayerProfile } from '@/lib/types';
+import type { PlayerProfile } from '@maimai-suite/core';
 import { formatDateTime } from '@/lib/time';
 
 interface SyncBarProps {

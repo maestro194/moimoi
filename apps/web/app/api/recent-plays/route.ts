@@ -3,9 +3,8 @@ import { db } from '@/lib/db';
 import { playLog } from '@/lib/db/schema';
 import { desc, isNotNull } from 'drizzle-orm';
 import { fetchSongs, buildSongMap } from '@/lib/song-db';
-import { normalizeTitle } from '@/lib/normalize';
-import { getSongInternalLevel } from '@/lib/rating';
-import type { Difficulty } from '@/lib/types';
+import { normalizeTitle, getSongInternalLevel } from '@maimai-suite/core';
+import type { Difficulty } from '@maimai-suite/core';
 
 export const dynamic = 'force-dynamic';
 

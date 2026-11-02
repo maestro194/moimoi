@@ -6,7 +6,7 @@ import { PageWrapper } from '@/components/page-wrapper';
 import { ManualCreditModalWeb } from '@/components/manual-credit-modal';
 import { JacketImg } from '@/components/jacket-img';
 import { getJacketUrls } from '@/lib/jacket';
-import type { Song } from '@/lib/types';
+import type { Song } from '@maimai-suite/core';
 
 export default function SongDetailsDebugClient() {
   return (

@@ -1,8 +1,8 @@
 import { db } from '../lib/db';
 import { scores } from '../lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '../lib/song-db';
-import { computeRating, deriveBigVersions, getNewPoolThreshold } from '../lib/rating';
-import type { Score, Difficulty } from '../lib/types';
+import { computeRating, deriveBigVersions, getNewPoolThreshold } from '@maimai-suite/core';
+import type { Score, Difficulty } from '@maimai-suite/core';
 
 async function main() {
   const songs = await fetchSongs();

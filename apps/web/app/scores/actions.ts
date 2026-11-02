@@ -1,7 +1,7 @@
 'use server';
 
 import { fetchSongs } from '@/lib/song-db';
-import type { Difficulty } from '@/lib/types';
+import type { Difficulty } from '@maimai-suite/core';
 import { toRomaji } from '@/lib/romaji';
 import { getSetting } from '@/lib/maimai-sync';
 

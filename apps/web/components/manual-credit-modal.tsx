@@ -3,9 +3,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Trash2, Plus, Zap, Calculator, Sparkles, ChevronRight, Search, Loader2 } from 'lucide-react';
-import { solvePlayDetails } from '@/lib/accuracy-solver';
-import { normalizeTitle } from '@/lib/normalize';
-import type { Song } from '@/lib/types';
+import { solvePlayDetails, normalizeTitle } from '@maimai-suite/core';
+import type { Song } from '@maimai-suite/core';
 
 interface MatrixRow {
   cp: string;

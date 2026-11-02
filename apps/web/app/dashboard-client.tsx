@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { RefreshCw, Zap, Download } from 'lucide-react';
-import type { RatingData, Score } from '@/lib/types';
-import { getRankTitle } from '@/lib/rating';
+import type { RatingData, Score } from '@maimai-suite/core';
+import { getRankTitle } from '@maimai-suite/core';
 
 import { PageWrapper } from '@/components/page-wrapper';
 import { formatDateTime } from '@/lib/time';
@@ -269,7 +269,7 @@ function StatCard({ icon, label, value, color, sub }: {
 }
 
 function RatingList({ title, charts, accent, showMore = false }: {
-  title: string; charts: import('@/lib/types').ScoreWithRating[]; accent: string; showMore?: boolean;
+  title: string; charts: import('@maimai-suite/core').ScoreWithRating[]; accent: string; showMore?: boolean;
 }) {
   return (
     <div className="glass rounded-2xl p-5">

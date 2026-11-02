@@ -3,10 +3,8 @@ import { playLog, settings } from '@/lib/db/schema';
 import { desc, inArray } from 'drizzle-orm';
 import RecentClient from './recent-client';
 import { fetchSongs, buildSongMap } from '@/lib/song-db';
-import { normalizeTitle } from '@/lib/normalize';
-import type { PlayerProfile, Difficulty } from '@/lib/types';
-import { calcSingleRating, getSongInternalLevel } from '@/lib/rating';
-import { solvePlayDetails } from '@/lib/accuracy-solver';
+import { normalizeTitle, calcSingleRating, getSongInternalLevel, solvePlayDetails } from '@maimai-suite/core';
+import type { PlayerProfile, Difficulty } from '@maimai-suite/core';
 
 export const dynamic = 'force-dynamic';
 

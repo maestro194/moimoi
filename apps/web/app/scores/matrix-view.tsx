@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { ScoreWithRating } from '@/lib/types';
+import type { ScoreWithRating } from '@maimai-suite/core';
 import { getAllCharts, type MinimalChart } from './actions';
 import { FCBadge } from '@/components/badges';
 import { JacketImg } from '@/components/jacket-img';

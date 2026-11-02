@@ -6,7 +6,7 @@ import type {
   CommunityTagGroup,
   CommunityTag,
   CommunityTagSong,
-} from '@/lib/types';
+} from '@maimai-suite/core';
 
 export const dynamic = 'force-dynamic';
 

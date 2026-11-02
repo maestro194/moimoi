@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, memo } from 'react';
-import type { FC, FS, Difficulty, PlayerProfile } from '@/lib/types';
+import type { FC, FS, Difficulty, PlayerProfile } from '@maimai-suite/core';
 import { Clock, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { FCBadge, FSBadge } from '@/components/badges';
 import { PageWrapper } from '@/components/page-wrapper';

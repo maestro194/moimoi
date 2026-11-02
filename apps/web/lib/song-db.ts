@@ -1,8 +1,8 @@
-import type { Song } from './types';
+import type { Song } from '@maimai-suite/core';
 import { db } from './db';
 import { songs } from './db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { normalizeTitle } from './normalize';
+import { normalizeTitle } from '@maimai-suite/core';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
 const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
@@ -479,22 +479,8 @@ export function buildSongMap(songs: Song[]): Map<string, Song> {
   return map;
 }
 
-/**
- * Auto-detect the current game version from the song DB.
- * Requires at least 20 songs at a version to count as a real release.
- */
-export function detectCurrentVersion(songs: Song[]): number {
-  const counts = new Map<number, number>();
-  let max = 0;
-  for (const song of songs) {
-    const v = parseInt(song.version, 10);
-    if (!isNaN(v)) counts.set(v, (counts.get(v) || 0) + 1);
-  }
-  for (const [v, count] of counts.entries()) {
-    if (count >= 20 && v > max) max = v;
-  }
-  return max || 26000;
-}
+/** Current game version from the song DB (shared rule in @maimai-suite/core). */
+export { detectCurrentVersion } from '@maimai-suite/core';
 
 /** Get all unique categories in the song DB. */
 export function getSongCategories(songs: Song[]): string[] {

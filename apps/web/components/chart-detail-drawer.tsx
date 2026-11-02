@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp, Trophy, ExternalLink } from 'lucide-react';
-import type { ScoreWithRating, FC, FS } from '@/lib/types';
+import type { ScoreWithRating, FC, FS } from '@maimai-suite/core';
 import { getJacketUrl } from '@/lib/song-db';
 import { JacketImg } from '@/components/jacket-img';
 import { FCBadge, FSBadge } from '@/components/badges';

@@ -2,9 +2,9 @@
 
 import { TrendingUp, Target, ArrowUp, ChevronRight, ArrowRight, ExternalLink } from 'lucide-react';
 import { FCBadge, FSBadge } from '@/components/badges';
-import type { RatingData, ScoreWithRating } from '@/lib/types';
-import type { TargetSuggestion } from '@/lib/rating';
-import { RANK_DEFINITIONS } from '@/lib/rating';
+import type { RatingData, ScoreWithRating } from '@maimai-suite/core';
+import type { TargetSuggestion } from '@maimai-suite/core';
+import { RANK_DEFINITIONS } from '@maimai-suite/core';
 import { Jacket } from '@/components/jacket';
 import { PageWrapper } from '@/components/page-wrapper';
 import { motion, useSpring, useTransform, Variants } from 'framer-motion';

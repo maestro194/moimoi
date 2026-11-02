@@ -3,9 +3,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Target, Plus, Search, Trash2, Check, X, Play, List, Edit2, Info } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
-import type { ScoreWithRating, Score, Difficulty, Song } from '@/lib/types';
-import { computeRating, calcSingleRating, getSongInternalLevel } from '@/lib/rating';
-import { normalizeTitle } from '@/lib/normalize';
+import type { ScoreWithRating, Score, Difficulty, Song } from '@maimai-suite/core';
+import { computeRating, calcSingleRating, getSongInternalLevel, normalizeTitle } from '@maimai-suite/core';
 import { addTracker, deleteTracker } from './actions';
 import type { MinimalChart } from '@/app/scores/actions';
 import { Jacket } from '@/components/jacket';

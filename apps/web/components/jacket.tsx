@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Difficulty } from '@/lib/types';
+import type { Difficulty } from '@maimai-suite/core';
 import { JacketImg } from '@/components/jacket-img';
 
 interface JacketProps {

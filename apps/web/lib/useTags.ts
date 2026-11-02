@@ -6,7 +6,7 @@ import type {
   UnifiedTag,
   PersonalTag,
   PersonalTagGroup,
-} from './types';
+} from '@maimai-suite/core';
 
 // ── Difficulty normalizer (dxrating lowercase → moimoi uppercase) ──────────────
 const DIFF_MAP: Record<string, string> = {

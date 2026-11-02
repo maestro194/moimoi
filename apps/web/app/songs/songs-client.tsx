@@ -2,13 +2,13 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect, useDeferredValue } from 'react';
 import { Search, Music2, Calendar, Tag, ChevronDown, ChevronUp, Globe } from 'lucide-react';
-import type { Song, UnifiedTag } from '@/lib/types';
+import type { Song, UnifiedTag } from '@maimai-suite/core';
 
 import { PageWrapper } from '@/components/page-wrapper';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toRomaji } from '@/lib/romaji';
 import { JacketImg } from '@/components/jacket-img';
-import { versionLabel } from '@/lib/version-label';
+import { versionLabel } from '@maimai-suite/core';
 import { addTracker } from '@/app/tracker/actions';
 import { SongDetailsModal } from './SongDetailsModal';
 import { ChartActionModal } from '@/components/chart-action-modal';

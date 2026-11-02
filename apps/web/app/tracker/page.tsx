@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
 import { scores, scoreTrackers, settings, trackerLists, trackerItems, sessionItems } from '@/lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
-import { computeRating } from '@/lib/rating';
-import type { Score, Difficulty } from '@/lib/types';
+import { computeRating } from '@maimai-suite/core';
+import type { Score, Difficulty } from '@maimai-suite/core';
 import TrackerClient from './tracker-client';
 import { inArray } from 'drizzle-orm';
 import { getAllCharts } from '@/app/scores/actions';

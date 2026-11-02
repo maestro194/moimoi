@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
-import { foilTagLabel, type FoilInfo } from '@/lib/foil';
+import { foilTagLabel, type FoilInfo } from '@maimai-suite/core';
 import styles from './foil-card.module.css';
 
 /** Settings → "Foil animation". Stored per browser; when off, cards keep a still foil. */

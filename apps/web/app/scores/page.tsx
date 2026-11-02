@@ -1,9 +1,8 @@
 import { db } from '@/lib/db';
 import { scores, settings } from '@/lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
-import { computeRating } from '@/lib/rating';
-import { computeFoil } from '@/lib/foil';
-import type { Score, Difficulty, PlayerProfile } from '@/lib/types';
+import { computeRating, computeFoil } from '@maimai-suite/core';
+import type { Score, Difficulty, PlayerProfile } from '@maimai-suite/core';
 import ScoresClient from './scores-client';
 import { inArray } from 'drizzle-orm';
 

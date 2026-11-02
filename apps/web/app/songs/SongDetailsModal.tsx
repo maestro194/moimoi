@@ -6,11 +6,10 @@ import {
   X, Music2, Tag, Plus, Check, Globe,
   Loader2, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { Song } from '@/lib/types';
+import { Song, versionLabel } from '@maimai-suite/core';
 import { JacketImg } from '@/components/jacket-img';
-import { versionLabel } from '@/lib/version-label';
 import { useTags } from '@/lib/useTags';
-import type { UnifiedTag, PersonalTagGroup } from '@/lib/types';
+import type { UnifiedTag, PersonalTagGroup } from '@maimai-suite/core';
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 export interface SongDetailsModalProps {

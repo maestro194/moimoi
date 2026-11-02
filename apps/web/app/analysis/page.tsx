@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
 import { scores, settings } from '@/lib/db/schema';
 import { fetchSongs, buildSongMap, detectCurrentVersion } from '@/lib/song-db';
-import { computeRating, getTargetSuggestions } from '@/lib/rating';
-import type { Score, Difficulty } from '@/lib/types';
+import { computeRating, getTargetSuggestions } from '@maimai-suite/core';
+import type { Score, Difficulty } from '@maimai-suite/core';
 import AnalysisClient from './analysis-client';
 import { inArray } from 'drizzle-orm';
 

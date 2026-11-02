@@ -7,7 +7,7 @@
 
 import { Client } from 'pg';
 import * as dotenv from 'dotenv';
-import { solvePlayDetails } from '../lib/accuracy-solver';
+import { solvePlayDetails } from '@maimai-suite/core';
 
 dotenv.config({ path: '.env.local' });
 

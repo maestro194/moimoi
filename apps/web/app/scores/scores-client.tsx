@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Search, Trophy, LayoutGrid, List, BarChart2 } from 'lucide-react';
-import type { ScoreWithRating, Difficulty, PlayerProfile } from '@/lib/types';
+import type { ScoreWithRating, Difficulty, PlayerProfile } from '@maimai-suite/core';
 import { PageWrapper } from '@/components/page-wrapper';
 import MatrixView from './matrix-view';
 import { getJacketUrl } from '@/lib/song-db';
@@ -10,7 +10,7 @@ import { Jacket } from '@/components/jacket';
 import { SyncBar } from '@/components/sync-bar';
 import { ChartDetailDrawer } from '@/components/chart-detail-drawer';
 import { FoilCard, foilRatingClass } from '@/components/foil-card';
-import { foilKey, type FoilInfo } from '@/lib/foil';
+import { foilKey, type FoilInfo } from '@maimai-suite/core';
 
 interface Props {
   scored: ScoreWithRating[];

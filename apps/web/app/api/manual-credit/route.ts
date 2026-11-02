@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { playLog, scores, scoreHistory } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { solvePlayDetails } from '@/lib/accuracy-solver';
+import { solvePlayDetails } from '@maimai-suite/core';
 
 export const dynamic = 'force-dynamic';
 
