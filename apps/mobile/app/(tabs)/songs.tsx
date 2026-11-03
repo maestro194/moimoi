@@ -18,7 +18,7 @@ import {
   Filter,
   Disc,
 } from 'lucide-react-native';
-import { versionLabel, chartKey } from '@maimai-suite/core';
+import { versionLabel, chartKey, chartsOf, type ChartInfo } from '@maimai-suite/core';
 import type { SongRow, ScoreRow } from '../../db/schema';
 import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
@@ -38,12 +38,16 @@ const CATEGORIES: Array<{ key: CategoryKey; label: string }> = [
   { key: 'original&joypolis', label: 'Ongeki/Chuni' },
 ];
 
+const CARD_DIFFICULTIES: readonly string[] = ['EXP', 'MAS', 'REMAS'];
+
 const LEVEL_FILTERS: LevelFilterKey[] = ['ALL', '14+', '14', '13+', '13', '12+', '12', '<=11'];
 
 interface SongWithScores {
   song: SongRow;
   /** One card per chart type: a song with DX and STD charts gets two cards. Null for an utage-only song. */
   type: 'DX' | 'STD' | null;
+  /** This card's EXP / MAS / Re:MAS charts. */
+  charts: ChartInfo<SongRow>[];
   maxLevel: number;
   scoresByDiff: Map<string, ScoreRow>;
 }
@@ -73,29 +77,24 @@ export default function SongsScreen() {
 
   // One card per song and chart type, with the user's scores and the highest chart constant
   const preparedSongs = useMemo(() => {
-    const has = (v: string | null | undefined) => v != null && v !== '';
-    const lv = (song: SongRow, key: string) => (song as unknown as Record<string, string | null>)[key];
     return rawSongs.flatMap((song): SongWithScores[] => {
-      const types = (['DX', 'STD'] as const).filter(type => {
-        const p = type === 'DX' ? 'dx_lev_' : 'lev_';
-        return ['bas', 'adv', 'exp', 'mas', 'remas'].some(d => has(lv(song, `${p}${d}`)));
-      });
-      if (types.length === 0) return [{ song, type: null, maxLevel: 0, scoresByDiff: new Map() }];
+      const all = chartsOf(song);
+      const types = (['DX', 'STD'] as const).filter(type => all.some(c => c.ref.difficulty !== 'UTAGE' && c.ref.type === type));
+      if (types.length === 0) return [{ song, type: null, charts: [], maxLevel: 0, scoresByDiff: new Map() }];
 
+      // Skip scores that belong to another song with the same title (TRUST / Trust)
+      const ownsCharts = (type: 'DX' | 'STD') => songIndex.forChart({ title: song.title, difficulty: 'MAS', type }) === song;
       return types.map(type => {
-        const p = type === 'DX' ? 'dx_lev_' : 'lev_';
+        const charts = all.filter(c => c.ref.type === type && CARD_DIFFICULTIES.includes(c.ref.difficulty));
         const scoresByDiff = new Map<string, ScoreRow>();
-        for (const d of ['EXP', 'MAS', 'REMAS']) {
-          const chart = { title: song.title, difficulty: d, type };
-          // Skip a score that belongs to another song with the same title (TRUST / Trust)
-          if (songIndex.forChart(chart) !== song) continue;
-          const score = userScoresMap.get(chartKey(chart));
-          if (score) scoresByDiff.set(`${d}::${type}`, score);
+        if (ownsCharts(type)) {
+          for (const c of charts) {
+            const score = userScoresMap.get(chartKey(c.ref));
+            if (score) scoresByDiff.set(`${c.ref.difficulty}::${type}`, score);
+          }
         }
-        const levels = ['remas', 'mas', 'exp']
-          .map(d => parseFloat(lv(song, `${p}${d}_i`) || '0'))
-          .filter(n => !isNaN(n) && n > 0);
-        return { song, type, maxLevel: levels.length ? Math.max(...levels) : 0, scoresByDiff };
+        const levels = charts.map(c => c.constant ?? 0);
+        return { song, type, charts, maxLevel: Math.max(0, ...levels), scoresByDiff };
       });
     });
   }, [rawSongs, songIndex, userScoresMap]);
@@ -216,15 +215,14 @@ export default function SongsScreen() {
     const availableDiffs: DiffBadgeData[] = [];
 
     // This card's charts (only its own type)
-    if (type) {
-      const p = type === 'DX' ? 'dx_lev_' : 'lev_';
-      for (const diff of ['EXP', 'MAS', 'REMAS'] as const) {
-        const d = diff.toLowerCase();
-        const internal = (song as unknown as Record<string, string | null>)[`${p}${d}_i`];
-        const display = (song as unknown as Record<string, string | null>)[`${p}${d}`];
-        if (!internal && !display) continue;
-        availableDiffs.push({ diff, type, internal, display, score: scoresByDiff.get(`${diff}::${type}`) });
-      }
+    for (const c of item.charts) {
+      availableDiffs.push({
+        diff: c.ref.difficulty as DiffBadgeData['diff'],
+        type: c.ref.type,
+        internal: c.constant !== undefined ? String(c.constant) : null,
+        display: c.level ?? null,
+        score: scoresByDiff.get(`${c.ref.difficulty}::${c.ref.type}`),
+      });
     }
 
     return (

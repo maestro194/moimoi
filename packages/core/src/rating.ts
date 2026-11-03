@@ -1,5 +1,6 @@
 import type { RankDef, Difficulty, Song, Score, ScoreWithRating, RatingData, RatingPool } from './types';
 import { chartKey, sameChart, type SongIndex } from './chart';
+import { chartOf } from './lookup';
 
 // ─── Rank definitions (from myjian/mai-tools) ───────────────────────────────
 export const RANK_DEFINITIONS: RankDef[] = [
@@ -66,79 +67,6 @@ export function calcSingleRating(internalLevel: number, achievement: number, fc?
     floored: Math.floor(rating),
     raw: rating
   };
-}
-
-/**
- * Parse internal level string (e.g. "14.9", "15.0") to a number.
- * Returns the display level (e.g. "14+") parsed as a number as fallback.
- */
-export function parseInternalLevel(internalLv: string | undefined, displayLv: string | undefined): number {
-  if (internalLv) {
-    const parsed = parseFloat(internalLv);
-    if (!isNaN(parsed)) return parsed;
-  }
-  if (displayLv) {
-    const clean = displayLv.replace('+', '.7');
-    const parsed = parseFloat(clean);
-    if (!isNaN(parsed)) return parsed;
-  }
-  return 0;
-}
-
-/**
- * Get the internal level for a specific difficulty from a Song object.
- *
- * @param song - The song entry from the song DB.
- * @param difficulty - Chart difficulty (BAS/ADV/EXP/MAS/REMAS).
- * @param songType - 'DX' (default) or 'STD'. For songs with both STD and DX
- *   charts, 'DX' uses the preserved `dx_lev_*_i` fields so the correct
- *   internal level is used for rating calculation.
- */
-export function getSongInternalLevel(
-  song: Song,
-  difficulty: Difficulty,
-  songType: 'STD' | 'DX' = 'DX',
-): number {
-  // For DX charts: prefer the explicit DX internal level field.
-  // Falls back to the normalized lev_*_i (which equals the DX level for DX-only songs).
-  if (songType === 'DX') {
-    const dxMap: Record<Difficulty, string | undefined> = {
-      BAS:   song.dx_lev_bas_i   ?? song.lev_bas_i,
-      ADV:   song.dx_lev_adv_i   ?? song.lev_adv_i,
-      EXP:   song.dx_lev_exp_i   ?? song.lev_exp_i,
-      MAS:   song.dx_lev_mas_i   ?? song.lev_mas_i,
-      REMAS: song.dx_lev_remas_i ?? song.lev_remas_i,
-      UTAGE: song.lev_utage,
-    };
-    const dxDisplay: Record<Difficulty, string | undefined> = {
-      BAS:   song.dx_lev_bas   ?? song.lev_bas,
-      ADV:   song.dx_lev_adv   ?? song.lev_adv,
-      EXP:   song.dx_lev_exp   ?? song.lev_exp,
-      MAS:   song.dx_lev_mas   ?? song.lev_mas,
-      REMAS: song.dx_lev_remas ?? song.lev_remas,
-      UTAGE: song.lev_utage,
-    };
-    return parseInternalLevel(dxMap[difficulty], dxDisplay[difficulty]);
-  }
-
-  // For STD charts: use only the STD (lev_*) fields.
-  const stdMap: Record<Difficulty, string | undefined> = {
-    BAS:   song.lev_bas_i,
-    ADV:   song.lev_adv_i,
-    EXP:   song.lev_exp_i,
-    MAS:   song.lev_mas_i,
-    REMAS: song.lev_remas_i,
-    UTAGE: song.lev_utage,
-  };
-  const stdDisplay: Record<Difficulty, string | undefined> = {
-    BAS:   song.lev_bas,
-    ADV:   song.lev_adv,
-    EXP:   song.lev_exp,
-    MAS:   song.lev_mas,
-    REMAS: song.lev_remas,
-    UTAGE: song.lev_utage,
-  };
-  return parseInternalLevel(stdMap[difficulty], stdDisplay[difficulty]);
 }
 
 /**
@@ -213,9 +141,8 @@ export function computeRating(
 
   const scored: ScoreWithRating[] = scores.map(score => {
     const song = songs.forChart(score);
-    const internalLevel = song
-      ? getSongInternalLevel(song, score.difficulty, score.songType ?? 'DX')
-      : 0;
+    // 0 = no known constant: such a chart is listed but never rated (see lookup.ts)
+    const internalLevel = (song && chartOf(song, score)?.constant) || 0;
     const achievement = typeof score.achievement === 'string'
       ? parseFloat(score.achievement)
       : score.achievement;
@@ -239,8 +166,9 @@ export function computeRating(
   // Deduplicate to best score per (song, difficulty) before pool filtering
   const allBestScores = deduplicateBest(scored);
 
-  const newPool = allBestScores.filter(s => s.pool === 'new');
-  const oldPool = allBestScores.filter(s => s.pool === 'old');
+  const rated = allBestScores.filter(s => s.internalLevel > 0);
+  const newPool = rated.filter(s => s.pool === 'new');
+  const oldPool = rated.filter(s => s.pool === 'old');
 
   const sortScores = (a: ScoreWithRating & { rawRating?: number }, b: ScoreWithRating & { rawRating?: number }) => {
     if (b.rating !== a.rating) return b.rating - a.rating;
@@ -273,7 +201,8 @@ export function computeRating(
     oldRating,
     newCharts: topNew,
     oldCharts: topOld,
-    allScores: [...newPool, ...oldPool],
+    // Charts without a known constant are listed after the rated ones, best achievement first
+    allScores: [...newPool, ...oldPool, ...allBestScores.filter(s => s.internalLevel === 0).sort((a, b) => b.achievement - a.achievement)],
   };
 }
 
@@ -283,7 +212,8 @@ function deduplicateBest(scores: ScoreWithRating[]): ScoreWithRating[] {
   for (const score of scores) {
     const key = chartKey(score);
     const existing = map.get(key);
-    if (!existing || score.rating > existing.rating) {
+    // Same chart, same constant: higher achievement is higher rating (also for charts without a constant)
+    if (!existing || score.rating > existing.rating || (score.rating === existing.rating && score.achievement > existing.achievement)) {
       map.set(key, score);
     }
   }

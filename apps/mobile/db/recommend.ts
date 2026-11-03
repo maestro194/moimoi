@@ -1,5 +1,5 @@
 import type { ScoreRow, SongRow } from './schema';
-import { calcSingleRating, chartKey, type SongIndex } from '@maimai-suite/core';
+import { calcSingleRating, chartKey, chartsOf, estimateConstant, lookupChart, type ChartInfo, type SongIndex } from '@maimai-suite/core';
 
 export type SkillAxis = 'TAP' | 'SPIN' | 'SPEED' | 'STAMINA' | 'TECH' | 'ACCURACY';
 
@@ -12,6 +12,8 @@ export interface ChartSkillProfile {
   difficulty: 'EXP' | 'MAS' | 'REMAS';
   songType: 'DX' | 'STD';
   constant: number;
+  /** True when the data has no constant and `constant` is estimateConstant(displayed level). */
+  constantEstimated: boolean;
   skills: Record<SkillAxis, number>;
   primarySkills: { skill: SkillAxis; value: number }[];
 }
@@ -31,6 +33,7 @@ export interface RecommendedTarget {
   difficulty: 'EXP' | 'MAS' | 'REMAS';
   songType: 'DX' | 'STD';
   constant: number;
+  constantEstimated: boolean;
   primarySkills: { skill: SkillAxis; value: number }[];
   predictedAchievement: number;
   targetAchievement: number;
@@ -55,42 +58,21 @@ export function getSkillTier(stat: number): SkillTier {
   return 'AA';
 }
 
-/**
- * Extract chart constant for EXP, MAS, or REMAS
- */
-export function getChartConstant(
-  song: SongRow,
-  difficulty: 'EXP' | 'MAS' | 'REMAS',
-  songType: 'DX' | 'STD' = 'DX'
-): number {
-  let raw: string | null = null;
-  if (difficulty === 'MAS') {
-    raw = songType === 'DX' ? (song.dx_lev_mas_i || song.lev_mas_i) : (song.lev_mas_i || song.dx_lev_mas_i);
-    if (!raw) raw = songType === 'DX' ? song.dx_lev_mas : song.lev_mas;
-  } else if (difficulty === 'EXP') {
-    raw = songType === 'DX' ? (song.dx_lev_exp_i || song.lev_exp_i) : (song.lev_exp_i || song.dx_lev_exp_i);
-    if (!raw) raw = songType === 'DX' ? song.dx_lev_exp : song.lev_exp;
-  } else if (difficulty === 'REMAS') {
-    raw = songType === 'DX' ? (song.dx_lev_remas_i || song.lev_remas_i) : (song.lev_remas_i || song.dx_lev_remas_i);
-    if (!raw) raw = songType === 'DX' ? song.dx_lev_remas : song.lev_remas;
-  }
-
-  if (!raw) return 11.0;
-
-  const parsed = parseFloat(raw.replace('+', '.7'));
-  return isNaN(parsed) ? 11.0 : parsed;
-}
+type RecDifficulty = 'EXP' | 'MAS' | 'REMAS';
+const REC_DIFFICULTIES: readonly string[] = ['EXP', 'MAS', 'REMAS'];
 
 /**
  * Compute multi-metric physical skill profile for a single chart.
- * Based on notes breakdown (tap, hold, slide, touch, break), BPM, and constant.
+ * Based on notes breakdown (tap, hold, slide, touch, break), BPM, and constant. A chart the data has no
+ * constant for uses an estimate from its displayed level (marked constantEstimated); null when neither exists.
  */
-export function computeChartSkillProfile(
-  song: SongRow,
-  difficulty: 'EXP' | 'MAS' | 'REMAS',
-  songType: 'DX' | 'STD' = 'DX'
-): ChartSkillProfile {
-  const constant = getChartConstant(song, difficulty, songType);
+export function computeChartSkillProfile(chart: ChartInfo<SongRow>): ChartSkillProfile | null {
+  const { song, ref } = chart;
+  if (!REC_DIFFICULTIES.includes(ref.difficulty)) return null;
+  const constant = chart.constant ?? estimateConstant(chart.level);
+  if (constant === undefined) return null;
+  const difficulty = ref.difficulty as RecDifficulty;
+  const songType = ref.type;
   const base = (constant / 15.0) * 101.0;
 
   let bpm = 175;
@@ -99,38 +81,14 @@ export function computeChartSkillProfile(
     if (!isNaN(parsedBpm) && parsedBpm > 50) bpm = parsedBpm;
   }
 
-  // Parse sheets if available
-  let tap = 450;
-  let hold = 30;
-  let slide = 80;
-  let touch = 0;
-  let breakCount = 25;
-  let total = 600;
-
-  if (song.sheets) {
-    try {
-      const sheetsList = parsedSheets(song);
-      if (Array.isArray(sheetsList)) {
-        const diffKey = difficulty.toLowerCase() === 'mas' ? 'master' :
-                        difficulty.toLowerCase() === 'exp' ? 'expert' : 'remaster';
-        const match = sheetsList.find(
-          (sh: any) =>
-            sh.difficulty?.toLowerCase() === diffKey &&
-            (sh.type?.toLowerCase() === songType.toLowerCase() || !sh.type)
-        );
-        if (match && match.noteCounts) {
-          tap = match.noteCounts.tap ?? tap;
-          hold = match.noteCounts.hold ?? hold;
-          slide = match.noteCounts.slide ?? slide;
-          touch = match.noteCounts.touch ?? touch;
-          breakCount = match.noteCounts.break ?? breakCount;
-          total = match.noteCounts.total ?? (tap + hold + slide + touch + breakCount);
-        }
-      }
-    } catch {
-      // Ignore json parse error, fall back to defaults
-    }
-  }
+  // Note counts from the chart's sheet; typical values when the data has none
+  const nc = chart.sheet?.noteCounts;
+  const tap = nc?.tap ?? 450;
+  const hold = nc?.hold ?? 30;
+  const slide = nc?.slide ?? 80;
+  const touch = nc?.touch ?? 0;
+  const breakCount = nc?.break ?? 25;
+  const total = nc ? (nc.total ?? (tap + hold + slide + touch + breakCount)) : 600;
 
   const rSlide = total > 0 ? slide / total : 0.16;
   const rTap = total > 0 ? tap / total : 0.62;
@@ -190,18 +148,10 @@ export function computeChartSkillProfile(
     difficulty,
     songType,
     constant,
+    constantEstimated: chart.constant === undefined,
     skills,
     primarySkills: sortedSkills.slice(0, 2),
   };
-}
-
-/** Parsed `sheets` JSON per song row; rows are reused until the next data load, so parse each once. */
-const sheetsCache = new WeakMap<SongRow, unknown>();
-function parsedSheets(song: SongRow): unknown {
-  if (sheetsCache.has(song)) return sheetsCache.get(song);
-  const parsed = typeof song.sheets === 'string' ? JSON.parse(song.sheets) : song.sheets;
-  sheetsCache.set(song, parsed);
-  return parsed;
 }
 
 /**
@@ -225,14 +175,9 @@ export function computePlayerSkillProfile(
   };
 
   for (const s of eligibleScores) {
-    const song = songs.forChart(s);
-    if (!song) continue;
-
-    const profile = computeChartSkillProfile(
-      song,
-      s.difficulty as 'EXP' | 'MAS' | 'REMAS',
-      (s.song_type ?? 'DX') as 'DX' | 'STD'
-    );
+    const chart = lookupChart(songs, s);
+    const profile = chart && computeChartSkillProfile(chart);
+    if (!profile) continue;
 
     const mult = Math.min(1.005, s.achievement / 100.0);
 
@@ -351,14 +296,13 @@ export function getRecommendations(
   const baseline = scoreBaseline(scores);
 
   for (const song of songs) {
-    const difficulties: Array<'MAS' | 'EXP' | 'REMAS'> = ['MAS', 'EXP'];
-    if (song.dx_lev_remas || song.lev_remas) difficulties.push('REMAS');
+    // Every EXP / MAS / Re:MAS chart the song has, DX and STD
+    for (const chart of chartsOf(song)) {
+      const chartProfile = computeChartSkillProfile(chart);
+      if (!chartProfile || chartProfile.constant < 12.0) continue; // Focus on 12.0+
+      const diff = chartProfile.difficulty;
 
-    for (const diff of difficulties) {
-      const chartProfile = computeChartSkillProfile(song, diff, 'DX');
-      if (chartProfile.constant < 12.0) continue; // Focus on 12.0+
-
-      const existingScore = scoreByChart.get(chartKey({ title: song.title, difficulty: diff, type: 'DX' }));
+      const existingScore = scoreByChart.get(chartKey(chart.ref));
 
       const predicted = predictAchievement(playerProfile, chartProfile, scores, baseline);
 
@@ -394,8 +338,9 @@ export function getRecommendations(
             artist: song.artist ?? '',
             imageUrl: song.image_url,
             difficulty: diff,
-            songType: 'DX',
+            songType: chartProfile.songType,
             constant: chartProfile.constant,
+            constantEstimated: chartProfile.constantEstimated,
             primarySkills: chartProfile.primarySkills,
             predictedAchievement: predicted,
             targetAchievement: targetAchv,
@@ -439,8 +384,9 @@ export function getRecommendations(
             artist: song.artist ?? '',
             imageUrl: song.image_url,
             difficulty: diff,
-            songType: 'DX',
+            songType: chartProfile.songType,
             constant: chartProfile.constant,
+            constantEstimated: chartProfile.constantEstimated,
             primarySkills: chartProfile.primarySkills,
             predictedAchievement: predicted,
             targetAchievement: targetAchv,

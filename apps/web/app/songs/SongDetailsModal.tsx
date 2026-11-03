@@ -6,7 +6,7 @@ import {
   X, Music2, Tag, Plus, Check, Globe,
   Loader2, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { Song, versionLabel } from '@maimai-suite/core';
+import { Song, chartOf, versionLabel } from '@maimai-suite/core';
 import { JacketImg } from '@/components/jacket-img';
 import { useTags } from '@/lib/useTags';
 import type { UnifiedTag, PersonalTagGroup } from '@maimai-suite/core';
@@ -296,35 +296,17 @@ export function SongDetailsModal({ row, onClose }: SongDetailsModalProps) {
 
   if (!row) return null;
 
-  const { song, type, difficulty, abbr } = row;
+  const { song, type, abbr } = row;
   const color = DIFF_COLORS[abbr] ?? '#6b7280';
   const diffLabel = DIFF_LABELS[abbr] ?? abbr;
 
-  // Chart data from song.sheets (if available)
-  const sheets = Array.isArray(song.sheets) ? song.sheets : [];
-  const sheet = sheets.find(s => s.type === type.toLowerCase() && s.difficulty === difficulty);
+  // Chart data (constant, displayed level, sheet) from the chart lookup
+  const chart = chartOf(song, { difficulty: abbr, type });
+  const sheet = chart?.sheet;
   const nc = sheet?.noteCounts ?? {};
   const noteDesigner = sheet?.noteDesigner ?? null;
-  const internalLevel = sheet?.internalLevelValue
-    ? sheet.internalLevelValue.toFixed(1)
-    : (() => {
-      // fallback: pull from song fields
-      const map: Record<string, string> = {
-        'DX-basic': song.dx_lev_bas_i ?? '',
-        'DX-advanced': song.dx_lev_adv_i ?? '',
-        'DX-expert': song.dx_lev_exp_i ?? '',
-        'DX-master': song.dx_lev_mas_i ?? '',
-        'DX-remaster': song.dx_lev_remas_i ?? '',
-        'STD-basic': song.lev_bas_i ?? '',
-        'STD-advanced': song.lev_adv_i ?? '',
-        'STD-expert': song.lev_exp_i ?? '',
-        'STD-master': song.lev_mas_i ?? '',
-        'STD-remaster': song.lev_remas_i ?? '',
-      };
-      const raw = map[`${type}-${difficulty}`] ?? '';
-      return raw ? parseFloat(raw).toFixed(1) : null;
-    })();
-  const displayLevel = sheet?.level ?? internalLevel;
+  const internalLevel = chart?.constant !== undefined ? chart.constant.toFixed(1) : null;
+  const displayLevel = chart?.level ?? internalLevel;
 
   // Tags for this specific chart
   const chartTags = getTagsForChart(song.title, type, abbr);

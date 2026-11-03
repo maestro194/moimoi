@@ -306,7 +306,7 @@ export default function ArcadeScreen() {
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <View style={styles.rowAlign}>
                       <View style={[styles.diffBadge, { backgroundColor: diffColor }]}>
-                        <Text style={styles.diffText}>{rec.difficulty} {rec.constant.toFixed(1)}</Text>
+                        <Text style={styles.diffText}>{rec.difficulty} {rec.constantEstimated ? "≈" : ""}{rec.constant.toFixed(1)}</Text>
                       </View>
                       <View style={styles.challengeBadge}>
                         <Text style={styles.challengeText}>{rec.challengeTier}</Text>

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react-native';
 import { sqlite } from '../db/client';
 import type { PlayLogRow, SongRow, ScoreRow } from '../db/schema';
-import { calcSingleRating, chartRef, sameChart, versionLabel } from '@maimai-suite/core';
+import { calcSingleRating, chartOf, chartRef, sameChart, versionLabel } from '@maimai-suite/core';
 import { useLocalData } from '@/db/useLocalData';
 import { JacketImage } from '@/components/JacketImage';
 import { formatShortDate, formatTime } from '@/constants/time';
@@ -60,32 +60,20 @@ export default function SongDetailModal() {
         ?? sqlite.getFirstSync<SongRow>(`SELECT * FROM songs WHERE title_kana = ? LIMIT 1`, [title]);
       if (!songRow) return null;
 
-      let sheetObj: any = null;
-      if (songRow.sheets) {
-        try {
-          const sheets = JSON.parse(songRow.sheets);
-          const diffKey = difficulty.toLowerCase();
-          const targetType = songType.toLowerCase();
-          sheetObj = sheets.find(
-            (sh: any) =>
-              (sh.difficulty === diffKey || (diffKey === 'remas' && sh.difficulty === 'remaster')) &&
-              (!sh.type || sh.type.toLowerCase() === targetType)
-          ) || sheets.find((sh: any) => sh.difficulty === diffKey || (diffKey === 'remas' && sh.difficulty === 'remaster'));
-        } catch {}
-      }
-
+      // Constant and sheet (note counts, designer) from the chart lookup
+      const info = chartOf(songRow, chart);
       return {
         song: songRow,
-        sheet: sheetObj,
+        constant: info?.constant,
         bpm: songRow.bpm,
         version: songRow.version,
-        noteCounts: sheetObj?.noteCounts,
-        noteDesigner: sheetObj?.noteDesigner,
+        noteCounts: info?.sheet?.noteCounts,
+        noteDesigner: info?.sheet?.noteDesigner,
       };
     } catch {
       return null;
     }
-  }, [songIndex, chart, title, difficulty, songType]);
+  }, [songIndex, chart, title]);
 
   // Load best score from SQLite if param achievement is 0
   const bestScore = useMemo(() => {
@@ -106,7 +94,7 @@ export default function SongDetailModal() {
   const parsedInternal = parseFloat(params.internalLevel ?? '0');
   const internalLevel = parsedInternal > 0
     ? parsedInternal
-    : (parseFloat(songData?.sheet?.internalLevelValue ?? '0') || 0);
+    : (songData?.constant ?? 0);
 
   const paramRating = parseInt(params.rating ?? '0', 10);
   const ratingPoints = paramRating > 0

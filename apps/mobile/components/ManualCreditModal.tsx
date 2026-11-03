@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { COLORS, getDifficultyColor, formatAchievement } from '../constants/Theme';
 import { X, Check, Trash2, Plus, Zap, Calculator, Sparkles, ChevronRight } from 'lucide-react-native';
-import { solvePlayDetails, SongIndex } from '@maimai-suite/core';
+import { chartOf, chartsOf, solvePlayDetails, SongIndex } from '@maimai-suite/core';
 import type { SongRow, PlayLogRow } from '../db/schema';
 import { saveManualCredit, updateManualPlay, deleteManualPlay, calculateDxScoreFromDetails } from '../db/sync';
 import { Tap } from '@/components/Tap';
@@ -251,31 +251,13 @@ export default function ManualCreditModal({
     return songIndex.forChart({ songTitle: currentTrack.songTitle, difficulty: currentTrack.difficulty, songType: currentTrack.songType }) ?? null;
   }, [songIndex, currentTrack.songTitle, currentTrack.difficulty, currentTrack.songType]);
 
-  // Selected sheet from song.sheets JSON
-  const selectedSheet = useMemo(() => {
-    if (!selectedSong?.sheets) return null;
-    try {
-      const parsed = JSON.parse(selectedSong.sheets);
-      if (Array.isArray(parsed)) {
-        return parsed.find(
-          (sh: any) =>
-            sh.type?.toUpperCase() === currentTrack.songType &&
-            sh.difficulty?.toUpperCase() === currentTrack.difficulty.toUpperCase()
-        ) || null;
-      }
-    } catch {}
-    return null;
-  }, [selectedSong, currentTrack.songType, currentTrack.difficulty]);
-
-  // Internal chart constant
-  const chartConstant = useMemo(() => {
-    if (!selectedSong) return null;
-    const diff = currentTrack.difficulty.toLowerCase();
-    const isDx = currentTrack.songType === 'DX';
-    const key = isDx ? `dx_lev_${diff}_i` : `lev_${diff}_i`;
-    const val = (selectedSong as any)[key];
-    return val ? parseFloat(val).toFixed(1) : null;
-  }, [selectedSong, currentTrack.difficulty, currentTrack.songType]);
+  // Selected chart: note counts (sheet) and constant
+  const selectedChart = useMemo(
+    () => (selectedSong ? chartOf(selectedSong, { difficulty: currentTrack.difficulty, type: currentTrack.songType }) : undefined),
+    [selectedSong, currentTrack.difficulty, currentTrack.songType],
+  );
+  const selectedSheet = selectedChart?.sheet ?? null;
+  const chartConstant = selectedChart?.constant !== undefined ? selectedChart.constant.toFixed(1) : null;
 
   // Live solver calculation
   const solverResult = useMemo(() => {
@@ -307,13 +289,15 @@ export default function ManualCreditModal({
   }, [currentTrack.achievement, currentTrack.matrix, currentTrack.fast, currentTrack.late, currentTrack.maxCombo]);
 
   const selectSong = (song: SongRow) => {
-    const hasDx = Boolean(song.dx_lev_mas || song.dx_lev_exp || song.dx_lev_mas_i);
-    const defaultType = hasDx ? 'DX' : 'STD';
+    // Default to the song's MAS chart of its first type (DX when it has DX charts)
+    const charts = chartsOf(song).filter(c => c.ref.difficulty !== 'UTAGE');
+    const defaultType = charts[0]?.ref.type ?? 'DX';
+    const hasMas = charts.some(c => c.ref.type === defaultType && c.ref.difficulty === 'MAS');
 
     updateCurrentTrack({
       songTitle: song.title,
       songType: defaultType,
-      difficulty: song.dx_lev_mas || song.lev_mas ? 'MAS' : 'EXP',
+      difficulty: hasMas ? 'MAS' : 'EXP',
     });
 
     setSearchQueries(prev => {

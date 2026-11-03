@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Trash2, Plus, Zap, Calculator, Sparkles, ChevronRight, Search, Loader2 } from 'lucide-react';
-import { solvePlayDetails, SongIndex } from '@maimai-suite/core';
+import { chartOf, chartsOf, solvePlayDetails, SongIndex } from '@maimai-suite/core';
 import type { Song } from '@maimai-suite/core';
 
 interface MatrixRow {
@@ -287,36 +287,13 @@ export function ManualCreditModalWeb({
     return songIndex.forChart({ songTitle: currentTrack.songTitle, difficulty: currentTrack.difficulty, songType: currentTrack.songType }) ?? null;
   }, [songIndex, currentTrack.songTitle, currentTrack.difficulty, currentTrack.songType]);
 
-  // Selected sheet details (note counts reference)
-  const selectedSheet = useMemo(() => {
-    if (!selectedSong) return null;
-    const sheets = (selectedSong as any).sheets;
-    if (!sheets) return null;
-    let list = sheets;
-    if (typeof list === 'string') {
-      try {
-        list = JSON.parse(list);
-      } catch {}
-    }
-    if (Array.isArray(list)) {
-      return list.find(
-        (sh: any) =>
-          sh.type?.toUpperCase() === currentTrack.songType &&
-          sh.difficulty?.toUpperCase() === currentTrack.difficulty.toUpperCase()
-      ) || null;
-    }
-    return null;
-  }, [selectedSong, currentTrack.songType, currentTrack.difficulty]);
-
-  // Internal chart constant
-  const chartConstant = useMemo(() => {
-    if (!selectedSong) return null;
-    const diff = currentTrack.difficulty.toLowerCase();
-    const isDx = currentTrack.songType === 'DX';
-    const key = isDx ? `dx_lev_${diff}_i` : `lev_${diff}_i`;
-    const val = (selectedSong as any)[key];
-    return val ? parseFloat(val).toFixed(1) : null;
-  }, [selectedSong, currentTrack.difficulty, currentTrack.songType]);
+  // Selected chart: note counts (sheet) and constant
+  const selectedChart = useMemo(
+    () => (selectedSong ? chartOf(selectedSong, { difficulty: currentTrack.difficulty, type: currentTrack.songType }) : undefined),
+    [selectedSong, currentTrack.difficulty, currentTrack.songType],
+  );
+  const selectedSheet = selectedChart?.sheet ?? null;
+  const chartConstant = selectedChart?.constant !== undefined ? selectedChart.constant.toFixed(1) : null;
 
   // Live solver calculation
   const solverResult = useMemo(() => {
@@ -354,13 +331,15 @@ export function ManualCreditModalWeb({
   }, [currentTrack.achievement, currentTrack.matrix, currentTrack.fast, currentTrack.late, currentTrack.maxCombo]);
 
   const selectSong = (song: Song) => {
-    const hasDx = Boolean(song.dx_lev_mas || song.dx_lev_exp || (song as any).dx_lev_mas_i);
-    const defaultType = hasDx ? 'DX' : 'STD';
+    // Default to the song's MAS chart of its first type (DX when it has DX charts)
+    const charts = chartsOf(song).filter(c => c.ref.difficulty !== 'UTAGE');
+    const defaultType = charts[0]?.ref.type ?? 'DX';
+    const hasMas = charts.some(c => c.ref.type === defaultType && c.ref.difficulty === 'MAS');
 
     updateCurrentTrack({
       songTitle: song.title,
       songType: defaultType,
-      difficulty: song.dx_lev_mas || song.lev_mas ? 'MAS' : 'EXP',
+      difficulty: hasMas ? 'MAS' : 'EXP',
     });
 
     setSearchQueries(prev => {

@@ -8,7 +8,7 @@ import { PageWrapper } from '@/components/page-wrapper';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toRomaji } from '@/lib/romaji';
 import { JacketImg } from '@/components/jacket-img';
-import { versionLabel } from '@maimai-suite/core';
+import { chartsOf, versionLabel } from '@maimai-suite/core';
 import { addTracker } from '@/app/tracker/actions';
 import { SongDetailsModal } from './SongDetailsModal';
 import { ChartActionModal } from '@/components/chart-action-modal';
@@ -110,43 +110,35 @@ type SortKey = 'newest' | 'oldest' | 'lev_desc' | 'lev_asc' | 'title' | 'bpm_des
 
 // ── Pure functions (module-level) ───────────────────────────────────────────
 
+const ROW_DIFFICULTY: Record<ChartRow['abbr'], ChartRow['difficulty']> = {
+  BAS: 'basic', ADV: 'advanced', EXP: 'expert', MAS: 'master', REMAS: 'remaster', UTAGE: 'utage' as ChartRow['difficulty'],
+};
+const ROW_ORDER: ChartRow['abbr'][] = ['BAS', 'ADV', 'EXP', 'MAS', 'REMAS', 'UTAGE'];
+
+/** One row per chart with a known constant (utage rows show their displayed level instead). */
 function expandToChartRows(song: Song, includeUtage = false, showLowerDiffs = false): ChartRow[] {
-  const rows: ChartRow[] = [];
-  const hasDX = !!(song.dx_lev_mas_i || song.dx_lev_exp_i || song.dx_lev_bas_i);
-  const hasSTD = !!(song.lev_mas_i || song.lev_exp_i || song.lev_bas_i);
-
-  const DIFFS: Array<{
-    abbr: ChartRow['abbr']; difficulty: ChartRow['difficulty'];
-    dxDisplay?: string; dxInternal?: string; stdDisplay?: string; stdInternal?: string;
-  }> = [
-    { abbr: 'EXP',   difficulty: 'expert',   dxDisplay: song.dx_lev_exp,   dxInternal: song.dx_lev_exp_i,   stdDisplay: song.lev_exp,   stdInternal: song.lev_exp_i },
-    { abbr: 'MAS',   difficulty: 'master',   dxDisplay: song.dx_lev_mas,   dxInternal: song.dx_lev_mas_i,   stdDisplay: song.lev_mas,   stdInternal: song.lev_mas_i },
-    { abbr: 'REMAS', difficulty: 'remaster', dxDisplay: song.dx_lev_remas, dxInternal: song.dx_lev_remas_i, stdDisplay: song.lev_remas, stdInternal: song.lev_remas_i },
-  ];
-
-  if (showLowerDiffs) {
-    DIFFS.unshift(
-      { abbr: 'BAS', difficulty: 'basic',    dxDisplay: song.dx_lev_bas, dxInternal: song.dx_lev_bas_i, stdDisplay: song.lev_bas, stdInternal: song.lev_bas_i },
-      { abbr: 'ADV', difficulty: 'advanced', dxDisplay: song.dx_lev_adv, dxInternal: song.dx_lev_adv_i, stdDisplay: song.lev_adv, stdInternal: song.lev_adv_i },
-    );
-  }
-
-  if (includeUtage && song.lev_utage) {
-    DIFFS.push({ abbr: 'UTAGE' as any, difficulty: 'utage' as any, stdDisplay: song.lev_utage, stdInternal: song.lev_utage });
-  }
-
-  for (const d of DIFFS) {
-    if (hasDX && d.dxInternal) rows.push({ song, type: 'DX', difficulty: d.difficulty, abbr: d.abbr, display: d.dxDisplay ?? d.dxInternal, internal: d.dxInternal });
-    if (hasSTD && d.stdInternal) rows.push({ song, type: 'STD', difficulty: d.difficulty, abbr: d.abbr, display: d.stdDisplay ?? d.stdInternal, internal: d.stdInternal });
-  }
-  return rows;
+  return chartsOf(song)
+    .filter(c => {
+      const d = c.ref.difficulty;
+      if (d === 'UTAGE') return includeUtage;
+      if (!showLowerDiffs && (d === 'BAS' || d === 'ADV')) return false;
+      return c.constant !== undefined;
+    })
+    // EXP DX, EXP STD, MAS DX, … (difficulty first, as before)
+    .sort((a, b) => ROW_ORDER.indexOf(a.ref.difficulty) - ROW_ORDER.indexOf(b.ref.difficulty))
+    .map(c => {
+      const internal = c.ref.difficulty === 'UTAGE' ? c.level! : String(c.constant);
+      return { song, type: c.ref.type, difficulty: ROW_DIFFICULTY[c.ref.difficulty], abbr: c.ref.difficulty, display: c.level ?? internal, internal };
+    });
 }
 
 function allLevelGroups(songs: Song[]): string[] {
   const s = new Set<string>();
+  // Displayed levels of every EXP / MAS / Re:MAS chart, DX and STD (DX-only songs have no STD level fields)
   for (const song of songs) {
-    const lev = song.lev_mas ?? song.lev_exp;
-    if (lev) s.add(lev.replace('?', '').trim());
+    for (const c of chartsOf(song)) {
+      if (c.level && ['EXP', 'MAS', 'REMAS'].includes(c.ref.difficulty)) s.add(c.level.replace('?', '').trim());
+    }
   }
   return Array.from(s).sort((a, b) => parseFloat(a.replace('+', '.5')) - parseFloat(b.replace('+', '.5')));
 }

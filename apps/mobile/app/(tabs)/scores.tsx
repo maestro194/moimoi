@@ -21,7 +21,7 @@ import {
   BarChart2,
   Trophy,
 } from 'lucide-react-native';
-import { chartKey, type ScoreWithRating, type Difficulty } from '@maimai-suite/core';
+import { chartKey, chartsOf, type ScoreWithRating, type Difficulty } from '@maimai-suite/core';
 import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
 import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
@@ -374,16 +374,12 @@ export default function ScoresScreen() {
     const chartsByLevel = new Map<number, MatrixChart[]>();
 
     for (const song of rawSongs) {
-      const diffs: Array<{ key: string; diff: string; type: 'DX' | 'STD'; img: string }> = [
-        { key: song.dx_lev_mas_i || song.lev_mas_i || '', diff: 'MAS', type: song.dx_lev_mas_i ? 'DX' : 'STD', img: song.image_url || '' },
-        { key: song.dx_lev_remas_i || song.lev_remas_i || '', diff: 'REMAS', type: song.dx_lev_remas_i ? 'DX' : 'STD', img: song.image_url || '' },
-        { key: song.dx_lev_exp_i || song.lev_exp_i || '', diff: 'EXP', type: song.dx_lev_exp_i ? 'DX' : 'STD', img: song.image_url || '' },
-      ];
-
-      for (const d of diffs) {
-        if (!d.key) continue;
-        const lv = parseFloat(d.key);
-        if (isNaN(lv) || lv < minLv || lv > maxLv) continue;
+      // Every EXP / MAS / Re:MAS chart with a known constant, DX and STD
+      for (const c of chartsOf(song)) {
+        if (c.ref.difficulty !== 'EXP' && c.ref.difficulty !== 'MAS' && c.ref.difficulty !== 'REMAS') continue;
+        const lv = c.constant;
+        if (lv === undefined || lv < minLv || lv > maxLv) continue;
+        const d = { diff: c.ref.difficulty, type: c.ref.type, img: song.image_url || '' };
 
         const rounded = Math.round(lv * 10) / 10;
         const score = scoreMap.get(chartKey({ title: song.title, difficulty: d.diff, type: d.type }));

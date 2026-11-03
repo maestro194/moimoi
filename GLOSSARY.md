@@ -28,6 +28,10 @@ _Avoid_: internal level, chart level
 The level the game shows for a chart (e.g. "13+"), as published in the song data. Never derived from the chart constant.
 _Avoid_: level (on its own)
 
+**Estimated constant**:
+A guess at a chart constant from its displayed level ("13+" is taken as 13.7), for charts whose constant is unknown. Used only to recommend charts, always shown as an estimate, and never used for rating.
+_Avoid_: constant (on its own), fallback level
+
 ## Plays and bests
 
 **Play**:

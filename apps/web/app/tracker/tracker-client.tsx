@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Target, Plus, Search, Trash2, Check, X, Play, List, Edit2, Info } from 'lucide-react';
 import { PageWrapper } from '@/components/page-wrapper';
 import type { ScoreWithRating, Score, Difficulty, Song } from '@maimai-suite/core';
-import { computeRating, calcSingleRating, getSongInternalLevel, sameChart, SongIndex } from '@maimai-suite/core';
+import { computeRating, calcSingleRating, lookupChart, sameChart, SongIndex } from '@maimai-suite/core';
 import { addTracker, deleteTracker } from './actions';
 import type { MinimalChart } from '@/app/scores/actions';
 import { Jacket } from '@/components/jacket';
@@ -106,8 +106,7 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
         hypotheticalInternalLevel = existing.internalLevel;
         hypoScores[existIdx] = { ...hypoScores[existIdx], achievement: Math.max(hypoScores[existIdx].achievement, targetAchv) };
       } else {
-        const songInfo = songIndex.forChart(t);
-        hypotheticalInternalLevel = songInfo ? getSongInternalLevel(songInfo, t.difficulty as Difficulty, t.songType as 'DX'|'STD') : 0;
+        hypotheticalInternalLevel = lookupChart(songIndex, t)?.constant ?? 0;
         
         hypoScores.push({
           id: -1,
@@ -196,8 +195,9 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {session.map(item => {
-            const songInfo = songIndex.forChart({ songTitle: item.songTitle, difficulty: item.sheetDifficulty, songType: item.sheetType });
-            const level = songInfo ? getSongInternalLevel(songInfo, item.sheetDifficulty as Difficulty, item.sheetType as 'DX'|'STD') : 0;
+            const chart = lookupChart(songIndex, { songTitle: item.songTitle, difficulty: item.sheetDifficulty, songType: item.sheetType });
+            const songInfo = chart?.song;
+            const level = chart?.constant ?? 0;
             return (
               <div key={item.id} className={`glass p-3 rounded-xl border border-white/5 flex items-center gap-3 transition-colors ${item.played ? 'opacity-40' : ''}`}>
                 <button
@@ -362,8 +362,9 @@ export default function TrackerClient({ trackers, scores, typedScores, currentTo
                     <div className="p-4 text-center text-xs text-white/30">No charts in this list.</div>
                   ) : (
                     listItems.map(item => {
-                      const songInfo = songIndex.forChart({ songTitle: item.songTitle, difficulty: item.sheetDifficulty, songType: item.sheetType });
-                      const level = songInfo ? getSongInternalLevel(songInfo, item.sheetDifficulty as Difficulty, item.sheetType as 'DX'|'STD') : 0;
+                      const chart = lookupChart(songIndex, { songTitle: item.songTitle, difficulty: item.sheetDifficulty, songType: item.sheetType });
+            const songInfo = chart?.song;
+            const level = chart?.constant ?? 0;
                       return (
                         <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 group transition-colors">
                           <div className="flex items-center gap-3">

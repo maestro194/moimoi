@@ -148,5 +148,171 @@
     "artist": "イロドリミドリ「CHUNITHM」",
     "catcode": "オンゲキ＆CHUNITHM",
     "image_url": ""
+  },
+  "oshama": {
+    "sort": "1210",
+    "title": "Oshama Scramble!",
+    "title_kana": "OSHAMASCRAMBLE",
+    "artist": "t+pazolite",
+    "catcode": "maimai",
+    "version": "15007",
+    "bpm": "190",
+    "image_url": "64635a3534ce788a.png",
+    "lev_bas": "6",
+    "lev_adv": "8+",
+    "lev_exp": "11+",
+    "lev_mas": "14",
+    "lev_bas_i": "6.0",
+    "lev_adv_i": "8.6",
+    "lev_exp_i": "11.9",
+    "lev_mas_i": "14.5",
+    "dx_lev_bas": "4",
+    "dx_lev_adv": "8+",
+    "dx_lev_exp": "11",
+    "dx_lev_mas": "13+",
+    "dx_lev_bas_i": "4.0",
+    "dx_lev_adv_i": "8.7",
+    "dx_lev_exp_i": "11.4",
+    "dx_lev_mas_i": "13.6",
+    "jp": true,
+    "intl": true,
+    "date_added": "20150625",
+    "date_intl_added": "20150625",
+    "sheets": [
+      {
+        "type": "dx",
+        "level": "4",
+        "difficulty": "basic",
+        "noteCounts": {
+          "tap": 110,
+          "hold": 7,
+          "break": 5,
+          "slide": 12,
+          "total": 169,
+          "touch": 35
+        },
+        "noteDesigner": "-",
+        "internalLevelValue": 4
+      },
+      {
+        "type": "dx",
+        "level": "8+",
+        "difficulty": "advanced",
+        "noteCounts": {
+          "tap": 317,
+          "hold": 29,
+          "break": 17,
+          "slide": 10,
+          "total": 408,
+          "touch": 35
+        },
+        "noteDesigner": "-",
+        "internalLevelValue": 8.7
+      },
+      {
+        "type": "dx",
+        "level": "11",
+        "difficulty": "expert",
+        "noteCounts": {
+          "tap": 247,
+          "hold": 56,
+          "break": 5,
+          "slide": 54,
+          "total": 555,
+          "touch": 193
+        },
+        "noteDesigner": "はっぴー",
+        "internalLevelValue": 11.4
+      },
+      {
+        "type": "dx",
+        "level": "13+",
+        "difficulty": "master",
+        "noteCounts": {
+          "tap": 747,
+          "hold": 21,
+          "break": 99,
+          "slide": 52,
+          "total": 1000,
+          "touch": 81
+        },
+        "noteDesigner": "Jack",
+        "internalLevelValue": 13.6
+      },
+      {
+        "type": "std",
+        "level": "6",
+        "difficulty": "basic",
+        "noteCounts": {
+          "tap": 238,
+          "hold": 8,
+          "break": 9,
+          "slide": 4,
+          "total": 259,
+          "touch": null
+        },
+        "noteDesigner": "-",
+        "internalLevelValue": 6
+      },
+      {
+        "type": "std",
+        "level": "9",
+        "difficulty": "advanced",
+        "noteCounts": {
+          "tap": 438,
+          "hold": 23,
+          "break": 16,
+          "slide": 9,
+          "total": 486,
+          "touch": null
+        },
+        "noteDesigner": "-",
+        "internalLevelValue": 9.3
+      },
+      {
+        "type": "std",
+        "level": "11+",
+        "difficulty": "expert",
+        "noteCounts": {
+          "tap": 299,
+          "hold": 79,
+          "break": 100,
+          "slide": 116,
+          "total": 594,
+          "touch": null
+        },
+        "noteDesigner": "Techno Kitchen",
+        "internalLevelValue": 11.9
+      },
+      {
+        "type": "std",
+        "level": "14",
+        "difficulty": "master",
+        "noteCounts": {
+          "tap": 944,
+          "hold": 0,
+          "break": 99,
+          "slide": 68,
+          "total": 1111,
+          "touch": null
+        },
+        "noteDesigner": "Jack",
+        "internalLevelValue": 14.5
+      }
+    ]
+  },
+  "noConstant": {
+    "sort": "1355",
+    "title": "魔法仕掛けのファンタジア",
+    "title_kana": "マホウジカケノファンタジア",
+    "artist": "igel",
+    "catcode": "maimai",
+    "version": "25503",
+    "bpm": "280",
+    "dx_lev_exp": "12",
+    "dx_lev_mas": "14+",
+    "jp": true,
+    "intl": true,
+    "date_added": "20261028"
   }
 }
