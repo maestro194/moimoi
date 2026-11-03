@@ -21,9 +21,8 @@ import {
   Target,
   CheckCircle2,
 } from 'lucide-react-native';
-import { sqlite } from '../db/client';
-import type { PlayLogRow, SongRow, ScoreRow } from '../db/schema';
-import { calcSingleRating, chartOf, chartRef, sameChart, versionLabel } from '@maimai-suite/core';
+import { loadChartDetail } from '../db/chartDetail';
+import { calcSingleRating, versionLabel } from '@maimai-suite/core';
 import { useLocalData } from '@/db/useLocalData';
 import { JacketImage } from '@/components/JacketImage';
 import { formatShortDate, formatTime } from '@/constants/time';
@@ -33,90 +32,33 @@ export default function SongDetailModal() {
   const router = useRouter();
   // Full-height on Android edge-to-edge: keep the last content clear of the gesture bar
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{
-    title: string;
-    difficulty: string;
-    achievement: string;
-    internalLevel: string;
-    rating: string;
-    songType?: string;
-    fc?: string;
-    fs?: string;
-    artist?: string;
-    imageUrl?: string;
-  }>();
-
-  const title = params.title ?? 'Unknown Song';
-  const difficulty = params.difficulty ?? 'MAS';
-  const songType = params.songType ?? 'DX';
-  const diffColor = getDifficultyColor(difficulty);
-  const chart = useMemo(() => chartRef({ title, difficulty, type: songType }), [title, difficulty, songType]);
+  // The chart to show: only its identity comes through the route (see db/openChart.ts)
+  const params = useLocalSearchParams<{ title: string; difficulty: string; type?: string }>();
   const { songIndex } = useLocalData();
+  const detail = useMemo(
+    () => loadChartDetail(songIndex, { title: params.title ?? '', difficulty: params.difficulty ?? 'MAS', type: params.type }),
+    [songIndex, params.title, params.difficulty, params.type],
+  );
 
-  // Load song record from SQLite for note counts, designer, bpm, and version
-  const songData = useMemo(() => {
-    try {
-      const songRow = songIndex.forChart(chart)
-        ?? sqlite.getFirstSync<SongRow>(`SELECT * FROM songs WHERE title_kana = ? LIMIT 1`, [title]);
-      if (!songRow) return null;
+  const { chart, song, info, best: bestScore, rating: ratingPoints, plays: playHistory } = detail;
+  const title = chart.title || 'Unknown Song';
+  const difficulty = chart.difficulty;
+  const songType = chart.type;
+  const diffColor = getDifficultyColor(difficulty);
+  const songData = song ? {
+    version: song.version,
+    bpm: song.bpm,
+    noteCounts: info?.sheet?.noteCounts,
+    noteDesigner: info?.sheet?.noteDesigner,
+  } : null;
 
-      // Constant and sheet (note counts, designer) from the chart lookup
-      const info = chartOf(songRow, chart);
-      return {
-        song: songRow,
-        constant: info?.constant,
-        bpm: songRow.bpm,
-        version: songRow.version,
-        noteCounts: info?.sheet?.noteCounts,
-        noteDesigner: info?.sheet?.noteDesigner,
-      };
-    } catch {
-      return null;
-    }
-  }, [songIndex, chart, title]);
-
-  // Load best score from SQLite if param achievement is 0
-  const bestScore = useMemo(() => {
-    try {
-      // Matched by chart identity, so DX and STD (and title spellings) don't mix
-      return sqlite
-        .getAllSync<ScoreRow>(`SELECT * FROM scores WHERE difficulty = ? ORDER BY achievement DESC`, [chart.difficulty])
-        .find(s => sameChart(s, chart)) ?? null;
-    } catch {
-      return null;
-    }
-  }, [chart]);
-
-  const paramAch = parseFloat(params.achievement ?? '0');
-  const achNum = paramAch > 0 ? paramAch : (bestScore?.achievement ?? 0);
+  const achNum = bestScore?.achievement ?? 0;
   const rankInfo = getRankBadge(achNum);
-
-  const parsedInternal = parseFloat(params.internalLevel ?? '0');
-  const internalLevel = parsedInternal > 0
-    ? parsedInternal
-    : (songData?.constant ?? 0);
-
-  const paramRating = parseInt(params.rating ?? '0', 10);
-  const ratingPoints = paramRating > 0
-    ? paramRating
-    : (internalLevel > 0 && achNum > 0 ? calcSingleRating(internalLevel, achNum).floored : 0);
-
-  const imageUrl = params.imageUrl || songData?.song.image_url;
-  const artistName = params.artist || songData?.song.artist || 'Unknown Artist';
-  const effectiveFC = params.fc || bestScore?.fc || '';
-  const effectiveFS = params.fs || bestScore?.fs || '';
-
-  // Query local play_log for history on this specific chart
-  const playHistory = useMemo(() => {
-    try {
-      return sqlite
-        .getAllSync<PlayLogRow>(`SELECT * FROM play_log WHERE difficulty = ? ORDER BY played_at DESC`, [chart.difficulty])
-        .filter(p => sameChart(p, chart))
-        .slice(0, 20);
-    } catch {
-      return [];
-    }
-  }, [chart]);
+  const internalLevel = info?.constant ?? 0;
+  const imageUrl = song?.image_url;
+  const artistName = song?.artist || 'Unknown Artist';
+  const effectiveFC = bestScore?.fc || '';
+  const effectiveFS = bestScore?.fs || '';
 
   // Target rating milestones
   const milestones = useMemo(() => {

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { useOpenChart } from '@/db/openChart';
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   FlatList,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, DIFF_COLOR, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
 import {
@@ -250,7 +250,6 @@ const MatrixCard = React.memo(function MatrixCard({ c, onOpen }: { c: MatrixChar
 });
 
 export default function ScoresScreen() {
-  const router = useRouter();
   const { loading, ratingData, rawSongs, foil } = useLocalData();
 
   const [search, setSearch] = useState('');
@@ -439,24 +438,8 @@ export default function ScoresScreen() {
     return out;
   }, [viewMode, matrixData, matrixCols, newB15, oldB35, newRemaining, oldRemaining, newB15Sum, oldB35Sum]);
 
-  const navigateToModal = useCallback((item: ScoreWithRating | MatrixChart) => {
-    const it = item as any;
-    router.push({
-      pathname: '/modal',
-      params: {
-        title: it.songTitle || it.title,
-        difficulty: it.difficulty,
-        achievement: String(it.achievement ?? it.score?.achievement ?? 0),
-        internalLevel: String(it.internalLevel ?? it.level ?? 0),
-        rating: String(it.rating ?? it.score?.rating ?? 0),
-        songType: it.songType ?? it.type ?? 'DX',
-        fc: it.fc ?? it.score?.fc ?? '',
-        fs: it.fs ?? it.score?.fs ?? '',
-        artist: it.song?.artist ?? '',
-        imageUrl: it.song?.image_url ?? it.imageUrl ?? '',
-      },
-    });
-  }, [router]);
+  const openChart = useOpenChart();
+  const navigateToModal = useCallback((item: ScoreWithRating | MatrixChart) => openChart(item), [openChart]);
 
   const renderRow = useCallback(({ item: row }: { item: ListRow }) => {
     switch (row.kind) {

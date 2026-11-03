@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { useOpenChart } from '@/db/openChart';
 import {
   View,
   Text,
@@ -7,7 +8,6 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
 import {
@@ -53,7 +53,6 @@ interface SongWithScores {
 }
 
 export default function SongsScreen() {
-  const router = useRouter();
   const { loading, rawSongs, rawScores, songIndex } = useLocalData();
 
   const [search, setSearch] = useState('');
@@ -173,31 +172,9 @@ export default function SongsScreen() {
     return result;
   }, [preparedSongs, selectedCat, search, levelFilter, statusFilter, sortBy]);
 
-  const openChartModal = useCallback((
-    song: SongRow,
-    diff: string,
-    type: 'DX' | 'STD',
-    internalLvStr?: string | null,
-    displayLvStr?: string | null,
-    userScore?: ScoreRow
-  ) => {
-    const internalLevel = parseFloat(internalLvStr || '0');
-    router.push({
-      pathname: '/modal',
-      params: {
-        title: song.title,
-        difficulty: diff,
-        songType: type,
-        achievement: String(userScore?.achievement ?? 0),
-        internalLevel: String(internalLevel),
-        rating: '0',
-        fc: userScore?.fc ?? '',
-        fs: userScore?.fs ?? '',
-        artist: song.artist ?? '',
-        imageUrl: song.image_url ?? '',
-      },
-    });
-  }, [router]);
+  const openChart = useOpenChart();
+  const openChartModal = useCallback((song: SongRow, diff: string, type: 'DX' | 'STD') =>
+    openChart({ title: song.title, difficulty: diff, type }), [openChart]);
 
   const renderSongItem = useCallback(({ item }: { item: SongWithScores }) => {
     const { song, type, scoresByDiff } = item;
@@ -233,7 +210,7 @@ export default function SongsScreen() {
           onPress={() => {
             const first = availableDiffs[availableDiffs.length - 1];
             if (first) {
-              openChartModal(song, first.diff, first.type, first.internal, first.display, first.score);
+              openChartModal(song, first.diff, first.type);
             }
           }}
         >
@@ -286,7 +263,7 @@ export default function SongsScreen() {
                   styles.diffChipItem,
                   { borderColor: color + '60', backgroundColor: hasScore ? color + '15' : COLORS.surfaceLight },
                 ]}
-                onPress={() => openChartModal(song, d.diff, d.type, d.internal, d.display, d.score)}
+                onPress={() => openChartModal(song, d.diff, d.type)}
               >
                 <View style={[styles.diffTagMini, { backgroundColor: color }]}>
                   <Text style={styles.diffTagMiniText}>{d.diff === 'REMAS' ? 'Re:M' : d.diff}</Text>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SongIndex } from '../src/chart';
 import { chartOf, chartsOf, estimateConstant, lookupChart } from '../src/lookup';
-import { computeRating } from '../src/rating';
+import { computeRating, getTargetSuggestions } from '../src/rating';
 import type { Score, Song } from '../src/types';
 import fixture from './fixtures/songs.json';
 
@@ -97,5 +97,16 @@ describe('rating uses only known constants', () => {
     expect([...r.newCharts, ...r.oldCharts].map(s => s.id)).toEqual([3]);
     expect(r.allScores.map(s => s.id)).toEqual([3, 2, 1]);
     expect(r.allScores.find(s => s.id === 1)?.rating).toBe(0);
+  });
+});
+
+describe('target suggestions', () => {
+  it('name the chart type, so an STD target opens the STD chart', () => {
+    const at = new Date('2026-10-01');
+    const r = computeRating([
+      { id: 1, songTitle: songs.both.title, difficulty: 'MAS', songType: 'STD', achievement: 98.2, dxScore: null, fc: null, fs: null, playedAt: at },
+    ], index, 26500);
+    const t = getTargetSuggestions(r, r.allScores);
+    expect(t.map(x => `${x.songType} ${x.difficulty} ${x.internalLevel}`)).toEqual(['STD MAS 14.4']);
   });
 });

@@ -1,4 +1,4 @@
-import type { RankDef, Difficulty, Song, Score, ScoreWithRating, RatingData, RatingPool } from './types';
+import type { RankDef, Difficulty, Song, SongType, Score, ScoreWithRating, RatingData, RatingPool } from './types';
 import { chartKey, sameChart, type SongIndex } from './chart';
 import { chartOf } from './lookup';
 
@@ -225,6 +225,7 @@ function deduplicateBest(scores: ScoreWithRating[]): ScoreWithRating[] {
 export interface TargetSuggestion {
   songTitle: string;
   difficulty: Difficulty;
+  songType: SongType;
   internalLevel: number;
   currentAchievement: number;
   currentRank: string;
@@ -291,6 +292,7 @@ export function getTargetSuggestions(
     suggestions.push({
       songTitle: score.songTitle,
       difficulty: score.difficulty,
+      songType: score.songType ?? 'DX',
       internalLevel: score.internalLevel,
       currentAchievement,
       currentRank: score.rank,

@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useOpenChart } from '@/db/openChart';
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, DIFF_COLOR, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
 import { RefreshCw, Sparkles, TrendingUp, Trophy, ArrowRight, Music2, User, Target } from 'lucide-react-native';
@@ -21,6 +22,7 @@ import { foilKey } from '@maimai-suite/core';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const openChart = useOpenChart();
   const {
     loading,
     syncing,
@@ -234,23 +236,7 @@ export default function DashboardScreen() {
             <Tap label={`${item.songTitle} ${item.difficulty}, ${Number(item.achievement).toFixed(4)}%, rating ${item.rating}`}
               key={`${item.songTitle}-${item.difficulty}-${index}`}
               style={[styles.scoreRow, framed && styles.scoreRowInFoil]}
-              onPress={() => {
-                router.push({
-                  pathname: '/modal',
-                  params: {
-                    title: item.songTitle,
-                    difficulty: item.difficulty,
-                    achievement: String(item.achievement),
-                    internalLevel: String(item.internalLevel),
-                    rating: String(item.rating),
-                    songType: item.songType ?? 'DX',
-                    fc: item.fc ?? '',
-                    fs: item.fs ?? '',
-                    artist: item.song?.artist ?? '',
-                    imageUrl: item.song?.image_url ?? '',
-                  },
-                });
-              }}
+              onPress={() => openChart(item)}
             >
               <View style={styles.rankIndex}>
                 <Text style={styles.rankIndexText}>#{index + 1}</Text>
@@ -325,23 +311,7 @@ export default function DashboardScreen() {
               <Tap label={`Target: ${s.songTitle} ${s.difficulty}, ${s.currentRank} to ${s.targetRank}, plus ${s.ratingGain} rating`}
                 key={`target-${s.songTitle}-${s.difficulty}-${index}`}
                 style={styles.targetRow}
-                onPress={() => {
-                  router.push({
-                    pathname: '/modal',
-                    params: {
-                      title: s.songTitle,
-                      difficulty: s.difficulty,
-                      achievement: String(s.currentAchievement),
-                      internalLevel: String(s.internalLevel),
-                      rating: String(s.currentRating),
-                      songType: 'DX',
-                      fc: s.fc ?? '',
-                      fs: s.fs ?? '',
-                      artist: s.song?.artist ?? '',
-                      imageUrl: s.song?.image_url ?? '',
-                    },
-                  });
-                }}
+                onPress={() => openChart(s)}
               >
                 <View style={[styles.jacketContainer, { borderColor: diffColor }]}>
                   {s.song?.image_url ? (
