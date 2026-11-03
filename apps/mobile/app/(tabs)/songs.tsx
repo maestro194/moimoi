@@ -42,6 +42,8 @@ const LEVEL_FILTERS: LevelFilterKey[] = ['ALL', '14+', '14', '13+', '13', '12+',
 
 interface SongWithScores {
   song: SongRow;
+  /** One card per chart type: a song with DX and STD charts gets two cards. Null for an utage-only song. */
+  type: 'DX' | 'STD' | null;
   maxLevel: number;
   scoresByDiff: Map<string, ScoreRow>;
 }
@@ -69,36 +71,32 @@ export default function SongsScreen() {
     return map;
   }, [rawScores]);
 
-  // Combine songs with user's scores and compute highest chart level
+  // One card per song and chart type, with the user's scores and the highest chart constant
   const preparedSongs = useMemo(() => {
-    return rawSongs.map((song): SongWithScores => {
-      const scoresByDiff = new Map<string, ScoreRow>();
+    const has = (v: string | null | undefined) => v != null && v !== '';
+    const lv = (song: SongRow, key: string) => (song as unknown as Record<string, string | null>)[key];
+    return rawSongs.flatMap((song): SongWithScores[] => {
+      const types = (['DX', 'STD'] as const).filter(type => {
+        const p = type === 'DX' ? 'dx_lev_' : 'lev_';
+        return ['bas', 'adv', 'exp', 'mas', 'remas'].some(d => has(lv(song, `${p}${d}`)));
+      });
+      if (types.length === 0) return [{ song, type: null, maxLevel: 0, scoresByDiff: new Map() }];
 
-      const diffs = ['EXP', 'MAS', 'REMAS'];
-      for (const d of diffs) {
-        for (const type of ['DX', 'STD'] as const) {
+      return types.map(type => {
+        const p = type === 'DX' ? 'dx_lev_' : 'lev_';
+        const scoresByDiff = new Map<string, ScoreRow>();
+        for (const d of ['EXP', 'MAS', 'REMAS']) {
           const chart = { title: song.title, difficulty: d, type };
           // Skip a score that belongs to another song with the same title (TRUST / Trust)
           if (songIndex.forChart(chart) !== song) continue;
           const score = userScoresMap.get(chartKey(chart));
           if (score) scoresByDiff.set(`${d}::${type}`, score);
         }
-      }
-
-      // Determine highest internal constant for sorting
-      const levels = [
-        parseFloat(song.dx_lev_remas_i || song.lev_remas_i || '0'),
-        parseFloat(song.dx_lev_mas_i || song.lev_mas_i || '0'),
-        parseFloat(song.dx_lev_exp_i || song.lev_exp_i || '0'),
-      ].filter(n => !isNaN(n) && n > 0);
-
-      const maxLevel = levels.length ? Math.max(...levels) : 0;
-
-      return {
-        song,
-        maxLevel,
-        scoresByDiff,
-      };
+        const levels = ['remas', 'mas', 'exp']
+          .map(d => parseFloat(lv(song, `${p}${d}_i`) || '0'))
+          .filter(n => !isNaN(n) && n > 0);
+        return { song, type, maxLevel: levels.length ? Math.max(...levels) : 0, scoresByDiff };
+      });
     });
   }, [rawSongs, songIndex, userScoresMap]);
 
@@ -203,7 +201,7 @@ export default function SongsScreen() {
   }, [router]);
 
   const renderSongItem = useCallback(({ item }: { item: SongWithScores }) => {
-    const { song, scoresByDiff } = item;
+    const { song, type, scoresByDiff } = item;
     const vName = versionLabel(song.version);
 
     // Collect available difficulty charts for this song
@@ -217,63 +215,17 @@ export default function SongsScreen() {
 
     const availableDiffs: DiffBadgeData[] = [];
 
-    // Check DX first
-    if (song.dx_lev_mas_i || song.dx_lev_mas) {
-      availableDiffs.push({
-        diff: 'EXP',
-        type: 'DX',
-        internal: song.dx_lev_exp_i,
-        display: song.dx_lev_exp,
-        score: scoresByDiff.get('EXP::DX'),
-      });
-      availableDiffs.push({
-        diff: 'MAS',
-        type: 'DX',
-        internal: song.dx_lev_mas_i,
-        display: song.dx_lev_mas,
-        score: scoresByDiff.get('MAS::DX'),
-      });
-      if (song.dx_lev_remas_i || song.dx_lev_remas) {
-        availableDiffs.push({
-          diff: 'REMAS',
-          type: 'DX',
-          internal: song.dx_lev_remas_i,
-          display: song.dx_lev_remas,
-          score: scoresByDiff.get('REMAS::DX'),
-        });
-      }
-    } else {
-      // Standard charts
-      if (song.lev_exp_i || song.lev_exp) {
-        availableDiffs.push({
-          diff: 'EXP',
-          type: 'STD',
-          internal: song.lev_exp_i,
-          display: song.lev_exp,
-          score: scoresByDiff.get('EXP::STD'),
-        });
-      }
-      if (song.lev_mas_i || song.lev_mas) {
-        availableDiffs.push({
-          diff: 'MAS',
-          type: 'STD',
-          internal: song.lev_mas_i,
-          display: song.lev_mas,
-          score: scoresByDiff.get('MAS::STD'),
-        });
-      }
-      if (song.lev_remas_i || song.lev_remas) {
-        availableDiffs.push({
-          diff: 'REMAS',
-          type: 'STD',
-          internal: song.lev_remas_i,
-          display: song.lev_remas,
-          score: scoresByDiff.get('REMAS::STD'),
-        });
+    // This card's charts (only its own type)
+    if (type) {
+      const p = type === 'DX' ? 'dx_lev_' : 'lev_';
+      for (const diff of ['EXP', 'MAS', 'REMAS'] as const) {
+        const d = diff.toLowerCase();
+        const internal = (song as unknown as Record<string, string | null>)[`${p}${d}_i`];
+        const display = (song as unknown as Record<string, string | null>)[`${p}${d}`];
+        if (!internal && !display) continue;
+        availableDiffs.push({ diff, type, internal, display, score: scoresByDiff.get(`${diff}::${type}`) });
       }
     }
-
-    const isDxSong = !!(song.dx_lev_mas_i || song.dx_lev_mas);
 
     return (
       <View style={styles.songCard}>
@@ -281,7 +233,7 @@ export default function SongsScreen() {
         <Tap label={song.title} hint="Opens chart details"
           style={styles.cardHeader}
           onPress={() => {
-            const first = availableDiffs[availableDiffs.length - 1] || availableDiffs[0];
+            const first = availableDiffs[availableDiffs.length - 1];
             if (first) {
               openChartModal(song, first.diff, first.type, first.internal, first.display, first.score);
             }
@@ -295,8 +247,8 @@ export default function SongsScreen() {
                 <Music2 size={20} color={COLORS.purpleLight} />
               </View>
             )}
-            <View style={[styles.typePill, isDxSong ? styles.typeDx : styles.typeStd]}>
-              <Text style={styles.typePillText}>{isDxSong ? 'DX' : 'STD'}</Text>
+            <View style={[styles.typePill, type === 'DX' ? styles.typeDx : styles.typeStd]}>
+              <Text style={styles.typePillText}>{type ?? 'UTAGE'}</Text>
             </View>
           </View>
 
@@ -488,7 +440,7 @@ export default function SongsScreen() {
       {/* Song Virtualized List */}
       <FlatList
         data={filteredSongs}
-        keyExtractor={item => String(item.song.id || item.song.title)}
+        keyExtractor={item => `${item.song.id || item.song.title}::${item.type ?? 'UTAGE'}`}
         renderItem={renderSongItem}
         contentContainerStyle={styles.listContent}
         initialNumToRender={15}
