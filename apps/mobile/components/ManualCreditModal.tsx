@@ -609,7 +609,7 @@ export default function ManualCreditModal({
                     <Text
                       style={[
                         styles.diffChipText,
-                        isSelected ? { color: '#ffffff', fontWeight: '800' } : { color: COLORS.textMuted },
+                        isSelected ? { color: COLORS.white, fontWeight: '800' } : { color: COLORS.textMuted },
                       ]}
                     >
                       {diff}
@@ -1080,7 +1080,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   typeBtnTextActive: {
-    color: '#ffffff',
+    color: COLORS.white,
   },
   constantBadge: {
     flexDirection: 'row',
@@ -1207,7 +1207,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   medalChipTextActive: {
-    color: '#ffffff',
+    color: COLORS.white,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
   saveBtnText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#ffffff',
+    color: COLORS.white,
   },
   deleteBtn: {
     flexDirection: 'row',

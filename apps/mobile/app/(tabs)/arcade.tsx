@@ -9,11 +9,12 @@ import {
   Image,
 } from 'react-native';
 import { useLocalData } from '../../db/useLocalData';
-import { COLORS, getDifficultyColor, formatAchievement, getRankBadge } from '../../constants/Theme';
+import { COLORS, SKILL_TIER_COLOR, getDifficultyColor, formatAchievement, getRankBadge } from '../../constants/Theme';
 import type { SkillAxis, SkillTier } from '../../db/recommend';
 import ManualCreditModal from '../../components/ManualCreditModal';
 import { formatShortDate, formatTime } from '@/constants/time';
 import { Tap } from '@/components/Tap';
+import { RankLetters } from '@/components/RankLetters';
 
 export default function ArcadeScreen() {
   const {
@@ -41,21 +42,7 @@ export default function ArcadeScreen() {
 
   const activeSession = clusteredSessions.find(s => s.isActive);
 
-  const getTierColor = (tier: SkillTier) => {
-    switch (tier) {
-      case 'SSS+':
-      case 'SSS':
-        return '#f43f5e';
-      case 'SS':
-        return '#f59e0b';
-      case 'S':
-        return '#6366f1';
-      case 'AAA':
-        return '#22c55e';
-      default:
-        return '#9ca3af';
-    }
-  };
+  const getTierColor = (tier: SkillTier) => SKILL_TIER_COLOR[tier] ?? COLORS.textMuted;
 
   const getSkillLabel = (skill: SkillAxis) => {
     switch (skill) {
@@ -200,7 +187,7 @@ export default function ArcadeScreen() {
                       </View>
                     )}
                     <View style={[styles.rankChip, { backgroundColor: rank.bg }]}>
-                      <Text style={[styles.rankChipText, { color: rank.color }]}>{rank.label}</Text>
+                      <RankLetters label={rank.label} style={styles.rankChipText} />
                     </View>
                   </View>
                 </View>
@@ -469,7 +456,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   ratingValue: { fontSize: 16, fontWeight: 'bold', color: COLORS.purpleLight },
-  ratingLabel: { fontSize: 9, color: COLORS.textSubtle, fontWeight: '600', marginTop: 1 },
+  ratingLabel: { fontSize: 10, color: COLORS.textSubtle, fontWeight: '600', marginTop: 1 },
 
   syncButtonGroup: {
     flexDirection: 'row',
@@ -519,7 +506,7 @@ const styles = StyleSheet.create({
   segaOfflineSub: { fontSize: 11, color: COLORS.textMuted, marginTop: 1 },
   syncButtonDisabled: { opacity: 0.6 },
   syncContent: { flexDirection: 'row', alignItems: 'center' },
-  syncButtonText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold' },
+  syncButtonText: { color: COLORS.white, fontSize: 15, fontWeight: 'bold' },
 
   lastCreditCard: {
     backgroundColor: COLORS.surface,
@@ -561,7 +548,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: 8,
   },
-  diffText: { color: '#ffffff', fontSize: 10, fontWeight: 'bold' },
+  diffText: { color: COLORS.white, fontSize: 10, fontWeight: 'bold' },
   trackTitle: { color: COLORS.text, fontSize: 13, fontWeight: '600' },
   trackSub: { color: COLORS.textMuted, fontSize: 11, marginTop: 1 },
   pbBadge: {
@@ -616,7 +603,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 4,
   },
-  skillTierText: { color: '#ffffff', fontSize: 9, fontWeight: 'bold' },
+  skillTierText: { color: COLORS.white, fontSize: 10, fontWeight: 'bold' },
   skillNumber: { fontSize: 16, fontWeight: 'bold', color: COLORS.text },
   skillDenom: { fontSize: 11, color: COLORS.textSubtle, fontWeight: 'normal' },
   weakBadge: { fontSize: 10, color: COLORS.red, fontWeight: 'bold', marginTop: 4 },
@@ -638,7 +625,7 @@ const styles = StyleSheet.create({
   },
   toggleBtnActive: { backgroundColor: COLORS.purple },
   toggleText: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
-  toggleTextActive: { color: '#ffffff' },
+  toggleTextActive: { color: COLORS.white },
   toggleSubtext: { fontSize: 12, color: COLORS.textMuted, marginBottom: 12 },
 
   emptyText: { color: COLORS.textSubtle, fontSize: 13, fontStyle: 'italic', marginVertical: 8 },
@@ -652,7 +639,7 @@ const styles = StyleSheet.create({
   recTopRow: { flexDirection: 'row', alignItems: 'center' },
   recJacket: { width: 44, height: 44, borderRadius: 6 },
   recJacketPlaceholder: {
-    backgroundColor: '#374151',
+    backgroundColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -663,11 +650,11 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 4,
   },
-  challengeText: { color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
+  challengeText: { color: COLORS.textMuted, fontSize: 10, fontWeight: '600' },
   recTitle: { color: COLORS.text, fontSize: 13, fontWeight: 'bold', marginTop: 3 },
   recArtist: { color: COLORS.textSubtle, fontSize: 11 },
   gainBox: { alignItems: 'flex-end', minWidth: 65 },
-  gainLabel: { fontSize: 9, color: COLORS.textSubtle, fontWeight: 'bold' },
+  gainLabel: { fontSize: 10, color: COLORS.textSubtle, fontWeight: 'bold' },
   gainVal: { fontSize: 11, color: COLORS.green, fontWeight: 'bold', marginTop: 2 },
 
   chipsRow: { flexDirection: 'row', gap: 6, marginVertical: 6 },
@@ -707,7 +694,7 @@ const styles = StyleSheet.create({
   },
   sessionStatItem: { alignItems: 'center' },
   sessionStatVal: { fontSize: 18, fontWeight: 'bold', color: COLORS.text },
-  sessionStatLabel: { fontSize: 9, color: COLORS.textSubtle, fontWeight: '600', marginTop: 2 },
+  sessionStatLabel: { fontSize: 10, color: COLORS.textSubtle, fontWeight: '600', marginTop: 2 },
   idleSessionText: { fontSize: 12, color: COLORS.textMuted, marginTop: 6, lineHeight: 18 },
 
   toggleArrow: { fontSize: 12, color: COLORS.textMuted },
@@ -766,8 +753,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   manualBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#ffffff',
+    color: COLORS.white,
   },
 });

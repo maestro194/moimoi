@@ -1,20 +1,21 @@
 import { Tabs } from 'expo-router';
 import { LayoutDashboard, History, Star, Gamepad2, Settings, Music2 } from 'lucide-react-native';
+import { COLORS } from '@/constants/Theme';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#c084fc',
-        tabBarInactiveTintColor: '#6b7280',
+        tabBarActiveTintColor: COLORS.purpleLight,
+        tabBarInactiveTintColor: COLORS.textSubtle,
         tabBarStyle: {
-          backgroundColor: '#111827',
-          borderTopColor: '#1f2937',
+          backgroundColor: COLORS.surface,
+          borderTopColor: COLORS.surfaceLight,
         },
         headerStyle: {
-          backgroundColor: '#111827',
+          backgroundColor: COLORS.surface,
         },
-        headerTintColor: '#f9fafb',
+        headerTintColor: COLORS.text,
       }}
     >
       <Tabs.Screen

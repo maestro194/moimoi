@@ -27,6 +27,7 @@ import { useLocalData } from '@/db/useLocalData';
 import { JacketImage } from '@/components/JacketImage';
 import { formatShortDate, formatTime } from '@/constants/time';
 import { Tap } from '@/components/Tap';
+import { RankLetters } from '@/components/RankLetters';
 
 export default function SongDetailModal() {
   const router = useRouter();
@@ -146,7 +147,7 @@ export default function SongDetailModal() {
           </View>
           {achNum > 0 ? (
             <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-              <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+              <RankLetters label={rankInfo.label} style={styles.rankBadgeText} />
             </View>
           ) : (
             <View style={[styles.rankBadge, { backgroundColor: COLORS.surfaceLight }]}>
@@ -269,7 +270,7 @@ export default function SongDetailModal() {
                     <Text
                       style={[
                         styles.milestoneRank,
-                        { color: m.isAchieved ? '#4ade80' : COLORS.textMuted },
+                        { color: m.isAchieved ? COLORS.success : COLORS.textMuted },
                       ]}
                     >
                       {m.name} ({m.min}%)
@@ -310,11 +311,11 @@ export default function SongDetailModal() {
                     </Text>
                     <View style={styles.historyBadges}>
                       <View style={[styles.rankBadge, { backgroundColor: r.bg }]}>
-                        <Text style={[styles.rankBadgeText, { color: r.color, fontSize: 8 }]}>{r.label}</Text>
+                        <RankLetters label={r.label} style={[styles.rankBadgeText, { fontSize: 10 }]} />
                       </View>
                       {p.fc && (
                         <View style={styles.fcBadge}>
-                          <Text style={[styles.fcText, { fontSize: 8 }]}>{p.fc}</Text>
+                          <Text style={[styles.fcText, { fontSize: 10 }]}>{p.fc}</Text>
                         </View>
                       )}
                     </View>
@@ -407,7 +408,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 2.5,
     overflow: 'hidden',
-    backgroundColor: '#000',
+    backgroundColor: COLORS.black,
   },
   jacketImg: {
     width: '100%',
@@ -457,7 +458,7 @@ const styles = StyleSheet.create({
   diffBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#000',
+    color: COLORS.black,
   },
   rankBadge: {
     paddingHorizontal: 8,
@@ -509,7 +510,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderSubtle,
   },
   statLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.textSubtle,
     letterSpacing: 0.5,
@@ -569,7 +570,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   milestoneGain: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.cyan,
   },
@@ -685,7 +686,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   noteStatLabel: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.textSubtle,
     marginBottom: 2,
