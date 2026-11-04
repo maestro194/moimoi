@@ -10,7 +10,7 @@ import { Jacket } from '@/components/jacket';
 import { SyncBar } from '@/components/sync-bar';
 import { ChartDetailDrawer } from '@/components/chart-detail-drawer';
 import { FoilCard, foilRatingClass } from '@/components/foil-card';
-import { foilKey, type FoilInfo } from '@maimai-suite/core';
+import { foilKey, rankGlyphs, type FoilInfo } from '@maimai-suite/core';
 
 interface Props {
   scored: ScoreWithRating[];
@@ -127,7 +127,7 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
         </div>
         
         {view === 'grid' ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,250px),1fr))] gap-3">
             {data.map((s, i) => (
               <B50Card key={s.id} score={s} index={i} animated={limit !== null} onSelect={openDrawer}
                 foil={limit !== null ? foil[foilKey(s)] : undefined} />
@@ -338,79 +338,83 @@ export default function ScoresClient({ scored, total, totalRating, newRating, ol
   );
 }
 
+/** A rank lettered as on the B50 image: each letter in its own colour, the "+" smaller (rankGlyphs in core). */
+function RankLetters({ rank, className = '' }: { rank: string; className?: string }) {
+  return (
+    <span className={`font-extrabold leading-none whitespace-nowrap ${className}`} aria-label={rank}
+      style={{ paintOrder: 'stroke fill', WebkitTextStroke: '3px #07060e' }}>
+      {rankGlyphs(rank).map(([ch, color, plus], i) => (
+        <span key={i} style={{ color }} className={plus ? 'text-[0.65em] align-[0.45em]' : undefined}>{ch}</span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * One B50 chart on a solid surface, so its foil (edge, sweeping band, tint) reads clearly:
+ * jacket on the left; title, difficulty, rank and achievement in the middle; rating on the right.
+ */
 function B50Card({ score: s, index = 0, animated = false, onSelect, foil }: { score: ScoreWithRating, index?: number, animated?: boolean, onSelect?: (s: ScoreWithRating) => void, foil?: FoilInfo }) {
   const diffColor = DIFF_COLOR[s.difficulty] ?? '#fff';
   const isDX = s.songType === 'DX';
+  const level = s.difficulty === 'UTAGE' ? (s.song?.lev_utage || '?') : (s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?');
+  const marks = [s.fc, s.fs].filter(Boolean) as string[];
 
   return (
     <FoilCard
       foil={foil}
-      className={`hover:scale-105 hover:-translate-y-1 transition-transform duration-300 ${animated ? 'animate-slide-up' : ''}`}
+      className={`hover:-translate-y-0.5 transition-transform duration-200 ${animated ? 'animate-slide-up' : ''}`}
       style={{
         animationDelay: animated ? `${index * 0.03}s` : undefined,
         animationFillMode: animated ? 'both' : undefined
       }}
     >
-    <div
-      className="relative overflow-hidden rounded-xl h-[160px] group shadow-lg cursor-pointer"
-      style={{ border: `2.5px solid ${diffColor}` }}
+    <button
+      type="button"
+      className="w-full text-left grid grid-cols-[60px_minmax(0,1fr)_auto] items-center gap-2.5 p-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
       onClick={() => onSelect?.(s)}
+      aria-label={`#${index + 1} ${s.songTitle} ${s.difficulty} ${level}, ${s.achievement.toFixed(4)}%, rating ${s.rating}`}
     >
-      {/* Background Image */}
-      {s.song?.image_url && (
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
-          style={{ backgroundImage: `url(${getJacketUrl(s.song.image_url, s.song.intl)})` }}
+      {/* Jacket with the difficulty colour as its border */}
+      <div className="relative w-[60px] h-[60px] rounded-lg overflow-hidden" style={{ border: `2.5px solid ${diffColor}` }}>
+        {s.song?.image_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={getJacketUrl(s.song.image_url, s.song.intl)} alt="" className="w-full h-full object-cover" loading="lazy" />
+        )}
+        <img
+          src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
+          alt={isDX ? 'DX' : 'STD'}
+          className="absolute left-0.5 bottom-0.5 h-[11px] object-contain drop-shadow"
         />
-      )}
-      {/* Gradients */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent" />
-
-      {/* Top right floating level tag */}
-      <div
-        className="absolute top-0 right-0 z-20 text-[10px] md:text-[11px] font-bold px-1.5 py-1 rounded-bl-lg leading-none tabular-nums shadow-sm"
-        style={{ background: diffColor, color: '#fff' }}
-      >
-        {s.difficulty === 'UTAGE' ? (s.song?.lev_utage || '?') : (s.internalLevel > 0 ? s.internalLevel.toFixed(1) : '?')}
       </div>
 
-      <div className="relative h-full flex flex-col p-2 z-10">
-        {/* Top: DX/STD */}
-        <div className="flex items-start">
-          <img
-            src={isDX ? '/badges/music_dx.webp' : '/badges/music_standard.webp'}
-            alt={isDX ? 'DX' : 'STD'}
-            className="h-[14px] object-contain drop-shadow-md"
-          />
+      {/* Title, difficulty + rank, achievement + marks */}
+      <div className="min-w-0 grid gap-1">
+        <div className="text-[13px] font-bold text-[var(--foreground)] truncate leading-tight">{s.songTitle}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10.5px] font-bold px-1.5 py-0.5 rounded-md leading-none tabular-nums"
+            style={{ background: diffColor, color: s.difficulty === 'REMAS' ? '#2a1238' : '#fff' }}>
+            {s.difficulty === 'REMAS' ? 'Re:M' : s.difficulty} {level}
+          </span>
+          <RankLetters rank={s.rank} className="text-[15px]" />
         </div>
-
-        {/* Bottom Section */}
-        <div className="mt-auto">
-          {/* Title */}
-          <div className="text-[11px] md:text-[12px] font-bold text-white line-clamp-1 text-shadow leading-tight mb-0.5">
-            {s.songTitle}
-          </div>
-
-          {/* Bottom Row: Achievement (Left) | Rating (Right) */}
-          <div className="flex justify-between items-end">
-            <div className="flex items-baseline gap-1">
-              <span className="text-xs md:text-[13px] font-bold text-white font-num leading-none drop-shadow-md">
-                {s.achievement.toFixed(4)}%
-              </span>
-              {(s.fc || s.fs) && (
-                <span className="text-[8px] md:text-[9px] font-bold text-white/80 drop-shadow-md">
-                  {[s.fc, s.fs].filter(Boolean).join(' ')}
-                </span>
-              )}
-            </div>
-            <div className={`text-[16px] md:text-lg font-bold font-num leading-none tracking-tight tabular-nums drop-shadow-md ${foilRatingClass(foil)}`}
-              style={foil?.tier ? undefined : { color: '#fff', textShadow: `0 0 10px ${diffColor}, 0 0 5px ${diffColor}` }}>
-              {s.rating}
-            </div>
-          </div>
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-[12px] font-num tabular-nums text-[var(--foreground-muted)]">{s.achievement.toFixed(4)}%</span>
+          {marks.length > 0 && (
+            <span className="text-[10px] font-bold text-[var(--foreground-muted)] truncate">{marks.join(' ')}</span>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* Index and rating */}
+      <div className="grid justify-items-end gap-1 self-stretch content-between">
+        <span className="text-[10.5px] font-num tabular-nums text-[var(--foreground-subtle)]">#{index + 1}</span>
+        <span className={`text-[19px] font-extrabold font-num leading-none tabular-nums ${foilRatingClass(foil)}`}
+          style={foil?.tier ? undefined : { color: 'var(--accent-yellow)' }}>
+          {s.rating}
+        </span>
+      </div>
+    </button>
     </FoilCard>
   );
 }

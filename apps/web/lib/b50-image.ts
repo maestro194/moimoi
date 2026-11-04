@@ -8,7 +8,7 @@
 import { createCanvas, loadImage, GlobalFonts, type SKRSContext2D } from "@napi-rs/canvas";
 import { promises as fs } from "fs";
 import path from "path";
-import type { ScoreWithRating, RatingData } from "@maimai-suite/core";
+import { rankGlyphs, type ScoreWithRating, type RatingData } from "@maimai-suite/core";
 import { OTOGE_DB_JACKET_BASE } from "./jacket";
 import { formatIsoDate } from "./time";
 
@@ -73,27 +73,7 @@ const DIFF_ACCENT: Record<string, string> = {
 };
 
 // ── Rank glyphs ──────────────────────────────────────────────────────────────
-// Each entry is [char, color, isPlus?] drawn individually with a dark outline.
-// SSS/SSS+ run gold → sky → pink per letter; SS+ and below are all gold. A-ranks use the pink,
-// B-ranks the sky, C and D a grey. "+" is smaller, raised and gold.
-type RankGlyph = [string, string, boolean?];
-const R_GOLD = "#fcd34d", R_SKY = "#5ec4f5", R_PINK = "#f472a0", R_GREY = "#b4b0c0";
-const RANK_GLYPHS: Record<string, RankGlyph[]> = {
-  "SSS+": [["S",R_GOLD],["S",R_SKY],["S",R_PINK],["+",R_GOLD,true]],
-  "SSS":  [["S",R_GOLD],["S",R_SKY],["S",R_PINK]],
-  "SS+":  [["S",R_GOLD],["S",R_GOLD],["+",R_GOLD,true]],
-  "SS":   [["S",R_GOLD],["S",R_GOLD]],
-  "S+":   [["S",R_GOLD],["+",R_GOLD,true]],
-  "S":    [["S",R_GOLD]],
-  "AAA":  [["A",R_PINK],["A",R_PINK],["A",R_PINK]],
-  "AA":   [["A",R_PINK],["A",R_PINK]],
-  "A":    [["A",R_PINK]],
-  "BBB":  [["B",R_SKY],["B",R_SKY],["B",R_SKY]],
-  "BB":   [["B",R_SKY],["B",R_SKY]],
-  "B":    [["B",R_SKY]],
-  "C":    [["C",R_GREY]],
-  "D":    [["D",R_GREY]],
-};
+// Rank letters and colours: rankGlyphs in @maimai-suite/core, drawn here with a dark outline.
 
 // ── FC/FS badges — only drawn when earned ────────────────────────────────────
 // `pastel` = on dark cards (light fill, dark text); `deep` = on the light REMAS card.
@@ -328,7 +308,7 @@ async function drawCard(
   }
 
   // Rank — per-letter colours with a dark outline; auto-shrinks to fit before the rating box
-  const glyphs = RANK_GLYPHS[score.rank] ?? [["?", "#ffffff"] as RankGlyph];
+  const glyphs = rankGlyphs(score.rank);
   const maxRankW = rbx - mx - 4;
   let rankPx = 21;
   const measureGlyphs = (px: number) => {
