@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import { initDb } from '@/db/client';
 import { LocalDataProvider } from '@/db/useLocalData';
+import { COLORS } from '@/constants/Theme';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -52,6 +53,11 @@ export default function RootLayout() {
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="settings" options={{
+            title: 'Settings',
+            headerStyle: { backgroundColor: COLORS.surface },
+            headerTintColor: COLORS.text,
+          }} />
         </Stack>
       </LocalDataProvider>
     </ThemeProvider>

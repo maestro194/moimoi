@@ -9,8 +9,8 @@ import {
   ScrollView,
   Switch,
 } from 'react-native';
-import { API_URL, fullSync, syncFromWebDb, getCacheStats, clearLocalData } from '../../db/sync';
-import { COLORS } from '../../constants/Theme';
+import { API_URL, fullSync, syncFromWebDb, getCacheStats, clearLocalData } from '../db/sync';
+import { COLORS } from '../constants/Theme';
 import { Globe, Database, Trash2, RefreshCw, Key, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { Tap } from '@/components/Tap';
 import { useLocalData } from '@/db/useLocalData';
