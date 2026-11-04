@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { sqlite } from './client';
 import type { ScoreRow, SongRow, PlayLogRow } from './schema';
-import { normalizeTitle, sameChart, SongIndex, solvePlayDetails } from '@maimai-suite/core';
+import { groupCredits, groupSessions, newBestPlays, ratingGain, SongIndex, solvePlayDetails, type Score, type Song } from '@maimai-suite/core';
 
 function resolveApiUrl(): string {
   if (Constants.expoConfig?.extra?.apiUrl) {
@@ -531,119 +531,45 @@ export interface LastCreditSummary {
   lastPlayedAt: string | null;
 }
 
-/**
- * Cluster recent plays into sessions by grouping plays where gap <= 45 minutes.
- * Returns sessions in descending order (most recent first).
- */
+type CachedPlay = PlayLogRow & { song?: SongRow | null };
+
+/** Sessions from the play log, newest first (grouping rule in core: groupSessions, one 20-minute gap). */
 export function clusterSessionsFromPlayLog(
-  recentPlays: Array<PlayLogRow & { song?: SongRow | null }>
+  recentPlays: CachedPlay[],
+  bests: ScoreRow[] = [],
 ): ClusteredSession[] {
-  if (!recentPlays.length) return [];
-
-  // Sort chronological (oldest to newest) for grouping
-  const sorted = [...recentPlays].sort(
-    (a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime()
-  );
-
-  const clusters: Array<Array<PlayLogRow & { song?: SongRow | null }>> = [];
-  let currentCluster: Array<PlayLogRow & { song?: SongRow | null }> = [];
-
-  const MAX_GAP_MS = 45 * 60 * 1000; // 45 minutes
-
-  for (const play of sorted) {
-    if (!currentCluster.length) {
-      currentCluster.push(play);
-      continue;
-    }
-
-    const prevPlay = currentCluster[currentCluster.length - 1];
-    const diff = new Date(play.played_at).getTime() - new Date(prevPlay.played_at).getTime();
-
-    if (diff <= MAX_GAP_MS) {
-      currentCluster.push(play);
-    } else {
-      clusters.push(currentCluster);
-      currentCluster = [play];
-    }
-  }
-
-  if (currentCluster.length) {
-    clusters.push(currentCluster);
-  }
-
-  const now = Date.now();
-  return clusters
-    .reverse()
-    .map((cluster, idx) => {
-      const first = cluster[0];
-      const last = cluster[cluster.length - 1];
-      const startMs = new Date(first.played_at).getTime();
-      const endMs = new Date(last.played_at).getTime();
-      const durationMinutes = Math.max(1, Math.round((endMs - startMs) / 60000));
-
-      let track1Count = 0;
-      for (const p of cluster) {
-        if (p.track === 1) track1Count++;
-      }
-      const creditsCount = Math.max(1, track1Count > 0 ? track1Count : Math.ceil(cluster.length / 3));
-      const isActive = idx === 0 && (now - endMs <= MAX_GAP_MS);
-
-      return {
-        id: `session-${endMs}`,
-        startTime: first.played_at,
-        endTime: last.played_at,
-        durationMinutes,
-        tracksCount: cluster.length,
-        creditsCount,
-        plays: [...cluster].reverse(),
-        newPBs: cluster.filter(p => p.achievement >= 100.0).length,
-        isActive,
-      };
-    });
+  return groupSessions(recentPlays).map(s => ({
+    id: s.id,
+    startTime: s.start.toISOString(),
+    endTime: s.end.toISOString(),
+    durationMinutes: s.durationMinutes,
+    tracksCount: s.plays.length,
+    creditsCount: s.credits.length,
+    plays: s.plays,
+    newPBs: newBestPlays(s.plays, bests).length,
+    isActive: s.isActive,
+  }));
 }
 
-/**
- * Identify the most recent credit (group of 3-4 tracks) and check PB status.
- */
+/** Inputs for the rating a credit gained: the scores, songs and version the B50 is computed from. */
+export interface RatingInputs { scores: Score[]; songs: SongIndex<Song>; currentVersion: number }
+
+/** The latest credit, which of its tracks set a personal best, and the rating it gained. */
 export function getLastCreditInfo(
-  recentPlays: Array<PlayLogRow & { song?: SongRow | null }>,
-  allScores?: ScoreRow[]
+  recentPlays: CachedPlay[],
+  allScores: ScoreRow[] = [],
+  rating?: RatingInputs,
 ): LastCreditSummary | null {
-  if (!recentPlays.length) return null;
-
-  const creditPlays: Array<PlayLogRow & { song?: SongRow | null; isPB?: boolean }> = [];
-  const firstPlayTime = new Date(recentPlays[0].played_at).getTime();
-  const CREDIT_GAP_MS = 20 * 60 * 1000; // 20 min gap between tracks inside 1 credit
-
-  for (let i = 0; i < recentPlays.length && i < 4; i++) {
-    const play = recentPlays[i];
-    const playTime = new Date(play.played_at).getTime();
-    if (firstPlayTime - playTime > CREDIT_GAP_MS) break;
-
-    let isPB = false;
-    if (allScores) {
-      const existing = allScores.find(
-        s => sameChart(s, play)
-      );
-      if (existing && play.achievement >= existing.achievement) {
-        isPB = true;
-      }
-    }
-
-    creditPlays.push({ ...play, isPB });
-
-    if (play.track === 1) break;
-  }
-
-  if (!creditPlays.length) return null;
-
-  const pbCount = creditPlays.filter(p => p.isPB).length;
-
+  const credit = groupCredits(recentPlays)[0];
+  if (!credit) return null;
+  const best = new Set(newBestPlays(credit.plays, allScores).map(p => p.id));
+  const tracks = [...credit.plays].reverse().map(p => ({ ...p, isPB: best.has(p.id) }));
+  const earlier = recentPlays.filter(p => new Date(p.played_at).getTime() < credit.start.getTime());
   return {
-    tracks: creditPlays,
-    ratingDelta: pbCount > 0 ? pbCount * 2 : 0,
-    pbCount,
-    lastPlayedAt: creditPlays[0].played_at,
+    tracks,
+    ratingDelta: rating ? ratingGain(credit.plays, earlier, rating.scores, rating.songs, rating.currentVersion) : 0,
+    pbCount: best.size,
+    lastPlayedAt: tracks[0].played_at,
   };
 }
 

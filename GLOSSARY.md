@@ -38,6 +38,14 @@ _Avoid_: constant (on its own), fallback level
 One attempt at a chart, with its achievement, DX score and FC/FS marks. Comes from SEGA's play history or from manual entry.
 _Avoid_: score (for a single attempt), record
 
+**Credit**:
+One coin's worth of play: up to four tracks in a row. A credit ends at track 1, or when 20 minutes pass without a play.
+_Avoid_: game, set
+
+**Session**:
+The credits of one visit to the arcade: credits no more than 20 minutes apart. Its new personal bests are the plays that set a chart's current best, and its rating gain is the rating now minus the rating with those charts at their earlier best.
+_Avoid_: cluster, visit (in code)
+
 **SEGA snapshot**:
 The best result SEGA's site reports for a chart at the time of a sync, independent of the plays we have seen.
 _Avoid_: SEGA score, synced PB

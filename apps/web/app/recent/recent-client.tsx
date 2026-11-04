@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, memo } from 'react';
-import { sameChart, type FC, type FS, type Difficulty, type PlayerProfile } from '@maimai-suite/core';
+import { type FC, type FS, type PlayerProfile } from '@maimai-suite/core';
 import { Clock, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { FCBadge, FSBadge } from '@/components/badges';
 import { PageWrapper } from '@/components/page-wrapper';
@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { ManualCreditModalWeb } from '@/components/manual-credit-modal';
 import { formatLongDate, formatTime } from '@/lib/time';
 import { difficultyColor as getDifficultyColor } from '@maimai-suite/core';
+import { groupCredits, judgementDrops } from '@maimai-suite/core';
 
 interface HydratedLog {
   id: number;
@@ -42,111 +43,6 @@ interface CreditGroup {
 }
 
 // ── Pure helpers (defined outside component — no re-creation on render) ─────────
-
-
-/** Same chart, track and achievement — e.g. a manual entry and its synced copy. */
-function isDuplicatePlay(a: HydratedLog, b: HydratedLog): boolean {
-  return sameChart(a, b)
-    && a.track === b.track
-    && Math.abs(parseFloat(a.achievement) - parseFloat(b.achievement)) < 0.00005;
-}
-
-/** Collapse adjacent duplicates (keeping the synced row) so they can't split a credit. */
-function dropAdjacentDuplicates(logs: HydratedLog[]): HydratedLog[] {
-  const out: HydratedLog[] = [];
-  for (const log of logs) {
-    const prev = out[out.length - 1];
-    if (prev && isDuplicatePlay(prev, log)) {
-      if (prev.isManual && !log.isManual) out[out.length - 1] = log;
-      continue;
-    }
-    out.push(log);
-  }
-  return out;
-}
-
-function groupLogsIntoCredits(allLogs: HydratedLog[]): CreditGroup[] {
-  const logs = dropAdjacentDuplicates(allLogs);
-  const groups: CreditGroup[] = [];
-  let currentGroup: CreditGroup | null = null;
-
-  for (let i = 0; i < logs.length; i++) {
-    const log = logs[i];
-    const logDate = new Date(log.playedAt);
-
-    if (!currentGroup) {
-      currentGroup = { id: log.id.toString(), timestamp: logDate, plays: [] };
-      groups.push(currentGroup);
-    }
-
-    currentGroup.plays.unshift(log);
-
-    const nextLog = logs[i + 1];
-    if (nextLog) {
-      const nextDate = new Date(nextLog.playedAt);
-      const timeDiffMs = logDate.getTime() - nextDate.getTime();
-      const isBigGap = timeDiffMs > 30 * 60 * 1000;
-      const isTrackAnomaly =
-        log.track !== null &&
-        nextLog.track !== null &&
-        nextLog.track >= log.track;
-
-      if (log.track === 1 || isBigGap || isTrackAnomaly) {
-        currentGroup = null;
-      }
-    }
-  }
-
-  return groups;
-}
-
-function computeDrops(d: any) {
-  if (!d?.tap || !d?.break) return null;
-
-  const tap   = d.tap.cp   + d.tap.p   + d.tap.gr   + d.tap.go   + d.tap.miss;
-  const hold  = d.hold.cp  + d.hold.p  + d.hold.gr  + d.hold.go  + d.hold.miss;
-  const slide = d.slide.cp + d.slide.p + d.slide.gr + d.slide.go + d.slide.miss;
-  const touch = d.touch.cp + d.touch.p + d.touch.gr + d.touch.go + d.touch.miss;
-
-  // Support both old 5-field schema (p/gr/go/miss) and new 7-field schema (p2500…miss)
-  const brk = d.break.cp +
-    (d.break.p2500 ?? d.break.p ?? 0) +
-    (d.break.p2000 ?? 0) +
-    (d.break.g1500 ?? d.break.gr ?? 0) +
-    (d.break.g1250 ?? 0) +
-    (d.break.g1000 ?? d.break.go ?? 0) +
-    d.break.miss;
-
-  if (brk === 0) return null;
-
-  const maxBase = tap * 500 + hold * 1000 + slide * 1500 + touch * 500 + brk * 2500;
-  if (maxBase === 0) return null;
-
-  const bpb = 1 / brk;          // break bonus fraction per note (bonus pool = 1%)
-  const bpp = 100 / maxBase;    // base score per point
-
-  const std = { gr: 100 * bpp, go: 250 * bpp, miss: 500 * bpp };
-  const hld = { gr: 200 * bpp, go: 500 * bpp, miss: 1000 * bpp };
-  const sld = { gr: 300 * bpp, go: 750 * bpp, miss: 1500 * bpp };
-
-  // 7-tier break rates:
-  // p2500 (Perfect High): gets 2500 base, 75 bonus -> loses 0 base, 25 bonus
-  // p2000 (Perfect Low): gets 2500 base, 50 bonus -> loses 0 base, 50 bonus
-  // g1500 (Great High): gets 2000 base, 40 bonus -> loses 500 base, 60 bonus
-  // g1250 (Great Mid): gets 1500 base, 40 bonus -> loses 1000 base, 60 bonus
-  // g1000 (Great Low): gets 1250 base, 40 bonus -> loses 1250 base, 60 bonus
-  const brkRates = {
-    p2500: 0.25 * bpb,
-    p2000: 0.50 * bpb,
-    g1500: 0.60 * bpb + 500 * bpp,
-    g1250: 0.60 * bpb + 1000 * bpp,
-    g1000: 0.60 * bpb + 1250 * bpp,
-    good:  0.70 * bpb + 1500 * bpp,
-    miss:  1.00 * bpb + 2500 * bpp,
-  };
-
-  return { tap: std, hold: hld, slide: sld, touch: std, break: brkRates };
-}
 
 
 function computeMaxDxScore(d: any): number {
@@ -306,7 +202,7 @@ const PlayRow = memo(function PlayRow({
   // Heavy calculations — memoized and only computed once per play instance
   const { drops, maxDxScore, dxStars } = useMemo(() => {
     if (!hasDetails) return { drops: null, maxDxScore: 0, dxStars: 0 };
-    const drops = computeDrops(d);
+    const drops = judgementDrops(d);
     const maxDxScore = computeMaxDxScore(d);
     let dxStars = 0;
     if (maxDxScore > 0 && play.dxScore) {
@@ -598,7 +494,9 @@ export default function RecentClient({ logs, lastSync, profile }: RecentClientPr
   }, [router]);
 
   // Memoized — only recomputed when logs reference changes (i.e. on page load)
-  const credits = useMemo(() => groupLogsIntoCredits(logs), [logs]);
+  // Credits newest first, tracks in play order (grouping rule in core: groupCredits)
+  const credits = useMemo((): CreditGroup[] =>
+    groupCredits(logs).map(c => ({ id: c.id, timestamp: c.end, plays: c.plays })), [logs]);
   const visibleCredits = useMemo(() => credits.slice(0, visibleCount), [credits, visibleCount]);
   const hasMore = visibleCount < credits.length;
 

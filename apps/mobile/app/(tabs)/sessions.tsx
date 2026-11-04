@@ -7,10 +7,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { groupCredits, judgementDrops } from '@maimai-suite/core';
 import { useLocalData } from '../../db/useLocalData';
 import { COLORS, getDifficultyColor, getRankBadge, formatAchievement } from '../../constants/Theme';
 import { Clock, ChevronDown, ChevronUp, Music2, Star, Pencil, Trash2, Plus } from 'lucide-react-native';
-import { sameChart, solvePlayDetails } from '@maimai-suite/core';
+import { solvePlayDetails } from '@maimai-suite/core';
 import ManualCreditModal from '../../components/ManualCreditModal';
 import { deleteManualPlay } from '../../db/sync';
 import { JacketImage } from '@/components/JacketImage';
@@ -40,104 +41,6 @@ interface CreditGroup {
   plays: PlayItem[];
 }
 
-/** Same chart, track and achievement — e.g. a manual entry and its synced copy. */
-function isDuplicatePlay(a: PlayItem, b: PlayItem): boolean {
-  return sameChart(a, b)
-    && a.track === b.track
-    && Math.abs(Number(a.achievement) - Number(b.achievement)) < 0.00005;
-}
-
-/** Collapse adjacent duplicates (keeping the synced row) so they can't split a credit. */
-function dropAdjacentDuplicates(plays: PlayItem[]): PlayItem[] {
-  const out: PlayItem[] = [];
-  for (const play of plays) {
-    const prev = out[out.length - 1];
-    if (prev && isDuplicatePlay(prev, play)) {
-      if (prev.is_manual && !play.is_manual) out[out.length - 1] = play;
-      continue;
-    }
-    out.push(play);
-  }
-  return out;
-}
-
-function groupPlaysIntoSessions(allPlays: PlayItem[]): CreditGroup[] {
-  const plays = dropAdjacentDuplicates(allPlays);
-  const groups: CreditGroup[] = [];
-  let currentGroup: CreditGroup | null = null;
-
-  for (let i = 0; i < plays.length; i++) {
-    const play = plays[i];
-    const playDate = new Date(play.played_at);
-
-    if (!currentGroup) {
-      currentGroup = { id: play.id.toString(), timestamp: playDate, plays: [] };
-      groups.push(currentGroup);
-    }
-
-    currentGroup.plays.push(play);
-
-    const nextPlay = plays[i + 1];
-    if (nextPlay) {
-      const nextDate = new Date(nextPlay.played_at);
-      const timeDiffMs = playDate.getTime() - nextDate.getTime();
-      const isBigGap = timeDiffMs > 30 * 60 * 1000;
-      const isTrackAnomaly =
-        play.track !== null &&
-        nextPlay.track !== null &&
-        nextPlay.track >= play.track;
-
-      if (play.track === 1 || isBigGap || isTrackAnomaly) {
-        currentGroup = null;
-      }
-    }
-  }
-
-  return groups;
-}
-
-function computeDrops(d: any) {
-  if (!d?.tap || !d?.break) return null;
-
-  const tap = (d.tap.cp ?? 0) + (d.tap.p ?? 0) + (d.tap.gr ?? 0) + (d.tap.go ?? 0) + (d.tap.miss ?? 0);
-  const hold = (d.hold.cp ?? 0) + (d.hold.p ?? 0) + (d.hold.gr ?? 0) + (d.hold.go ?? 0) + (d.hold.miss ?? 0);
-  const slide = (d.slide.cp ?? 0) + (d.slide.p ?? 0) + (d.slide.gr ?? 0) + (d.slide.go ?? 0) + (d.slide.miss ?? 0);
-  const touch = (d.touch.cp ?? 0) + (d.touch.p ?? 0) + (d.touch.gr ?? 0) + (d.touch.go ?? 0) + (d.touch.miss ?? 0);
-
-  const brk =
-    (d.break.cp ?? 0) +
-    (d.break.p_high ?? d.break.p2500 ?? d.break.p ?? 0) +
-    (d.break.p_low ?? d.break.p2000 ?? 0) +
-    (d.break.g_high ?? d.break.g1500 ?? d.break.gr ?? 0) +
-    (d.break.g_mid ?? d.break.g1250 ?? 0) +
-    (d.break.g_low ?? d.break.g1000 ?? d.break.go ?? 0) +
-    (d.break.miss ?? 0);
-
-  if (brk === 0) return null;
-
-  const maxBase = tap * 500 + hold * 1000 + slide * 1500 + touch * 500 + brk * 2500;
-  if (maxBase === 0) return null;
-
-  const bpb = 1 / brk;
-  const bpp = 100 / maxBase;
-
-  const std = { gr: 100 * bpp, go: 250 * bpp, miss: 500 * bpp };
-  const hld = { gr: 200 * bpp, go: 500 * bpp, miss: 1000 * bpp };
-  const sld = { gr: 300 * bpp, go: 750 * bpp, miss: 1500 * bpp };
-
-  const brkRates = {
-    p2500: 0.25 * bpb,
-    p2000: 0.5 * bpb,
-    g1500: 0.6 * bpb + 500 * bpp,
-    g1250: 0.6 * bpb + 1000 * bpp,
-    g1000: 0.6 * bpb + 1250 * bpp,
-    good: 0.7 * bpb + 1500 * bpp,
-    miss: 1.0 * bpb + 2500 * bpp,
-  };
-
-  return { tap: std, hold: hld, slide: sld, touch: std, break: brkRates };
-}
-
 function computeMaxDxScore(d: any): number {
   if (!d?.tap) return 0;
   const brkTotal =
@@ -163,9 +66,10 @@ export default function SessionsScreen() {
   const [showManualModal, setShowManualModal] = useState(false);
   const [editingPlay, setEditingPlay] = useState<any | null>(null);
 
-  const sessions = useMemo(() => {
-    return groupPlaysIntoSessions(recentPlays as any[]);
-  }, [recentPlays]);
+  // Credits newest first, tracks newest first (grouping rule in core: groupCredits)
+  const sessions = useMemo((): CreditGroup[] =>
+    groupCredits(recentPlays as unknown as PlayItem[]).map(c => ({ id: c.id, timestamp: c.end, plays: [...c.plays].reverse() })),
+  [recentPlays]);
 
   const handleDeletePlay = (play: PlayItem) => {
     Alert.alert(
@@ -252,7 +156,7 @@ export default function SessionsScreen() {
 
                 // Solve accurate break sub-tiers and loss rates
                 const solvedDetails = rawDetails ? solvePlayDetails(rawDetails, play.achievement) : null;
-                const dropRates = solvedDetails ? computeDrops(solvedDetails) : null;
+                const dropRates = solvedDetails ? judgementDrops(solvedDetails) : null;
                 const maxDx = solvedDetails ? computeMaxDxScore(solvedDetails) : 0;
                 let dxStars = 0;
                 if (maxDx > 0 && play.dx_score) {

@@ -170,11 +170,11 @@ function useLocalDataSource(): LocalDataState {
       setRecentPlays(recents);
 
       // Auto session clustering
-      const sessions = clusterSessionsFromPlayLog(recents);
+      const sessions = clusterSessionsFromPlayLog(recents, allScoreRows);
       setClusteredSessions(sessions);
 
       // Last credit delta calculation
-      const lastCred = getLastCreditInfo(recents, allScoreRows);
+      const lastCred = getLastCreditInfo(recents, allScoreRows, { scores: formattedScores, songs: new SongIndex(songObjs), currentVersion: activeVersion });
       setLastCredit(lastCred);
     } catch (err) {
       console.error('Error loading local data:', err);
