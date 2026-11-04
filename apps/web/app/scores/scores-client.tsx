@@ -26,20 +26,6 @@ interface Props {
 
 const DIFF_ORDER: Difficulty[] = ['REMAS', 'MAS', 'EXP', 'ADV', 'BAS'];
 
-const DIFF_COLOR: Record<string, string> = {
-  BAS:   '#3fb950',
-  ADV:   '#d4a017',
-  EXP:   '#f64861',
-  MAS:   '#9f51dc',
-  REMAS: '#e4b7eb',
-  UTAGE: '#bf1b5e',
-  bas:   '#3fb950',
-  adv:   '#d4a017',
-  exp:   '#f64861',
-  mas:   '#9f51dc',
-  remas: '#e4b7eb',
-  utage: '#bf1b5e',
-};
 
 function DiffBadge({ diff }: { diff: string }) {
   return (
@@ -50,6 +36,7 @@ function DiffBadge({ diff }: { diff: string }) {
 }
 
 import { FCBadge, FSBadge } from '@/components/badges';
+import { DIFF_COLOR } from '@maimai-suite/core';
 
 export default function ScoresClient({ scored, total, totalRating, newRating, oldRating, profile, lastSync, foil }: Props) {
   const [query, setQuery] = useState('');

@@ -5,6 +5,7 @@ import { chartKey, type ScoreWithRating } from '@maimai-suite/core';
 import { getAllCharts, type MinimalChart } from './actions';
 import { FCBadge } from '@/components/badges';
 import { JacketImg } from '@/components/jacket-img';
+import { DIFF_COLOR } from '@maimai-suite/core';
 
 interface Props {
   scores: ScoreWithRating[];
@@ -15,20 +16,6 @@ interface Props {
 }
 
 
-const DIFF_COLOR: Record<string, string> = {
-  BAS:   '#3fb950',
-  ADV:   '#d4a017',
-  EXP:   '#f64861',
-  MAS:   '#9f51dc',
-  REMAS: '#e4b7eb',
-  UTAGE: '#bf1b5e',
-  bas:   '#3fb950',
-  adv:   '#d4a017',
-  exp:   '#f64861',
-  mas:   '#9f51dc',
-  remas: '#e4b7eb',
-  utage: '#bf1b5e',
-};
 
 const TIERS = [
   { name: 'SSS+', min: 100.5 },

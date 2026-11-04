@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Trash2, Plus, Zap, Calculator, Sparkles, ChevronRight, Search, Loader2 } from 'lucide-react';
 import { chartOf, chartsOf, solvePlayDetails, SongIndex } from '@maimai-suite/core';
 import type { Song } from '@maimai-suite/core';
+import { DIFF_COLOR as DIFF_COLORS } from '@maimai-suite/core';
 
 interface MatrixRow {
   cp: string;
@@ -58,14 +59,6 @@ const createInitialTrack = (trackNum: number): TrackFormState => ({
   maxCombo: '',
 });
 
-const DIFF_COLORS: Record<string, string> = {
-  BAS: '#3fb950',
-  ADV: '#d4a017',
-  EXP: '#f64861',
-  MAS: '#9f51dc',
-  REMAS: '#e4b7eb',
-  UTAGE: '#bf1b5e',
-};
 
 const FC_OPTIONS = ['', 'FC', 'FC+', 'AP', 'AP+'];
 const FS_OPTIONS = ['', 'FS', 'FS+', 'FDX', 'FDX+', 'SYNC'];

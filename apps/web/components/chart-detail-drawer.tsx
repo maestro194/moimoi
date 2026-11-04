@@ -8,21 +8,8 @@ import { getJacketUrl } from '@/lib/song-db';
 import { JacketImg } from '@/components/jacket-img';
 import { FCBadge, FSBadge } from '@/components/badges';
 import { formatShortDate } from '@/lib/time';
+import { DIFF_COLOR } from '@maimai-suite/core';
 
-const DIFF_COLOR: Record<string, string> = {
-  BAS:   '#3fb950',
-  ADV:   '#d4a017',
-  EXP:   '#f64861',
-  MAS:   '#9f51dc',
-  REMAS: '#e4b7eb',
-  UTAGE: '#bf1b5e',
-  bas:   '#3fb950',
-  adv:   '#d4a017',
-  exp:   '#f64861',
-  mas:   '#9f51dc',
-  remas: '#e4b7eb',
-  utage: '#bf1b5e',
-};
 
 interface Play {
   id: number;
