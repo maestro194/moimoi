@@ -1,6 +1,17 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { LayoutDashboard, History, Star, Gamepad2, Settings, Music2 } from 'lucide-react-native';
 import { COLORS } from '@/constants/Theme';
+import { Tap } from '@/components/Tap';
+
+/** Settings lives behind a gear on the Dashboard header, so the bar keeps five tabs. */
+function SettingsButton() {
+  const router = useRouter();
+  return (
+    <Tap label="Settings" style={{ paddingHorizontal: 16, paddingVertical: 10 }} onPress={() => router.push('/settings')}>
+      <Settings size={20} color={COLORS.text} />
+    </Tap>
+  );
+}
 
 export default function TabLayout() {
   return (
@@ -23,6 +34,7 @@ export default function TabLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color }) => <LayoutDashboard size={20} color={color} />,
+          headerRight: () => <SettingsButton />,
         }}
       />
       <Tabs.Screen
@@ -51,13 +63,6 @@ export default function TabLayout() {
         options={{
           title: 'Arcade',
           tabBarIcon: ({ color }) => <Gamepad2 size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <Settings size={22} color={color} />,
         }}
       />
     </Tabs>
