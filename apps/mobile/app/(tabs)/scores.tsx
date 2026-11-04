@@ -24,6 +24,7 @@ import {
 import { chartKey, chartsOf, type ScoreWithRating, type Difficulty } from '@maimai-suite/core';
 import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
+import { RankLetters } from '@/components/RankLetters';
 import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
 import type { FoilInfo } from '@maimai-suite/core';
 
@@ -139,7 +140,7 @@ function ScoreCardBody({ item, index, grid, b15Rank, b35Rank, foil, onOpen }: Sc
 
         <View style={styles.gridBadgesRow}>
           <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-            <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+            <RankLetters label={rankInfo.label} style={styles.rankBadgeText} />
           </View>
           {item.fc && (
             <View style={styles.fcBadge}>
@@ -192,7 +193,7 @@ function ScoreCardBody({ item, index, grid, b15Rank, b35Rank, foil, onOpen }: Sc
             </Text>
           </View>
           <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-            <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+            <RankLetters label={rankInfo.label} style={styles.rankBadgeText} />
           </View>
           {item.fc && (
             <View style={styles.fcBadge}>
@@ -236,7 +237,7 @@ const MatrixCard = React.memo(function MatrixCard({ c, onOpen }: { c: MatrixChar
       <View style={styles.matrixCardOverlay}>
         {rankInfo ? (
           <View style={[styles.matrixRankBadge, { backgroundColor: rankInfo.bg }]}>
-            <Text style={[styles.matrixRankText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+            <RankLetters label={rankInfo.label} style={styles.matrixRankText} />
           </View>
         ) : (
           <View style={styles.matrixUnplayedBadge}>
@@ -546,19 +547,19 @@ export default function ScoresScreen() {
             style={[styles.viewBtn, viewMode === 'grid' && styles.viewBtnActive]}
             onPress={() => setViewMode('grid')}
           >
-            <LayoutGrid size={15} color={viewMode === 'grid' ? '#fff' : COLORS.textMuted} />
+            <LayoutGrid size={15} color={viewMode === 'grid' ? COLORS.white : COLORS.textMuted} />
           </Tap>
           <Tap label="List view" role="tab" selected={viewMode === 'list'}
             style={[styles.viewBtn, viewMode === 'list' && styles.viewBtnActive]}
             onPress={() => setViewMode('list')}
           >
-            <ListIcon size={15} color={viewMode === 'list' ? '#fff' : COLORS.textMuted} />
+            <ListIcon size={15} color={viewMode === 'list' ? COLORS.white : COLORS.textMuted} />
           </Tap>
           <Tap label="Level matrix view" role="tab" selected={viewMode === 'matrix'}
             style={[styles.viewBtn, viewMode === 'matrix' && styles.viewBtnActive]}
             onPress={() => setViewMode('matrix')}
           >
-            <BarChart2 size={15} color={viewMode === 'matrix' ? '#fff' : COLORS.textMuted} />
+            <BarChart2 size={15} color={viewMode === 'matrix' ? COLORS.white : COLORS.textMuted} />
           </Tap>
         </View>
       </View>
@@ -718,7 +719,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   poolTabTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   viewSwitcher: {
     flexDirection: 'row',
@@ -871,7 +872,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#000',
+    backgroundColor: COLORS.black,
   },
   gridJacketImg: {
     width: '100%',
@@ -892,9 +893,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   gridDiffBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#000',
+    color: COLORS.black,
   },
   gridSongTitle: {
     fontSize: 12,
@@ -949,7 +950,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 2,
     overflow: 'hidden',
-    backgroundColor: '#000',
+    backgroundColor: COLORS.black,
   },
   jacketImg: {
     width: '100%',
@@ -983,9 +984,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   diffBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#000',
+    color: COLORS.black,
   },
   rankBadge: {
     paddingHorizontal: 5,
@@ -993,7 +994,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   rankBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
   },
   fcBadge: {
@@ -1003,7 +1004,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(251, 191, 36, 0.2)',
   },
   fcText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: COLORS.amber,
   },
@@ -1050,7 +1051,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   rangeBtnTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   toggleUnplayedBtn: {
     flexDirection: 'row',
@@ -1128,7 +1129,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   matrixRankText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '800',
   },
   matrixUnplayedBadge: {
@@ -1138,12 +1139,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   matrixUnplayedText: {
-    fontSize: 8,
-    color: '#888',
+    fontSize: 10,
+    color: COLORS.textMuted,
     fontWeight: '800',
   },
   matrixCardTitle: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.text,
     padding: 3,
@@ -1167,32 +1168,32 @@ const styles = StyleSheet.create({
   },
   b15RankBadge: {
     backgroundColor: 'rgba(244, 63, 94, 0.25)',
-    borderColor: '#f43f5e',
+    borderColor: COLORS.b15,
   },
   b15RankBadgeText: {
-    color: '#fda4af',
-    fontSize: 9,
+    color: COLORS.b15Text,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   b15RankBadgeTextSmall: {
-    color: '#fda4af',
-    fontSize: 7.5,
+    color: COLORS.b15Text,
+    fontSize: 10,
     fontWeight: '800',
   },
   b35RankBadge: {
     backgroundColor: 'rgba(6, 182, 212, 0.25)',
-    borderColor: '#06b6d4',
+    borderColor: COLORS.b35,
   },
   b35RankBadgeText: {
-    color: '#67e8f9',
-    fontSize: 9,
+    color: COLORS.b35Text,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   b35RankBadgeTextSmall: {
-    color: '#67e8f9',
-    fontSize: 7.5,
+    color: COLORS.b35Text,
+    fontSize: 10,
     fontWeight: '800',
   },
   stdBadge: {
@@ -1204,8 +1205,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   stdText: {
-    color: '#9ca3af',
-    fontSize: 8.5,
+    color: COLORS.textMuted,
+    fontSize: 10.5,
     fontWeight: '800',
   },
 });

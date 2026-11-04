@@ -17,6 +17,7 @@ import { RefreshCw, Sparkles, TrendingUp, Trophy, ArrowRight, Music2, User, Targ
 import { JacketImage } from '@/components/JacketImage';
 import { formatTime } from '@/constants/time';
 import { Tap } from '@/components/Tap';
+import { RankLetters } from '@/components/RankLetters';
 import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
 import { foilKey } from '@maimai-suite/core';
 
@@ -265,7 +266,7 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                   <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-                    <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+                    <RankLetters label={rankInfo.label} style={styles.rankBadgeText} />
                   </View>
                   {item.fc && (
                     <View style={styles.fcBadge}>
@@ -405,7 +406,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   syncButtonText: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -585,7 +586,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 2,
     overflow: 'hidden',
-    backgroundColor: '#000',
+    backgroundColor: COLORS.black,
   },
   jacketImage: {
     width: '100%',
@@ -621,7 +622,7 @@ const styles = StyleSheet.create({
   diffBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#000',
+    color: COLORS.black,
   },
   rankBadge: {
     paddingHorizontal: 6,
@@ -639,7 +640,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(251, 191, 36, 0.2)',
   },
   fcText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: COLORS.amber,
   },
@@ -692,19 +693,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   titleBadge: {
-    backgroundColor: '#3b3839',
+    backgroundColor: COLORS.titlePlate,
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 2,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#555',
+    borderColor: COLORS.titlePlateBorder,
     marginBottom: 4,
   },
   titleBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#fff',
+    color: COLORS.white,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -748,7 +749,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderSubtle,
   },
   profileStatLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.textSubtle,
     letterSpacing: 0.5,
@@ -804,13 +805,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   targetDeltaLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '600',
     color: COLORS.textSubtle,
   },
   targetDeltaVal: {
     fontSize: 16,
     fontWeight: '900',
-    color: '#4ade80',
+    color: COLORS.success,
   },
 });

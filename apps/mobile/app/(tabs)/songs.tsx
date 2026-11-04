@@ -22,6 +22,7 @@ import { versionLabel, chartKey, chartsOf, type ChartInfo } from '@maimai-suite/
 import type { SongRow, ScoreRow } from '../../db/schema';
 import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
+import { RankLetters } from '@/components/RankLetters';
 
 type CategoryKey = 'all' | 'anime' | 'niconico&vocaloid' | 'toho' | 'game&variety' | 'maimai' | 'original&joypolis';
 type LevelFilterKey = 'ALL' | '14+' | '14' | '13+' | '13' | '12+' | '12' | '<=11';
@@ -274,7 +275,7 @@ export default function SongsScreen() {
                 {hasScore ? (
                   <View style={styles.chipScoreInfo}>
                     <View style={[styles.rankBadgeMini, { backgroundColor: rank?.bg }]}>
-                      <Text style={[styles.rankBadgeMiniText, { color: rank?.color }]}>{rank?.label}</Text>
+                      <RankLetters label={rank?.label ?? ''} style={styles.rankBadgeMiniText} />
                     </View>
                     <Text style={styles.chipAchText}>{d.score!.achievement.toFixed(2)}%</Text>
                   </View>
@@ -494,7 +495,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   catTabTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   filterBarWrapper: {
     marginBottom: 8,
@@ -552,7 +553,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   statusBtnTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   sortContainer: {
     flexDirection: 'row',
@@ -609,7 +610,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#000',
+    backgroundColor: COLORS.black,
     borderWidth: 1,
     borderColor: COLORS.borderSubtle,
   },
@@ -632,15 +633,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   typeDx: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: COLORS.amber,
   },
   typeStd: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: COLORS.blue,
   },
   typePillText: {
-    fontSize: 7,
+    fontSize: 10,
     fontWeight: '900',
-    color: '#000',
+    color: COLORS.black,
   },
   songMeta: {
     flex: 1,
@@ -669,7 +670,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   bpmText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '600',
     color: COLORS.textSubtle,
   },
@@ -680,7 +681,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   versionText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.purpleLight,
   },
@@ -706,9 +707,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   diffTagMiniText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '900',
-    color: '#000',
+    color: COLORS.black,
   },
   levelConstantText: {
     fontSize: 11,
@@ -724,16 +725,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   rankBadgeMiniText: {
-    fontSize: 7,
+    fontSize: 10,
     fontWeight: '900',
   },
   chipAchText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.textMuted,
   },
   chipUnplayedText: {
-    fontSize: 9,
+    fontSize: 10,
     color: COLORS.textSubtle,
     fontWeight: '600',
   },

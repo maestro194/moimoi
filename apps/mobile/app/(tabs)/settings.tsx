@@ -144,7 +144,7 @@ export default function SettingsScreen() {
             style={[styles.regionBtn, region === 'intl' && styles.regionBtnActive]}
             onPress={() => setRegion('intl')}
           >
-            <Globe size={14} color={region === 'intl' ? '#fff' : COLORS.textMuted} />
+            <Globe size={14} color={region === 'intl' ? COLORS.white : COLORS.textMuted} />
             <Text style={[styles.regionBtnText, region === 'intl' && styles.regionBtnTextActive]}>
               🌏 International (INTL)
             </Text>
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   regionBtnTextActive: {
-    color: '#fff',
+    color: COLORS.white,
     fontWeight: '700',
   },
   input: {
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   buttonPrimaryText: {
-    color: '#fff',
+    color: COLORS.white,
     fontWeight: '700',
     fontSize: 14,
   },

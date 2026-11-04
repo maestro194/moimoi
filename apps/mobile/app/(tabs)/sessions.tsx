@@ -16,6 +16,7 @@ import { deleteManualPlay } from '../../db/sync';
 import { JacketImage } from '@/components/JacketImage';
 import { formatShortDate, formatTime } from '@/constants/time';
 import { Tap } from '@/components/Tap';
+import { RankLetters } from '@/components/RankLetters';
 
 interface PlayItem {
   id: number;
@@ -293,7 +294,7 @@ export default function SessionsScreen() {
                             <Text style={styles.diffBadgeText}>{play.difficulty}</Text>
                           </View>
                           <View style={[styles.rankBadge, { backgroundColor: rankInfo.bg }]}>
-                            <Text style={[styles.rankBadgeText, { color: rankInfo.color }]}>{rankInfo.label}</Text>
+                            <RankLetters label={rankInfo.label} style={styles.rankBadgeText} />
                           </View>
                           {play.fc && (
                             <View style={styles.fcBadge}>
@@ -596,7 +597,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 2,
     overflow: 'hidden',
-    backgroundColor: '#000',
+    backgroundColor: COLORS.black,
   },
   jacketImg: {
     width: '100%',
@@ -630,9 +631,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   diffBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#000',
+    color: COLORS.black,
   },
   rankBadge: {
     paddingHorizontal: 6,
@@ -640,7 +641,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   rankBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
   },
   fcBadge: {
@@ -650,7 +651,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(251, 191, 36, 0.2)',
   },
   fcText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: COLORS.amber,
   },
@@ -661,7 +662,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(34, 211, 238, 0.2)',
   },
   fsText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: COLORS.cyan,
   },
@@ -716,7 +717,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   tableColHeader: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: COLORS.textSubtle,
     textAlign: 'center',
@@ -742,7 +743,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   miniLossText: {
-    fontSize: 8,
+    fontSize: 10,
     color: COLORS.red,
     marginTop: 1,
   },
@@ -809,7 +810,7 @@ const styles = StyleSheet.create({
   logCreditBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#ffffff',
+    color: COLORS.white,
   },
   manualPlayBadge: {
     backgroundColor: 'rgba(192, 132, 252, 0.15)',
@@ -820,7 +821,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   manualPlayBadgeText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '800',
     color: COLORS.purpleLight,
   },
