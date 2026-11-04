@@ -543,7 +543,7 @@ export default function ManualCreditModal({
               <View style={styles.dropdownList}>
                 {searchResults.map(song => (
                   <Tap label={song.title}
-                    key={song.title}
+                    key={song.song_key ?? song.title}
                     style={styles.dropdownItem}
                     onPress={() => selectSong(song)}
                   >

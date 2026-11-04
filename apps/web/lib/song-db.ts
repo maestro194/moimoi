@@ -1,7 +1,8 @@
 import type { Song } from '@maimai-suite/core';
 import { db } from './db';
 import { songs } from './db/schema';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { songKey, titlesListedTwice } from '@maimai-suite/core';
 
 const OTOGE_DB_INTL_URL = 'https://raw.githubusercontent.com/zvuc/otoge-db/master/maimai/data/music-ex-intl.json';
 const DXDATA_URL        = 'https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json';
@@ -128,9 +129,17 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
   const dataConst: any[] = await resConst.json();
 
   // ── Transform otoge-db data ───────────────────────────────────────────────────
+  // Keyed by song key: two different songs can share a title ("Link"), so a shared title adds the jacket
+  const sharedTitles = titlesListedTwice(dataOtoge);
   const mergedMap = new Map<string, Song>();
+  const byTitle = new Map<string, Song[]>();
   for (const s of dataOtoge) {
-    mergedMap.set(s.title, normalizeSong(s));
+    const song = { ...normalizeSong(s), song_key: songKey(s.title, s.image_url, sharedTitles) };
+    mergedMap.set(song.song_key, song);
+  }
+  for (const song of mergedMap.values()) {
+    const list = byTitle.get(song.title);
+    if (list) list.push(song); else byTitle.set(song.title, [song]);
   }
 
   // ── Enrich with dxrating data ────────────────────────────────────────────────
@@ -140,7 +149,9 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
 
   if (dataDx?.songs && Array.isArray(dataDx.songs)) {
     for (const dxSong of dataDx.songs) {
-      const existing = mergedMap.get(dxSong.title);
+      // dxdata names both "Link" songs "Link": tell them apart by artist
+      const candidates = byTitle.get(dxSong.title) ?? [];
+      const existing = candidates.length === 1 ? candidates[0] : candidates.find(c => c.artist === dxSong.artist);
       if (!existing || !Array.isArray(dxSong.sheets)) continue;
 
       // Walk each sheet to apply constants and region flags
@@ -214,7 +225,7 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
 
   // ── Pin chart constants to CONSTANTS_VERSION (highest priority) ─────────────
   for (const cs of dataConst) {
-    const existing = mergedMap.get(cs.title) as unknown as Record<string, string | undefined> | undefined;
+    const existing = mergedMap.get(songKey(cs.title, cs.image_url, sharedTitles)) as unknown as Record<string, string | undefined> | undefined;
     if (!existing) continue;
     for (const field of CONSTANT_FIELDS) {
       if (cs[field] != null && cs[field] !== '') existing[field] = String(cs[field]);
@@ -225,10 +236,14 @@ export async function refreshSongsDb(): Promise<RefreshResult> {
 
   // ── Persist to DB ────────────────────────────────────────────────────────────
   await persistSongsToDb(merged, dxratingVersion);
+  // A title that became shared leaves its old title-keyed row behind (the mixed-up "Link" row): drop it
+  if (sharedTitles.size > 0) {
+    await db.delete(songs).where(and(inArray(songs.title, [...sharedTitles]), sql`${songs.songKey} = ${songs.title}`));
+  }
 
   // Songs already in the table but missing from the INTL list (JP-listed songs) aren't rewritten
   // above, so pin their constants too — constant fields only, no songs are added.
-  const unlisted = dataConst.filter(cs => !mergedMap.has(cs.title));
+  const unlisted = dataConst.filter(cs => !mergedMap.has(songKey(cs.title, cs.image_url, sharedTitles)));
   await pinConstantsOnExistingRows(unlisted);
 
   // Bust memory cache so next request reads fresh data
@@ -262,20 +277,22 @@ const CONSTANT_COLUMNS: Record<(typeof CONSTANT_FIELDS)[number], keyof typeof so
 
 /** Overwrite just the chart-constant columns of existing `songs` rows from the CONSTANTS_VERSION snapshot. */
 async function pinConstantsOnExistingRows(snapshot: Record<string, unknown>[]): Promise<void> {
-  const titles = snapshot.map(cs => String(cs.title));
-  if (titles.length === 0) return;
+  const shared = titlesListedTwice(snapshot as { title: string }[]);
+  const keyOf = (cs: Record<string, unknown>) => songKey(String(cs.title), String(cs.image_url ?? ''), shared);
+  const keys = snapshot.map(keyOf);
+  if (keys.length === 0) return;
   const existing = new Set(
-    (await db.select({ title: songs.title }).from(songs).where(inArray(songs.title, titles))).map(r => r.title),
+    (await db.select({ key: songs.songKey }).from(songs).where(inArray(songs.songKey, keys))).map(r => r.key),
   );
   for (const cs of snapshot) {
-    if (!existing.has(String(cs.title))) continue;
+    if (!existing.has(keyOf(cs))) continue;
     const patch: Partial<typeof songs.$inferInsert> = {};
     for (const field of CONSTANT_FIELDS) {
       const v = cs[field];
       if (v != null && v !== '') (patch as Record<string, string>)[CONSTANT_COLUMNS[field]] = String(v);
     }
     if (Object.keys(patch).length > 0) {
-      await db.update(songs).set(patch).where(eq(songs.title, String(cs.title)));
+      await db.update(songs).set(patch).where(eq(songs.songKey, keyOf(cs)));
     }
   }
 }
@@ -290,6 +307,7 @@ export async function persistSongsToDb(songList: Song[], dxratingVersion: string
     const batch = songList.slice(i, i + BATCH);
     await db.insert(songs).values(
       batch.map(s => ({
+        songKey:   s.song_key ?? s.title,
         title:     s.title,
         sort:      s.sort      ?? null,
         titleKana: s.title_kana ?? null,
@@ -329,8 +347,9 @@ export async function persistSongsToDb(songList: Song[], dxratingVersion: string
         sheets:    s.sheets ?? null,
       }))
     ).onConflictDoUpdate({
-      target: songs.title,
+      target: songs.songKey,
       set: {
+        title:     sql`excluded.title`,
         sort:      sql`excluded.sort`,
         titleKana: sql`excluded.title_kana`,
         artist:    sql`excluded.artist`,
@@ -378,6 +397,7 @@ export async function persistSongsToDb(songList: Song[], dxratingVersion: string
 async function loadSongsFromDb(): Promise<Song[]> {
   const rows = await db.select().from(songs);
   return rows.map(r => ({
+    song_key:    r.songKey,
     sort:        r.sort        ?? '',
     title:       r.title,
     title_kana:  r.titleKana   ?? '',

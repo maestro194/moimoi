@@ -100,3 +100,16 @@ export class SongIndex<S extends SongLevels> {
     return this.songs;
   }
 }
+
+/** Titles a song list has more than once ("Link"): those songs are keyed title#jacket instead of by title. */
+export function titlesListedTwice(list: readonly { title: string }[]): Set<string> {
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  for (const s of list) (seen.has(s.title) ? twice : seen).add(s.title);
+  return twice;
+}
+
+/** A song's row key: its title, or title#jacket when the title is shared. */
+export function songKey(title: string, imageUrl: string | undefined, shared: ReadonlySet<string>): string {
+  return shared.has(title) ? `${title}#${imageUrl ?? ''}` : title;
+}

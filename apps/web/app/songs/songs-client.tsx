@@ -593,7 +593,7 @@ function SongsContent({ songs, currentVersion, categories }: { songs: Song[]; cu
             const abbrKey = ABBR_TO_KEY[row.abbr] ?? row.abbr.toLowerCase();
             const diffColor = DIFF_COLOR[abbrKey] ?? '#9ca3af';
             return (
-              <div key={`${row.song.title}-${row.type}-${row.abbr}`}
+              <div key={`${row.song.song_key ?? row.song.title}-${row.type}-${row.abbr}`}
                 className="flex items-center px-4 py-2 border-b border-white/5 bg-white/[0.02] cursor-pointer transition-colors hover:bg-white/[0.05]"
                 style={{ borderLeft: `3px solid ${isNew ? '#8957e5' : 'transparent'}` }}
                 onClick={() => setDetailsRow({ song: row.song, type: row.type, difficulty: row.difficulty, abbr: row.abbr })}>

@@ -628,7 +628,7 @@ export function ManualCreditModalWeb({
                   <div className="absolute top-full left-0 right-0 mt-1 z-30 max-h-60 overflow-y-auto rounded-xl bg-[#181822] border border-purple-500/40 shadow-2xl divide-y divide-white/5">
                     {searchResults.map(s => (
                       <button
-                        key={s.title}
+                        key={s.song_key ?? s.title}
                         type="button"
                         onClick={() => selectSong(s)}
                         className="w-full px-3 py-2 text-left hover:bg-white/10 flex items-center justify-between transition-colors group"

@@ -48,7 +48,9 @@ export const settings = pgTable('settings', {
  * All internal level fields use text for consistency.
  */
 export const songs = pgTable('songs', {
-  title: text('title').primaryKey(),
+  // The title, or title#jacket when otoge-db lists the title more than once (two songs named "Link")
+  songKey: text('song_key').primaryKey(),
+  title: text('title').notNull(),
   sort: text('sort'),
   titleKana: text('title_kana'),
   artist: text('artist').notNull(),

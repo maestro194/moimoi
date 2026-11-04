@@ -144,14 +144,15 @@ export async function fetchAndCacheSongs(): Promise<{ count: number; skipped?: b
     for (const song of songList) {
       await sqlite.runAsync(
         `INSERT INTO songs (
-          title, title_kana, artist, catcode, version, image_url,
+          song_key, title, title_kana, artist, catcode, version, image_url,
           lev_mas, lev_mas_i, dx_lev_mas, dx_lev_mas_i,
           lev_exp, lev_exp_i, dx_lev_exp, dx_lev_exp_i,
           lev_adv, lev_adv_i, lev_bas, lev_bas_i,
           lev_remas, lev_remas_i, lev_utage, bpm, sheets,
           dx_lev_bas, dx_lev_bas_i, dx_lev_adv, dx_lev_adv_i, dx_lev_remas, dx_lev_remas_i
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(title) DO UPDATE SET
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(song_key) DO UPDATE SET
+          title = excluded.title,
           title_kana = excluded.title_kana,
           artist = excluded.artist,
           catcode = excluded.catcode,
@@ -181,6 +182,7 @@ export async function fetchAndCacheSongs(): Promise<{ count: number; skipped?: b
           dx_lev_remas = excluded.dx_lev_remas,
           dx_lev_remas_i = excluded.dx_lev_remas_i`,
         [
+          song.song_key ?? song.title,
           song.title,
           song.title_kana ?? null,
           song.artist ?? null,

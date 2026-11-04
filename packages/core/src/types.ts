@@ -9,6 +9,8 @@ export type RatingPool = 'new' | 'old';
 export type SongType = 'STD' | 'DX';
 
 export interface Song {
+  /** Row key: the title, or title#jacket when two songs share a title. */
+  song_key?: string;
   sort?: string;
   title: string;
   title_kana?: string;

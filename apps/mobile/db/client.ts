@@ -12,10 +12,18 @@ export const db = drizzle(sqlite, { schema });
  * Call once at app startup before any queries.
  */
 export async function initDb() {
+  // Songs are keyed by song key now (two songs are titled "Link"). The table is only a cache of
+  // /api/songs, so an older table is dropped and the next sync downloads the list again.
+  const songColumns = sqlite.getAllSync<{ name: string }>(`PRAGMA table_info(songs)`);
+  if (songColumns.length > 0 && !songColumns.some(c => c.name === 'song_key')) {
+    sqlite.execSync(`DROP TABLE songs;`);
+  }
+
   sqlite.execSync(`
     CREATE TABLE IF NOT EXISTS songs (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      title        TEXT NOT NULL UNIQUE,
+      song_key     TEXT NOT NULL UNIQUE,
+      title        TEXT NOT NULL,
       title_kana   TEXT,
       artist       TEXT,
       catcode      TEXT,

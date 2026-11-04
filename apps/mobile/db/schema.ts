@@ -12,6 +12,8 @@ export interface ScoreRow {
 
 export interface SongRow {
   id: number;
+  /** The title, or title#jacket when two songs share a title. */
+  song_key: string;
   title: string;
   title_kana: string | null;
   artist: string | null;
