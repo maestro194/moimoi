@@ -6,3 +6,4 @@ export * from './chart';
 export * from './lookup';
 export * from './version';
 export * from './foil';
+export * from './rank-glyphs';
