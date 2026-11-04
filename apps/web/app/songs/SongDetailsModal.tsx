@@ -10,6 +10,7 @@ import { Song, chartOf, versionLabel } from '@maimai-suite/core';
 import { JacketImg } from '@/components/jacket-img';
 import { useTags } from '@/lib/useTags';
 import type { UnifiedTag, PersonalTagGroup } from '@maimai-suite/core';
+import { DIFF_COLOR as DIFF_COLORS } from '@maimai-suite/core';
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 export interface SongDetailsModalProps {
@@ -25,10 +26,6 @@ export interface SongDetailsModalProps {
 }
 
 // ── Styling maps ───────────────────────────────────────────────────────────────
-const DIFF_COLORS: Record<string, string> = {
-  BAS: '#3fb950', ADV: '#d4a017', EXP: '#f64861',
-  MAS: '#9f51dc', REMAS: '#e4b7eb',
-};
 const DIFF_LABELS: Record<string, string> = {
   BAS: 'BASIC', ADV: 'ADVANCED', EXP: 'EXPERT', MAS: 'MASTER', REMAS: 'Re:MASTER',
 };

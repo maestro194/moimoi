@@ -14,6 +14,7 @@ import { SongDetailsModal } from './SongDetailsModal';
 import { ChartActionModal } from '@/components/chart-action-modal';
 import { useTags } from '@/lib/useTags';
 import SongsLoading from './loading';
+import { DIFF_COLOR } from '@maimai-suite/core';
 
 // ── Module-level cache — survives navigation (lives in JS module scope) ────────
 interface SongsPayload {
@@ -88,10 +89,6 @@ const CAT_LABELS: Record<string, string> = {
   'original&joypolis': 'Original',
 };
 
-const DIFF_COLOR: Record<string, string> = {
-  bas: '#3fb950', adv: '#d4a017', exp: '#f64861',
-  mas: '#9f51dc', remas: '#e4b7eb', utage: '#bf1b5e',
-};
 
 const ABBR_TO_KEY: Record<string, string> = {
   BAS: 'bas', ADV: 'adv', EXP: 'exp', MAS: 'mas', REMAS: 'remas', UTAGE: 'utage',

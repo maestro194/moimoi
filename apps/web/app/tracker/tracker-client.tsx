@@ -11,6 +11,7 @@ import { Jacket } from '@/components/jacket';
 import { useBoard } from '@/lib/useBoard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SongDetailsModal } from '@/app/songs/SongDetailsModal';
+import { DIFF_COLOR } from '@maimai-suite/core';
 
 interface Tracker {
   id: number;
@@ -33,20 +34,6 @@ interface Props {
   initialSession: { id: number; songTitle: string; sheetType: string; sheetDifficulty: string; played: boolean; sortOrder: number; addedAt: string }[];
 }
 
-const DIFF_COLOR: Record<string, string> = {
-  BAS:   '#3fb950',
-  ADV:   '#d4a017',
-  EXP:   '#f64861',
-  MAS:   '#9f51dc',
-  REMAS: '#e4b7eb',
-  UTAGE: '#bf1b5e',
-  bas:   '#3fb950',
-  adv:   '#d4a017',
-  exp:   '#f64861',
-  mas:   '#9f51dc',
-  remas: '#e4b7eb',
-  utage: '#bf1b5e',
-};
 
 type Tab = 'session' | 'goals' | 'lists';
 

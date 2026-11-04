@@ -10,6 +10,7 @@ import { SyncBar } from '@/components/sync-bar';
 import { useRouter } from 'next/navigation';
 import { ManualCreditModalWeb } from '@/components/manual-credit-modal';
 import { formatLongDate, formatTime } from '@/lib/time';
+import { difficultyColor as getDifficultyColor } from '@maimai-suite/core';
 
 interface HydratedLog {
   id: number;
@@ -42,17 +43,6 @@ interface CreditGroup {
 
 // ── Pure helpers (defined outside component — no re-creation on render) ─────────
 
-function getDifficultyColor(diff: string): string {
-  switch (diff.toUpperCase()) {
-    case 'BAS': return '#3fb950';
-    case 'ADV': return '#d4a017';
-    case 'EXP': return '#f64861';
-    case 'MAS': return '#9f51dc';
-    case 'REMAS': return '#e4b7eb';
-    case 'UTAGE': return '#bf1b5e';
-    default: return '#9ca3af';
-  }
-}
 
 /** Same chart, track and achievement — e.g. a manual entry and its synced copy. */
 function isDuplicatePlay(a: HydratedLog, b: HydratedLog): boolean {

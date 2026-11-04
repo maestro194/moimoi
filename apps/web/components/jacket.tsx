@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Difficulty } from '@maimai-suite/core';
 import { JacketImg } from '@/components/jacket-img';
+import { difficultyColor as getDifficultyColor } from '@maimai-suite/core';
 
 interface JacketProps {
   imageUrl?: string | null;
@@ -11,17 +12,6 @@ interface JacketProps {
   className?: string; // Additional classes for the container (e.g. w-16 h-16)
 }
 
-function getDifficultyColor(diff: string): string {
-  switch (diff.toUpperCase()) {
-    case 'BAS': return '#3fb950';
-    case 'ADV': return '#d4a017';
-    case 'EXP': return '#f64861';
-    case 'MAS': return '#9f51dc';
-    case 'REMAS': return '#e4b7eb';
-    case 'UTAGE': return '#bf1b5e';
-    default: return '#9ca3af';
-  }
-}
 
 export function Jacket({ imageUrl, intl, songTitle, difficulty, internalLevel, className = "w-16 h-16" }: JacketProps) {
   const accent = getDifficultyColor(difficulty);

@@ -5,11 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Target, Play, List, ChevronLeft, Check, X } from 'lucide-react';
 import { addTracker } from '@/app/tracker/actions';
 import { useBoard } from '@/lib/useBoard';
+import { DIFF_COLOR } from '@maimai-suite/core';
 
-const DIFF_COLOR: Record<string, string> = {
-  bas: '#3fb950', adv: '#d4a017', exp: '#f64861',
-  mas: '#9f51dc', remas: '#e4b7eb', utage: '#bf1b5e',
-};
 
 interface Props {
   chart: { songTitle: string; diff: string; type: 'DX' | 'STD'; level: number } | null;
