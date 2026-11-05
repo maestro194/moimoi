@@ -19,6 +19,7 @@ import { formatTime } from '@/constants/time';
 import { Tap } from '@/components/Tap';
 import { RankLetters } from '@/components/RankLetters';
 import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
+import { FoilClockProvider } from '@/components/FoilClock';
 import { foilKey } from '@maimai-suite/core';
 
 export default function DashboardScreen() {
@@ -82,6 +83,7 @@ export default function DashboardScreen() {
     .slice(0, 5);
 
   return (
+    <FoilClockProvider>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -349,6 +351,7 @@ export default function DashboardScreen() {
         </View>
       )}
     </ScrollView>
+    </FoilClockProvider>
   );
 }
 

@@ -1,18 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { useIsFocused } from 'expo-router';
 import { foilTagLabel, type FoilInfo, type FoilTier } from '@maimai-suite/core';
-import { useFoilAnimation } from '@/db/foilPref';
+import { useFoilClock } from './FoilClock';
 
 type GradStop = [offset: number, color: string, opacity: number];
 
@@ -56,8 +47,16 @@ const LOOK: Record<FoilTier, TierLook> = {
 };
 
 const FRESH_BLUE = '127, 178, 255';
-/** Rotated square behind the card; big enough to cover any card's corners while turning. */
-const EDGE_SIZE = 900;
+/** Fresh-glow pulse: 1 -> 0.55 -> 1. */
+const PULSE_MS = 2600;
+const ease = Easing.inOut(Easing.ease);
+
+/** Position in a back-and-forth cycle of `period` ms, eased, 0..1..0. */
+function pingPong(t: number, period: number): number {
+  'worklet';
+  const u = (t % period) / period;
+  return ease(u < 0.5 ? u * 2 : 2 - u * 2);
+}
 
 /** Rating number colour for a foil card (mobile uses a solid tier colour instead of gradient text). */
 export function foilRatingColor(foil?: FoilInfo | null): string | undefined {
@@ -86,52 +85,50 @@ interface Props {
   radius: number;
   /** Layout of the whole card in its row (width, margins). */
   style?: StyleProp<ViewStyle>;
+  /** Key of the list row holding the card; it stops updating while that row is off screen. */
+  rowKey?: string;
   children: ReactNode;
 }
 
 /**
- * B50 card foil. Every moving part is a transform or opacity driven by Reanimated on the UI thread,
- * so the JS thread does no work per frame. Animation stops while the tab isn't focused, when the system
- * asks for reduced motion, or when "Foil animation" is off in Settings; the foil then stays still.
+ * B50 card foil. Each pose (edge angle, band position, glow) is a function of the screen's shared
+ * FoilClock, so every card of a tier is in the same phase, also after scrolling back into view.
+ * Moving parts are transform or opacity only, computed on the UI thread. Without a running clock
+ * (tab not focused, reduced motion, "Foil animation" off, or no FoilClockProvider) the foil holds still.
  */
-export function FoilFrame({ foil, radius, style, children }: Props) {
+export function FoilFrame({ foil, radius, style, rowKey, children }: Props) {
   const look = foil.tier ? LOOK[foil.tier] : null;
   const fresh = foil.freshness;
+  const clockCtx = useFoilClock();
+  const clock = clockCtx?.clock;
+  const visible = rowKey ? clockCtx?.visible : null;
 
-  const focused = useIsFocused();
-  const reduced = useReducedMotion();
-  const [enabled] = useFoilAnimation();
-  const active = focused && !reduced && enabled;
+  // Measured once; the edge square only needs to cover the frame's diagonal while it turns
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width: w, height: h } = e.nativeEvent.layout;
+    setSize((s) => (s.w === w && s.h === h ? s : { w, h }));
+  };
+  const edgeSide = Math.ceil(Math.hypot(size.w, size.h)) + 2;
+  const w = size.w;
 
-  const width = useSharedValue(0);
-  const spin = useSharedValue(0);
-  const sweep = useSharedValue(0);
-  const pulse = useSharedValue(1);
-
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(spin);
-      cancelAnimation(sweep);
-      cancelAnimation(pulse);
-      return;
-    }
-    if (look) {
-      spin.value = withRepeat(withTiming(spin.value + 360, { duration: look.spinMs, easing: Easing.linear }), -1, false);
-      sweep.value = withRepeat(withTiming(1, { duration: look.sweepMs / 2, easing: Easing.inOut(Easing.ease) }), -1, true);
-    }
-    if (fresh > 0) pulse.value = withRepeat(withTiming(0.55, { duration: 1300, easing: Easing.inOut(Easing.ease) }), -1, true);
-  }, [active, look, fresh, spin, sweep, pulse]);
-
-  const edgeStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
+  const edgeStyle = useAnimatedStyle(() => {
+    if (!look || !clock) return {};
+    if (visible && rowKey && !visible.value[rowKey]) return {};
+    return { transform: [{ rotate: `${((clock.value % look.spinMs) / look.spinMs) * 360}deg` }] };
+  });
   // The band is three cards wide and slides from one side to the other (center from about -64% to 146%)
-  const bandStyle = useAnimatedStyle(() => ({
-    width: width.value * 3,
-    left: -width.value,
-    transform: [{ translateX: (sweep.value * 2 - 1) * 1.05 * width.value }],
-  }));
-  const glowStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  const bandStyle = useAnimatedStyle(() => {
+    if (!look || !clock) return { transform: [{ translateX: -1.05 * w }] };
+    if (visible && rowKey && !visible.value[rowKey]) return {};
+    return { transform: [{ translateX: (pingPong(clock.value, look.sweepMs) * 2 - 1) * 1.05 * w }] };
+  });
+  const glowStyle = useAnimatedStyle(() => {
+    if (!clock || fresh <= 0) return { opacity: 1 };
+    if (visible && rowKey && !visible.value[rowKey]) return {};
+    return { opacity: 1 - 0.45 * pingPong(clock.value, PULSE_MS) };
+  });
 
-  const onLayout = (e: LayoutChangeEvent) => { width.value = e.nativeEvent.layout.width; };
   const edge = look?.edge ?? 0;
 
   return (
@@ -141,16 +138,23 @@ export function FoilFrame({ foil, radius, style, children }: Props) {
           onLayout={onLayout}
           style={[styles.frame, { padding: edge, borderRadius: radius + edge, boxShadow: look.glow }, foil.isTop1 && styles.top1]}
         >
-          <Animated.View style={[styles.edge, edgeStyle]} pointerEvents="none">
-            <Gradient id="edge" stops={look.edgeStops.map((c, i, a) => [i / (a.length - 1), c, 1])} />
-          </Animated.View>
+          {w > 0 && (
+            <Animated.View
+              style={[styles.edge, { width: edgeSide, height: edgeSide, marginLeft: -edgeSide / 2, marginTop: -edgeSide / 2 }, edgeStyle]}
+              pointerEvents="none"
+            >
+              <Gradient id="edge" stops={look.edgeStops.map((c, i, a) => [i / (a.length - 1), c, 1])} />
+            </Animated.View>
+          )}
           <View style={styles.content}>{children}</View>
           <View style={[StyleSheet.absoluteFill, styles.overlay, { borderRadius: radius + edge }]} pointerEvents="none">
             <Gradient id="tint" stops={look.tint} />
           </View>
-          <Animated.View style={[styles.band, bandStyle]} pointerEvents="none">
-            <Gradient id="band" stops={look.band} x2={1} y2={0.45} />
-          </Animated.View>
+          {w > 0 && (
+            <Animated.View style={[styles.band, { width: w * 3, left: -w }, bandStyle]} pointerEvents="none">
+              <Gradient id="band" stops={look.band} x2={1} y2={0.45} />
+            </Animated.View>
+          )}
         </View>
       ) : (
         <View style={foil.isTop1 ? [styles.top1, { borderRadius: radius }] : undefined}>{children}</View>
@@ -181,12 +185,8 @@ const styles = StyleSheet.create({
   },
   edge: {
     position: 'absolute',
-    width: EDGE_SIZE,
-    height: EDGE_SIZE,
     left: '50%',
     top: '50%',
-    marginLeft: -EDGE_SIZE / 2,
-    marginTop: -EDGE_SIZE / 2,
   },
   overlay: {
     zIndex: 2,

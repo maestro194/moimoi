@@ -26,6 +26,7 @@ import { JacketImage } from '@/components/JacketImage';
 import { Tap } from '@/components/Tap';
 import { RankLetters } from '@/components/RankLetters';
 import { FoilFrame, foilRatingColor, hasFoil } from '@/components/FoilFrame';
+import { FoilClockProvider, useFoilVisibility } from '@/components/FoilClock';
 import type { FoilInfo } from '@maimai-suite/core';
 
 type PoolFilter = 'all' | 'new' | 'old';
@@ -80,15 +81,17 @@ interface ScoreCardProps {
   b35Rank?: number;
   /** Only set for cards in the B15/B35 sections. */
   foil?: FoilInfo;
+  /** List row holding the card, so its foil pauses while the row is off screen. */
+  rowKey?: string;
   onOpen: (item: ScoreWithRating) => void;
 }
 
 // Memoized so scrolling only renders rows entering the window, not every card again
-const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b35Rank, foil, onOpen }: ScoreCardProps) {
+const ScoreCard = React.memo(function ScoreCard({ item, index, grid, b15Rank, b35Rank, foil, rowKey, onOpen }: ScoreCardProps) {
   const card = <ScoreCardBody item={item} index={index} grid={grid} b15Rank={b15Rank} b35Rank={b35Rank} foil={foil} onOpen={onOpen} />;
   if (!hasFoil(foil)) return card;
   return (
-    <FoilFrame foil={foil} radius={grid ? 16 : 14} style={grid ? styles.gridFoilRoot : styles.listFoilRoot}>
+    <FoilFrame foil={foil} radius={grid ? 16 : 14} rowKey={rowKey} style={grid ? styles.gridFoilRoot : styles.listFoilRoot}>
       {card}
     </FoilFrame>
   );
@@ -442,6 +445,8 @@ export default function ScoresScreen() {
   const openChart = useOpenChart();
   const navigateToModal = useCallback((item: ScoreWithRating | MatrixChart) => openChart(item), [openChart]);
 
+  const { visible: foilVisible, onViewableItemsChanged } = useFoilVisibility();
+
   const renderRow = useCallback(({ item: row }: { item: ListRow }) => {
     switch (row.kind) {
       case 'section':
@@ -464,6 +469,7 @@ export default function ScoresScreen() {
                   b15Rank={b15RankMap.get(key)}
                   b35Rank={b35RankMap.get(key)}
                   foil={row.inB50 ? foil.get(key) : undefined}
+                  rowKey={row.key}
                   onOpen={navigateToModal}
                 />
               );
@@ -498,6 +504,7 @@ export default function ScoresScreen() {
   }
 
   return (
+    <FoilClockProvider visible={foilVisible}>
     <View style={styles.container}>
       {/* Search Header */}
       <View style={styles.searchContainer}>
@@ -626,6 +633,7 @@ export default function ScoresScreen() {
         maxToRenderPerBatch={8}
         windowSize={7}
         removeClippedSubviews
+        onViewableItemsChanged={onViewableItemsChanged}
         ListHeaderComponent={viewMode === 'matrix' ? (
           <View>
             {/* Matrix Level Range Selector */}
@@ -655,6 +663,7 @@ export default function ScoresScreen() {
         ) : undefined}
       />
     </View>
+    </FoilClockProvider>
   );
 }
 
