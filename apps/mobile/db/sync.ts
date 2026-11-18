@@ -501,7 +501,7 @@ export function getCachedScores(): Array<ScoreRow & { song?: SongRow | null }> {
  * Get cached recent plays with associated song details.
  */
 export function getCachedRecentPlays(): Array<PlayLogRow & { song?: SongRow | null }> {
-  const playLogs = sqlite.getAllSync<PlayLogRow>(`SELECT * FROM play_log ORDER BY played_at DESC LIMIT 50`);
+  const playLogs = sqlite.getAllSync<PlayLogRow>(`SELECT * FROM play_log ORDER BY played_at DESC, track DESC LIMIT 50`);
   const allSongs = sqlite.getAllSync<SongRow>(`SELECT * FROM songs`);
 
   const songIndex = new SongIndex(allSongs);

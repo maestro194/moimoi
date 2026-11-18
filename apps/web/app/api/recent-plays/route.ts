@@ -16,7 +16,7 @@ export async function GET(request: Request) {
       db
         .select()
         .from(playLog)
-        .orderBy(desc(playLog.playedAt))
+        .orderBy(desc(playLog.playedAt), desc(playLog.track))
         .limit(limit),
       fetchSongs(),
     ]);

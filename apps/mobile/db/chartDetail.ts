@@ -36,7 +36,7 @@ export function loadChartDetail(songs: SongIndex<SongRow>, x: ChartLike): ChartD
       .getAllSync<ScoreRow>(`SELECT * FROM scores WHERE difficulty = ? ORDER BY achievement DESC`, [chart.difficulty])
       .find(s => sameChart(s, chart));
     plays = sqlite
-      .getAllSync<PlayLogRow>(`SELECT * FROM play_log WHERE difficulty = ? ORDER BY played_at DESC`, [chart.difficulty])
+      .getAllSync<PlayLogRow>(`SELECT * FROM play_log WHERE difficulty = ? ORDER BY played_at DESC, track DESC`, [chart.difficulty])
       .filter(p => sameChart(p, chart))
       .slice(0, PLAY_LIMIT);
   } catch {

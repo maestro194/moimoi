@@ -19,7 +19,7 @@ import { scores, playLog, settings, scoreHistory, scoreTrackers } from './db/sch
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { CookieJar } from 'tough-cookie';
 import makeFetchCookie from 'fetch-cookie';
-import { chartKey, solvePlayDetails } from '@maimai-suite/core';
+import { chartKey, newestPlayFirst, solvePlayDetails } from '@maimai-suite/core';
 import { MANUAL_MATCH_WINDOW_MS, findManualDuplicate, isManualPlay, isSamePlay, stripManualFlag, type PlayKey } from './play-dedupe';
 
 const MAIMAI_BASE: Record<Region, string> = {
@@ -631,8 +631,8 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
     const recentHtml = await maimaiGet(region, 'record/', clal!);
     recentScores = parseRecentPage(recentHtml);
     
-    // Sort ascending so oldest goes in first
-    recentScores.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
+    // Oldest first; plays sharing a minute go in track order (the page lists the newer one first)
+    recentScores.sort((a, b) => newestPlayFirst(b, a));
     
     if (onProgress) onProgress(`Saving up to ${recentScores.length} recent plays to play log...`);
     const fetchDetails = async (rs: ParsedRecentScore, label: string) => {
@@ -659,7 +659,8 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
         track: rs.track, achievement: rs.achievement, playedAt: rs.playedAt,
       };
 
-      // Same minute AND same chart — another play (e.g. a manual entry) can share the minute
+      // The same official play: same minute, chart and track (sameOfficialPlay). Replaying a chart
+      // within one minute is a different track, so without the track the replay would be dropped.
       const existing = await db
         .select()
         .from(playLog)
@@ -668,6 +669,7 @@ export async function syncFromMaimaiNet(onProgress?: (msg: string) => void, opti
           eq(playLog.songTitle, rs.songTitle),
           eq(playLog.difficulty, rs.difficulty),
           eq(playLog.songType, songType),
+          eq(playLog.track, rs.track),
         ))
         .limit(1);
 

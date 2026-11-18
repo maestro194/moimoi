@@ -44,7 +44,26 @@ export interface Session<P extends PlayLike> {
   isActive: boolean;
 }
 
-const timeOf = (p: PlayLike) => new Date(p.playedAt ?? p.played_at ?? 0).getTime();
+/** What ordering and matching need from a play: its time (maimai NET gives minutes) and track. */
+type TimedPlay = Pick<PlayLike, 'playedAt' | 'played_at' | 'track'>;
+
+const timeOf = (p: TimedPlay) => new Date(p.playedAt ?? p.played_at ?? 0).getTime();
+
+/**
+ * Newest play first. maimai NET times only go to the minute, so two plays of one credit can share a
+ * time; within a minute the higher track is the later play.
+ */
+export function newestPlayFirst(a: TimedPlay, b: TimedPlay): number {
+  return timeOf(b) - timeOf(a) || (b.track ?? 0) - (a.track ?? 0);
+}
+
+/**
+ * The same official maimai NET play: same chart, same minute and same track. Replaying a chart in
+ * the same minute is always a different track, so the track is what tells the two apart.
+ */
+export function sameOfficialPlay(a: TimedPlay & ChartLike, b: TimedPlay & ChartLike): boolean {
+  return sameChart(a, b) && timeOf(a) === timeOf(b) && (a.track ?? null) === (b.track ?? null);
+}
 const ach = (p: PlayLike) => Number(p.achievement);
 const manual = (p: PlayLike) => !!(p.isManual ?? p.is_manual);
 
@@ -58,7 +77,7 @@ function isDuplicate(a: PlayLike, b: PlayLike): boolean {
  * doesn't count down, or at a gap over SESSION_GAP_MS. Adjacent duplicates collapse (synced row kept).
  */
 export function groupCredits<P extends PlayLike>(plays: readonly P[]): Credit<P>[] {
-  const sorted = [...plays].sort((a, b) => timeOf(b) - timeOf(a));
+  const sorted = [...plays].sort(newestPlayFirst);
   const deduped: P[] = [];
   for (const p of sorted) {
     const prev = deduped[deduped.length - 1];

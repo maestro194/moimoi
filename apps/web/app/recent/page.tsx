@@ -13,7 +13,7 @@ export default async function RecentPage() {
 
   // Fire all independent DB queries in parallel
   const [allLogs, songsData, settingRows] = await Promise.all([
-    db.select().from(playLog).orderBy(desc(playLog.playedAt)),
+    db.select().from(playLog).orderBy(desc(playLog.playedAt), desc(playLog.track)),
     fetchSongs(),
     db.select().from(settings).where(inArray(settings.key, SETTING_KEYS)),
   ]);
